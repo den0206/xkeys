@@ -31,6 +31,7 @@ struct CatalogView: View {
     @State private var selectedTeam: UUID?
     @State private var addingTeam = false
     @State private var addingApp = false
+    @State private var collapsedApps: Set<UUID> = []
     @State private var addingTarget: ManagedApp?
     @State private var addingFile = false
     @State private var creatingBackup = false
@@ -50,8 +51,9 @@ struct CatalogView: View {
         guard case .app(let id) = selection else { return nil }
         return apps.first { $0.id == id }
     }
+    private var rootApps: [ManagedApp] { apps.filter { $0.deletedAt == nil && $0.parentAppID == nil } }
     private var sidebarApps: [ManagedApp] {
-        apps.filter { $0.deletedAt == nil && $0.parentAppID == nil }.flatMap { $0.targets }
+        rootApps.flatMap { collapsedApps.contains($0.id) ? [$0] : $0.targets }
     }
     private var active: [StoredCredential] { credentials.filter { $0.replacedByID == nil && $0.deletedAt == nil && $0.app?.deletedAt == nil } }
 
@@ -60,7 +62,7 @@ struct CatalogView: View {
             header
             Divider()
             HStack(spacing: 0) {
-                sidebar.frame(width: 236)
+                sidebar.frame(width: 276)
                 Divider()
                 detail.frame(maxWidth: .infinity, maxHeight: .infinity)
             }
@@ -179,31 +181,15 @@ struct CatalogView: View {
                     sidebarItem("最近削除した項目", symbol: "trash", scope: .trash,
                                 count: credentials.filter { $0.deletedAt != nil }.count + apps.filter { $0.deletedAt != nil }.count)
                     sidebarHeading("アプリ").padding(.top, 10)
-                    ForEach(sidebarApps) { app in
-                        Button { selection = .app(app.id) } label: {
-                            HStack(spacing: 10) {
-                                AppIcon(app: app, size: 20)
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(app.parentAppID == nil ? app.name : "↳ " + app.name).lineLimit(1)
-                                    if teams.count > 1 { Text(app.team?.name ?? "").font(.system(size: 10)).foregroundStyle(AppMateStyle.secondary) }
+                    ForEach(rootApps) { root in
+                        VStack(alignment: .leading, spacing: 2) {
+                            sidebarApp(root)
+                            if !collapsedApps.contains(root.id) {
+                                ForEach(root.targets.dropFirst()) { target in
+                                    sidebarApp(target).padding(.leading, 40)
                                 }
-                                Spacer(minLength: 0)
-                                if active.contains(where: { record in (app.parentAppID == nil ? app.targets.contains { record.isVisible(in: $0) } : record.isVisible(in: app)) && record.displayState(at: clock) == .expired }) {
-                                    Text("期限切れ").foregroundStyle(AppMateStyle.dangerText).padding(.horizontal, 7).padding(.vertical, 1)
-                                        .background(AppMateStyle.dangerBackground, in: Capsule()).font(.system(size: 11, weight: .bold))
-                                } else if active.contains(where: { record in (app.parentAppID == nil ? app.targets.contains { record.isVisible(in: $0) } : record.isVisible(in: app)) && record.displayState(at: clock).needsRenewal }) {
-                                    Text("注意").foregroundStyle(AppMateStyle.warningText).padding(.horizontal, 7).padding(.vertical, 1)
-                                        .background(AppMateStyle.warningBackground, in: Capsule()).font(.system(size: 11, weight: .bold))
-                                }
-                            }.padding(.horizontal, 10).padding(.vertical, 7)
-                                .background(selection == .app(app.id) ? AppMateStyle.selection : .clear, in: RoundedRectangle(cornerRadius: 6))
-                                .contentShape(Rectangle())
-                        }.buttonStyle(.plain)
-                            .accessibilityAddTraits(selection == .app(app.id) ? .isSelected : [])
-                            .contextMenu {
-                                Button("ターゲットを追加…") { addingTarget = app.product }
-                                Button("App・ターゲットを編集…") { editingApp = app }
                             }
+                        }.padding(.bottom, 6)
                     }
                     sidebarHeading("複数のアプリで使う鍵").padding(.top, 10)
                     sidebarItem("App Store Connect の鍵", symbol: "lock", scope: .shared(.appStoreConnect))
@@ -254,6 +240,70 @@ struct CatalogView: View {
                 }.buttonStyle(AppMateButtonStyle())
             }.padding(.horizontal, 14).padding(.bottom, 14)
         }.background(AppMateStyle.sidebar)
+    }
+
+    private func sidebarApp(_ app: ManagedApp) -> some View {
+        let isRoot = app.parentAppID == nil
+        let grouped = isRoot && app.targets.count > 1
+        let relevant = active.filter { record in
+            isRoot ? app.targets.contains { record.isVisible(in: $0) } : record.isVisible(in: app)
+        }
+        let expired = relevant.contains { $0.displayState(at: clock) == .expired }
+        let attention = relevant.contains { $0.displayState(at: clock).needsRenewal }
+        return HStack(alignment: .top, spacing: 0) {
+            if grouped {
+                Button {
+                    if collapsedApps.contains(app.id) { collapsedApps.remove(app.id) }
+                    else {
+                        if let selectedApp, selectedApp.parentAppID == app.id { selection = .app(app.id) }
+                        collapsedApps.insert(app.id)
+                    }
+                } label: {
+                    Image(systemName: collapsedApps.contains(app.id) ? "chevron.right" : "chevron.down")
+                        .font(.system(size: 10, weight: .semibold)).frame(width: 22, height: 38)
+                        .contentShape(Rectangle())
+                }.buttonStyle(.plain)
+                    .accessibilityLabel(app.name + (collapsedApps.contains(app.id) ? "のターゲットを展開" : "のターゲットを折りたたむ"))
+            } else if isRoot {
+                Color.clear.frame(width: 22, height: 1).accessibilityHidden(true)
+            }
+            Button { selection = .app(app.id) } label: {
+                HStack(alignment: .top, spacing: 8) {
+                    if isRoot { AppIcon(app: app, size: 20).padding(.top, 2) }
+                    else {
+                        Image(systemName: "puzzlepiece.extension")
+                            .foregroundStyle(AppMateStyle.secondary).frame(width: 18, height: 20)
+                            .padding(.top, 2)
+                    }
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(app.name).fontWeight(isRoot ? .semibold : .regular)
+                            .lineLimit(2).fixedSize(horizontal: false, vertical: true)
+                        Text(grouped ? "全\(app.targets.count)ターゲットを表示" : isRoot ? app.platform + " · 本体" : app.platform + " · ターゲット")
+                            .font(.system(size: 10)).foregroundStyle(AppMateStyle.secondary)
+                        if !isRoot || teams.count > 1 {
+                            Text(isRoot ? app.team?.name ?? "" : app.bundleID)
+                                .font(.system(size: 10)).foregroundStyle(AppMateStyle.secondary)
+                                .lineLimit(1).truncationMode(.middle)
+                        }
+                    }.frame(maxWidth: .infinity, alignment: .leading)
+                    if expired || attention {
+                        Image(systemName: expired ? "exclamationmark.circle.fill" : "clock")
+                            .foregroundStyle(expired ? AppMateStyle.dangerText : AppMateStyle.warningText)
+                            .help(expired ? "期限切れの資格情報があります" : "期限が近い資格情報があります")
+                            .accessibilityLabel(expired ? "期限切れあり" : "期限間近")
+                    }
+                }.padding(.vertical, 8).padding(.trailing, 8)
+                    .contentShape(Rectangle())
+            }.buttonStyle(.plain)
+                .help(grouped ? app.name + "：本体と配下の全ターゲットを表示" : app.name + "\n" + app.bundleID)
+                .accessibilityAddTraits(selection == .app(app.id) ? .isSelected : [])
+                .contextMenu {
+                    Button("ターゲットを追加…") { addingTarget = app.product }
+                    Button("App・ターゲットを編集…") { editingApp = app }
+                }
+        }
+        .padding(.leading, isRoot ? 0 : 8)
+        .background(selection == .app(app.id) ? AppMateStyle.selection : .clear, in: RoundedRectangle(cornerRadius: 6))
     }
 
     private func sidebarHeading(_ title: String) -> some View {

@@ -222,31 +222,38 @@ final class AppMateTests: XCTestCase {
 
     @MainActor
     func testCatalogRendersAtMinimumAndDefaultWindowSizes() async throws {
-        let (vault, app, _, _) = try makeVault()
+        let (vault, app, child, _) = try makeVault()
         let key = SymmetricKey(size: .bits256)
         let file = CredentialFile(data: try fixture("cer"), name: "sample.cer")
         _ = try vault.importFile(file, parsed: CredentialParser.parse(file.data, extension: "cer"), app: app, password: nil, confirmUnknownTeam: true, key: key)
-        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("AppMateTests/ScreenChecks")
+        let catalog = AppCatalog(context: vault.context)
+        try catalog.setParent(nil, for: app, name: "Example App Store", platform: app.platform)
+        try catalog.setParent(app.id, for: child, name: "Example Share App Store Extension", platform: child.platform)
+        let directory = URL(fileURLWithPath: "/tmp/app-mate-sidebar-check")
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        for size in [NSSize(width: 1280, height: 800), NSSize(width: 960, height: 640)] {
-            let view = NSHostingView(rootView: CatalogView(container: vault.context.container, navigation: AppNavigation()).modelContainer(vault.context.container))
-            let window = NSWindow(contentRect: NSRect(origin: .zero, size: size), styleMask: [.titled, .resizable], backing: .buffered, defer: false)
-            window.isReleasedWhenClosed = false
-            window.contentView = view
-            view.frame = NSRect(origin: .zero, size: size)
-            window.orderFront(nil)
-            try await Task.sleep(for: .milliseconds(350))
-            view.layoutSubtreeIfNeeded()
-            let bitmap = try XCTUnwrap(view.bitmapImageRepForCachingDisplay(in: view.bounds))
-            view.cacheDisplay(in: view.bounds, to: bitmap)
-            let png = try XCTUnwrap(bitmap.representation(using: .png, properties: [:]))
-            try png.write(to: directory.appendingPathComponent("catalog-\(Int(size.width)).png"))
-            let attachment = XCTAttachment(data: png, uniformTypeIdentifier: "public.png")
-            attachment.name = "catalog-\(Int(size.width))"
-            attachment.lifetime = .keepAlways
-            add(attachment)
-            XCTAssertGreaterThan(png.count, 1000)
-            window.close()
+        for target in [app, child] {
+            let navigation = AppNavigation()
+            navigation.scope = .app(target.id)
+            for size in [NSSize(width: 1280, height: 800), NSSize(width: 960, height: 640)] {
+                let view = NSHostingView(rootView: CatalogView(container: vault.context.container, navigation: navigation).modelContainer(vault.context.container).preferredColorScheme(.dark))
+                let window = NSWindow(contentRect: NSRect(origin: .zero, size: size), styleMask: [.titled, .resizable], backing: .buffered, defer: false)
+                window.isReleasedWhenClosed = false
+                window.contentView = view
+                view.frame = NSRect(origin: .zero, size: size)
+                window.orderFront(nil)
+                try await Task.sleep(for: .milliseconds(350))
+                view.layoutSubtreeIfNeeded()
+                let bitmap = try XCTUnwrap(view.bitmapImageRepForCachingDisplay(in: view.bounds))
+                view.cacheDisplay(in: view.bounds, to: bitmap)
+                let png = try XCTUnwrap(bitmap.representation(using: .png, properties: [:]))
+                try png.write(to: directory.appendingPathComponent("catalog-\(target.id == app.id ? "app" : "target")-\(Int(size.width)).png"))
+                let attachment = XCTAttachment(data: png, uniformTypeIdentifier: "public.png")
+                attachment.name = "catalog-\(target.id == app.id ? "app" : "target")-\(Int(size.width))"
+                attachment.lifetime = .keepAlways
+                add(attachment)
+                XCTAssertGreaterThan(png.count, 1000)
+                window.close()
+        }
         }
     }
 
