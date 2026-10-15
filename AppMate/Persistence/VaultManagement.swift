@@ -88,20 +88,26 @@ struct VaultManagement {
 
     func trash(_ app: ManagedApp, key: SymmetricKey, at now: Date = .now) throws {
         guard app.modelContext === context else { throw VaultError.invalidAssociation }
-        let owned = try vault.records().filter { $0.app?.id == app.id && $0.deletedAt == nil }
+        let targets = app.parentAppID == nil ? app.targets : [app]
+        let ids = Set(targets.map(\.id))
+        let owned = try vault.records().filter { $0.app.map { ids.contains($0.id) } == true && $0.deletedAt == nil }
         for record in owned { _ = try vault.read(record, key: key) }
         try change {
-            app.deletedAt = now
+            for target in targets { target.deletedAt = now }
             for record in owned { record.deletedAt = now }
         }
     }
 
     func restore(_ app: ManagedApp) throws {
         guard app.modelContext === context else { throw VaultError.invalidAssociation }
+        if let parentAppID = app.parentAppID,
+           app.team?.apps.first(where: { $0.id == parentAppID })?.deletedAt != nil { throw ManagementError.parentDeleted }
         let deletedAt = app.deletedAt
-        let owned = try vault.records().filter { $0.app?.id == app.id && $0.deletedAt == deletedAt }
+        let targets = [app] + (app.parentAppID == nil ? app.team?.apps.filter { $0.parentAppID == app.id && $0.deletedAt == deletedAt } ?? [] : [])
+        let ids = Set(targets.map(\.id))
+        let owned = try vault.records().filter { $0.app.map { ids.contains($0.id) } == true && $0.deletedAt == deletedAt }
         try change {
-            app.deletedAt = nil
+            for target in targets { target.deletedAt = nil }
             for record in owned { record.deletedAt = nil }
         }
     }
@@ -153,6 +159,9 @@ struct VaultManagement {
                 }
                 for record in all where record.replacedByID.map(deletedIDs.contains) == true { record.replacedByID = nil }
                 for record in selected { context.delete(record) }
+                for app in try context.fetch(FetchDescriptor<ManagedApp>()) where app.parentAppID.map(appIDs.contains) == true && !appIDs.contains(app.id) {
+                    app.parentAppID = nil
+                }
                 for app in selectedApps { app.team = nil; context.delete(app) }
             }
         } catch {
@@ -170,7 +179,7 @@ enum ManagementError: LocalizedError {
     case parentDeleted, teamNotEmpty, replacementInUse
     var errorDescription: String? {
         switch self {
-        case .parentDeleted: "先に、この資格情報が属するAppを復元してください。"
+        case .parentDeleted: "先に、所属するアプリを復元してください。"
         case .teamNotEmpty: "Appまたは共有資格情報が残っているTeamは削除できません。最近削除した項目も確認してください。"
         case .replacementInUse: "置き換え履歴で参照されています。新旧の関連項目を一緒に完全削除してください。"
         }

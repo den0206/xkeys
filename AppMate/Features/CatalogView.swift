@@ -31,6 +31,7 @@ struct CatalogView: View {
     @State private var selectedTeam: UUID?
     @State private var addingTeam = false
     @State private var addingApp = false
+    @State private var addingTarget: ManagedApp?
     @State private var addingFile = false
     @State private var creatingBackup = false
     @State private var restoringBackup = false
@@ -48,6 +49,9 @@ struct CatalogView: View {
     private var selectedApp: ManagedApp? {
         guard case .app(let id) = selection else { return nil }
         return apps.first { $0.id == id }
+    }
+    private var sidebarApps: [ManagedApp] {
+        apps.filter { $0.deletedAt == nil && $0.parentAppID == nil }.flatMap { $0.targets }
     }
     private var active: [StoredCredential] { credentials.filter { $0.replacedByID == nil && $0.deletedAt == nil && $0.app?.deletedAt == nil } }
 
@@ -103,6 +107,11 @@ struct CatalogView: View {
         }
         .sheet(isPresented: $creatingBackup) {
             BackupView(container: container)
+        }
+        .sheet(item: $addingTarget) { parent in
+            RegistrationForm(container: container, teams: teams, initialTeam: parent.team?.id, isTeam: false, parentApp: parent) { id in
+                selection = .app(id)
+            }
         }
         .sheet(isPresented: $addingTeam, onDismiss: {
             if !onboardingSources.isEmpty && selectedTeam != nil { addingApp = true } else { onboardingSources = [] }
@@ -170,19 +179,19 @@ struct CatalogView: View {
                     sidebarItem("最近削除した項目", symbol: "trash", scope: .trash,
                                 count: credentials.filter { $0.deletedAt != nil }.count + apps.filter { $0.deletedAt != nil }.count)
                     sidebarHeading("アプリ").padding(.top, 10)
-                    ForEach(apps.filter { $0.deletedAt == nil }) { app in
+                    ForEach(sidebarApps) { app in
                         Button { selection = .app(app.id) } label: {
                             HStack(spacing: 10) {
                                 AppIcon(app: app, size: 20)
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text(app.name).lineLimit(1)
+                                    Text(app.parentAppID == nil ? app.name : "↳ " + app.name).lineLimit(1)
                                     if teams.count > 1 { Text(app.team?.name ?? "").font(.system(size: 10)).foregroundStyle(AppMateStyle.secondary) }
                                 }
                                 Spacer(minLength: 0)
-                                if active.contains(where: { $0.isVisible(in: app) && $0.displayState(at: clock) == .expired }) {
+                                if active.contains(where: { record in (app.parentAppID == nil ? app.targets.contains { record.isVisible(in: $0) } : record.isVisible(in: app)) && record.displayState(at: clock) == .expired }) {
                                     Text("期限切れ").foregroundStyle(AppMateStyle.dangerText).padding(.horizontal, 7).padding(.vertical, 1)
                                         .background(AppMateStyle.dangerBackground, in: Capsule()).font(.system(size: 11, weight: .bold))
-                                } else if active.contains(where: { $0.isVisible(in: app) && $0.displayState(at: clock).needsRenewal }) {
+                                } else if active.contains(where: { record in (app.parentAppID == nil ? app.targets.contains { record.isVisible(in: $0) } : record.isVisible(in: app)) && record.displayState(at: clock).needsRenewal }) {
                                     Text("注意").foregroundStyle(AppMateStyle.warningText).padding(.horizontal, 7).padding(.vertical, 1)
                                         .background(AppMateStyle.warningBackground, in: Capsule()).font(.system(size: 11, weight: .bold))
                                 }
@@ -191,7 +200,10 @@ struct CatalogView: View {
                                 .contentShape(Rectangle())
                         }.buttonStyle(.plain)
                             .accessibilityAddTraits(selection == .app(app.id) ? .isSelected : [])
-                            .contextMenu { Button("Appを編集…") { editingApp = app } }
+                            .contextMenu {
+                                Button("ターゲットを追加…") { addingTarget = app.product }
+                                Button("App・ターゲットを編集…") { editingApp = app }
+                            }
                     }
                     sidebarHeading("複数のアプリで使う鍵").padding(.top, 10)
                     sidebarItem("App Store Connect の鍵", symbol: "lock", scope: .shared(.appStoreConnect))
@@ -202,7 +214,7 @@ struct CatalogView: View {
             }
             .focusable().focusEffectDisabled()
             .onMoveCommand { direction in
-                let scopes: [CredentialScope] = (expiredCount > 0 ? [.expired] : []) + (expiringCount > 0 ? [.expiring] : []) + [.all, .trash] + apps.filter { $0.deletedAt == nil }.map { .app($0.id) } + [.shared(.appStoreConnect), .shared(.apns), .shared(.signInWithApple)]
+                let scopes: [CredentialScope] = (expiredCount > 0 ? [.expired] : []) + (expiringCount > 0 ? [.expiring] : []) + [.all, .trash] + sidebarApps.map { .app($0.id) } + [.shared(.appStoreConnect), .shared(.apns), .shared(.signInWithApple)]
                 guard direction == .up || direction == .down else { return }
                 let index = scopes.firstIndex { $0 == selection } ?? (direction == .down ? -1 : scopes.count)
                 selection = scopes[min(max(index + (direction == .down ? 1 : -1), 0), scopes.count - 1)]
@@ -296,6 +308,9 @@ struct RegistrationForm: View {
     let teams: [DeveloperTeam]
     let initialTeam: UUID?
     let isTeam: Bool
+    var parentApp: ManagedApp? = nil
+    var initialBundleID = ""
+    var initialName = ""
     let onSaved: (UUID) -> Void
     @Environment(\.dismiss) private var dismiss
     @State private var name = ""
@@ -312,8 +327,8 @@ struct RegistrationForm: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             VStack(alignment: .leading, spacing: 4) {
-                Text(isTeam ? "チームを追加" : "アプリを追加").font(.system(size: 18, weight: .bold))
-                Text(isTeam ? "Apple Developerのチーム名とTeam IDを入力してください。" : "あとから鍵やファイルを追加できます。")
+                Text(isTeam ? "チームを追加" : parentApp == nil ? "アプリを追加" : "ターゲットを追加").font(.system(size: 18, weight: .bold))
+                Text(isTeam ? "Apple Developerのチーム名とTeam IDを入力してください。" : parentApp.map { "\($0.name) の配下にBundle IDを登録します。" } ?? "最初のターゲット（本体）のBundle IDを登録します。")
                     .foregroundStyle(AppMateStyle.secondary)
             }
             if !isTeam {
@@ -350,11 +365,11 @@ struct RegistrationForm: View {
                         Picker("チーム", selection: $teamID) {
                             Text("選択してください").tag(nil as UUID?)
                             ForEach(registeredTeams) { team in Text("\(team.name)（\(team.teamID)）").tag(Optional(team.id)) }
-                        }.labelsHidden()
+                        }.labelsHidden().disabled(parentApp != nil)
                     }
                     GridRow {
                         Color.clear.frame(width: 120, height: 1)
-                        Button("チームを追加…") { showingAddTeam = true }.buttonStyle(.borderless).foregroundStyle(AppMateStyle.accent)
+                        Button("チームを追加…") { showingAddTeam = true }.buttonStyle(.borderless).foregroundStyle(AppMateStyle.accent).disabled(parentApp != nil)
                     }
                     GridRow {
                         Text("アイコン")
@@ -399,7 +414,10 @@ struct RegistrationForm: View {
             RegistrationForm(container: container, teams: registeredTeams, initialTeam: nil, isTeam: true) { teamID = $0 }
         }
         .onAppear {
-            teamID = initialTeam ?? (teams.count == 1 ? teams.first?.id : nil)
+            teamID = parentApp?.team?.id ?? initialTeam ?? (teams.count == 1 ? teams.first?.id : nil)
+            identifier = initialBundleID
+            name = initialName
+            platform = parentApp?.platform ?? "iOS"
             nameFocused = true
         }
     }
@@ -427,9 +445,10 @@ struct RegistrationForm: View {
             let file = try CredentialFile(url: url)
             let profile = try CredentialParser.parse(file.data, extension: ext)
             guard let bundle = profile.bundleID, !bundle.contains("*") else { throw RegistrationError.invalidBundleID }
+            if let parentApp, let sourceTeam = profile.teamID, sourceTeam != parentApp.team?.teamID { throw VaultError.teamMismatch }
             name = profile.name
             identifier = bundle
-            if let sourceTeam = profile.teamID { teamID = registeredTeams.first { $0.teamID == sourceTeam }?.id }
+            if parentApp == nil, let sourceTeam = profile.teamID { teamID = registeredTeams.first { $0.teamID == sourceTeam }?.id }
             error = nil
         } catch { self.error = error.localizedDescription }
     }
@@ -442,7 +461,7 @@ struct RegistrationForm: View {
                 id = try catalog.addTeam(name: name, teamID: identifier)
             } else {
                 guard let teamID else { throw RegistrationError.teamMissing }
-                id = try catalog.addApp(name: name, bundleID: identifier, platform: platform, teamID: teamID, iconColor: iconColor, iconImage: iconImage)
+                id = try catalog.addApp(name: name, bundleID: identifier, platform: platform, teamID: teamID, iconColor: iconColor, iconImage: iconImage, parentAppID: parentApp?.id)
             }
             onSaved(id)
             dismiss()

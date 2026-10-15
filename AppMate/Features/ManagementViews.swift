@@ -62,6 +62,7 @@ struct CatalogEditor: View {
     let app: ManagedApp?
     @Environment(\.dismiss) private var dismiss
     @State private var name = ""
+    @State private var parentAppID: UUID?
     @State private var platform = "iOS"
     @State private var error: String?
     @State private var deleting = false
@@ -74,6 +75,16 @@ struct CatalogEditor: View {
             Text("識別子と所属Teamは資格情報との関連を保つため固定です。別の識別子は新規登録してください。")
                 .font(.caption).foregroundStyle(.secondary)
             if app != nil { Picker("プラットフォーム", selection: $platform) { ForEach(AppCatalog.platforms, id: \.self) { Text($0).tag($0) } } }
+            if let app {
+                Picker("所属アプリ", selection: $parentAppID) {
+                    Text("独立したアプリ（本体）").tag(nil as UUID?)
+                    ForEach((app.team?.apps ?? []).filter { $0.id != app.id && $0.parentAppID == nil && $0.deletedAt == nil }.sorted { $0.name < $1.name }) { parent in
+                        Text(parent.name).tag(Optional(parent.id))
+                    }
+                }
+                Text("共有拡張などを既存のアプリにまとめられます。Bundle IDと保存済みファイルは変わりません。")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
             if let error { Text(error).foregroundStyle(.red) }
             HStack {
                 Button("削除…", role: .destructive) { deleting = true }
@@ -83,17 +94,18 @@ struct CatalogEditor: View {
                     do {
                         let value = name.trimmingCharacters(in: .whitespacesAndNewlines)
                         guard !value.isEmpty else { throw RegistrationError.nameRequired }
-                        try VaultManagement(vault: vault).change {
-                            if let app { app.name = value; app.platform = platform }
-                            else { team?.name = value }
+                        if let app {
+                            try AppCatalog(context: vault.context).setParent(parentAppID, for: app, name: value, platform: platform)
+                        } else {
+                            try VaultManagement(vault: vault).change { team?.name = value }
                         }
                         dismiss()
                     } catch { self.error = error.localizedDescription }
                 }.keyboardShortcut(.defaultAction).disabled(access.busy)
             }
         }.padding(24).frame(width: 490)
-            .onAppear { name = app?.name ?? team?.name ?? ""; platform = app?.platform ?? "iOS" }
-            .confirmationDialog(app == nil ? "空のTeamを削除しますか？" : "Appと専用ファイルを最近削除した項目へ移しますか？", isPresented: $deleting, titleVisibility: .visible) {
+            .onAppear { name = app?.name ?? team?.name ?? ""; platform = app?.platform ?? "iOS"; parentAppID = app?.parentAppID }
+            .confirmationDialog(app == nil ? "空のTeamを削除しますか？" : "Appと配下のターゲット・専用ファイルを最近削除した項目へ移しますか？", isPresented: $deleting, titleVisibility: .visible) {
                 Button("認証して削除", role: .destructive) {
                     Task { @MainActor in
                         do {

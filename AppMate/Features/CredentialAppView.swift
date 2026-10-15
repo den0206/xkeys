@@ -79,6 +79,8 @@ struct CredentialAppView: View {
     @State private var revealedPassword: String?
     @State private var editingNote = false
     @State private var editingApp = false
+    @State private var addingTarget = false
+    @State private var targetFilter: UUID?
     @State private var copyingCI = false
     @State private var deleting = false
     @State private var deletingApp = false
@@ -90,7 +92,8 @@ struct CredentialAppView: View {
     @State private var revealedAt = Date.distantPast
 
     private var visible: [StoredCredential] {
-        records.filter { CredentialSearch.includes($0, scope: scope, app: app, query: search, type: typeFilter, showReplaced: showReplaced, at: clock) }
+        records.filter { record in
+            (targetFilter == nil || record.isTeamShared || record.app?.id == targetFilter) && CredentialSearch.includes(record, scope: scope, app: app, query: search, type: typeFilter, showReplaced: showReplaced, at: clock) }
             .sorted { ($0.fileExtension == "p8" ? 1 : 0) < ($1.fileExtension == "p8" ? 1 : 0) }
     }
     private var selectedRecord: StoredCredential? { visible.first { $0.id == selected } }
@@ -146,6 +149,11 @@ struct CredentialAppView: View {
             }
         }
         .sheet(isPresented: $editingNote) { NoteEditor(vault: vault, app: selectedRecord == nil ? app : nil, record: selectedRecord) }
+        .sheet(isPresented: $addingTarget) {
+            if let parent = app?.product {
+                RegistrationForm(container: container, teams: parent.team.map { [$0] } ?? [], initialTeam: parent.team?.id, isTeam: false, parentApp: parent) { _ in }
+            }
+        }
         .sheet(isPresented: $editingApp) { CatalogEditor(vault: vault, team: nil, app: app) }
         .sheet(isPresented: $copyingCI) { if let record = selectedRecord { CICopyView(vault: vault, record: record) } }
         .sheet(isPresented: $deleting) {
@@ -160,7 +168,7 @@ struct CredentialAppView: View {
             Button("認証してアプリを削除", role: .destructive) { deleteApp() }
             Button("キャンセル", role: .cancel) {}
         } message: {
-            Text("アプリと専用プロファイルを「最近削除した項目」へ移します。30日間は復元できます。チームで共有する鍵・証明書は残ります。")
+            Text("アプリと配下のターゲット・専用プロファイルを「最近削除した項目」へ移します。30日間は復元できます。チームで共有する鍵・証明書は残ります。")
         }
         .task {
             do {
@@ -204,6 +212,7 @@ struct CredentialAppView: View {
                 Spacer(minLength: 0)
                 Menu {
                     if app != nil {
+                        Button("ターゲットを追加…") { addingTarget = true }
                         Button("App情報") { selected = nil; showingInspector = true }
                         Button("アプリを編集…") { editingApp = true }
                         Button("アプリを削除…", role: .destructive) { deletingApp = true }.disabled(access.busy)
@@ -215,6 +224,16 @@ struct CredentialAppView: View {
                     .menuStyle(.borderlessButton).menuIndicator(.hidden)
                     .frame(width: 28, height: 28).help("表示と管理").accessibilityLabel("表示と管理")
             }.padding(.bottom, 16)
+            if let app, app.parentAppID == nil, app.targets.count > 1 {
+                Picker("ターゲット", selection: $targetFilter) {
+                    Text("すべてのターゲット").tag(nil as UUID?)
+                    ForEach(app.targets) { target in
+                        Text("\(target.id == app.id ? "本体" : target.name) · \(target.bundleID)").tag(Optional(target.id))
+                    }
+                }
+                .onChange(of: targetFilter) { _, _ in lock(dismissImport: false) }
+                .padding(.bottom, 8)
+            }
             let attention = visible.filter { $0.displayState(at: clock).needsRenewal || $0.displayState(at: clock) == .expired }
             if !attention.isEmpty {
                 HStack(alignment: .top, spacing: 10) {
@@ -409,12 +428,17 @@ struct CredentialAppView: View {
         } else if let app {
             VStack(alignment: .leading, spacing: 16) {
                 Text("App情報").font(.system(size: 18, weight: .semibold))
-                metadata("Bundle ID", app.bundleID, monospaced: true)
+                metadata(app.parentAppID == nil ? "本体のBundle ID" : "Bundle ID", app.bundleID, monospaced: true)
+                if app.parentAppID != nil { metadata("所属アプリ", app.product.name) }
+                if app.parentAppID == nil && app.targets.count > 1 {
+                    metadata("ターゲット", app.targets.map { $0.id == app.id ? "本体" : $0.name }.joined(separator: "・"))
+                }
                 metadata("プラットフォーム", app.platform)
                 metadata("チーム", app.team?.name ?? "未設定")
                 metadata("チームID", app.team?.teamID ?? "未設定", monospaced: true)
                 Divider()
-                Button("Appを編集…") { editingApp = true }
+                Button("ターゲットを追加…") { addingTarget = true }
+                Button("App・ターゲットを編集…") { editingApp = true }
                 Button("暗号化メモを開く…") { editingNote = true }
                 Text("中央の鍵やファイルを選ぶと詳細を表示します。")
                     .font(.system(size: 12)).foregroundStyle(.secondary)
@@ -531,6 +555,8 @@ struct CredentialImportView: View {
     var initialSources: [URL] = []
     let onSaved: (UUID) -> Void
     @Environment(\.dismiss) private var dismiss
+    @State private var addingTarget = false
+    @State private var importTargetID: UUID?
     @State private var lastSavedID: UUID?
     @State private var sources: [URL] = []
     @State private var queue: [URL] = []
@@ -565,13 +591,27 @@ struct CredentialImportView: View {
     private var replacementCandidates: [StoredCredential] {
         guard let file else { return [] }
         let ext = (file.name as NSString).pathExtension.lowercased()
-        return existing.filter { $0.isVisible(in: app) && $0.replacedByID == nil && $0.fileExtension == ext && $0.keyPurpose == p8?.purpose.rawValue }
+        return existing.filter { $0.isVisible(in: importApp) && $0.replacedByID == nil && $0.fileExtension == ext && $0.keyPurpose == p8?.purpose.rawValue }
+    }
+    private var importApp: ManagedApp {
+        let targets = app.product.targets
+        if let importTargetID, let target = targets.first(where: { $0.id == importTargetID }) { return target }
+        if let bundle = parsed?.bundleID {
+            if let target = app.target(forProfileBundleID: bundle) { return target }
+        }
+        return app
+    }
+    private var unregisteredBundle: String? {
+        guard let bundle = parsed?.bundleID, !bundle.contains("*"),
+              parsed?.teamID == app.team?.teamID,
+              !app.product.targets.contains(where: { $0.bundleID == bundle }) else { return nil }
+        return bundle
     }
     private var validationIssue: String? {
         guard let file, let parsed else { return nil }
         do {
             if replacing && targetID == nil { return "置き換える旧資格情報を選んでください。" }
-            try vault.validate(file: file, parsed: parsed, app: app, confirmUnknownTeam: confirmUnknownTeam,
+            try vault.validate(file: file, parsed: parsed, app: importApp, confirmUnknownTeam: confirmUnknownTeam,
                                p8: p8, replacingID: replacing ? targetID : nil, confirmReplacement: confirmReplacement)
             return nil
         }
@@ -628,7 +668,7 @@ struct CredentialImportView: View {
                                 Text(file.name).font(.system(size: 12, design: .monospaced)).frame(maxWidth: .infinity, alignment: .leading)
                                 Text(parsed?.kind ?? "確認中").frame(width: 100, alignment: .leading)
                                 Text(parsed?.expiresAt?.formatted(.dateTime.year().month(.twoDigits).day(.twoDigits)) ?? "なし・未確認").frame(width: 100, alignment: .leading)
-                                Text(parsed?.bundleID == nil ? "チームで共通" : app.name).foregroundStyle(AppMateStyle.accent).frame(width: 100, alignment: .leading)
+                                Text(parsed?.bundleID == nil ? "チームで共通" : importApp.name).foregroundStyle(AppMateStyle.accent).frame(width: 100, alignment: .leading)
                             }.padding(.vertical, 10)
                             Divider()
                             ForEach(queue, id: \.self) { url in
@@ -657,6 +697,18 @@ struct CredentialImportView: View {
                         }
                     }
                     if let parsed {
+                        if parsed.bundleID != nil {
+                            Picker("登録先ターゲット", selection: Binding(get: { importApp.id }, set: { importTargetID = $0; targetID = nil; confirmReplacement = false; lastActivity = .now })) {
+                                ForEach(app.product.targets) { target in
+                                    Text("\(target.name) · \(target.bundleID)").tag(target.id)
+                                }
+                            }
+                            if let bundle = unregisteredBundle {
+                                Text("Bundle ID「\(bundle)」のターゲットは未登録です。")
+                                    .font(.caption).foregroundStyle(AppMateStyle.secondary)
+                                Button("このアプリにターゲットを追加…") { addingTarget = true }
+                            }
+                        }
                         if isP8 {
                             Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 14) {
                                 GridRow {
@@ -689,7 +741,7 @@ struct CredentialImportView: View {
                             Toggle("Team IDを判別できないため、\(app.team?.name ?? "選択中のTeam")に割り当てることを確認しました", isOn: $confirmUnknownTeam)
                         }
                         let isP12 = (file?.name as NSString?)?.pathExtension.lowercased() == "p12"
-                        Text(parsed.bundleID == nil ? "同じTeamのすべてのAppに表示されます。" : "このApp専用のプロファイルとして保存します。")
+                        Text(parsed.bundleID == nil ? "同じTeamのすべてのAppに表示されます。" : "「\(importApp.name)」専用のプロファイルとして保存します。")
                         if isP12 {
                             Toggle(".p12のパスワードも暗号化して保存", isOn: $savePassword)
                             Text("証明書チェーンと秘密鍵を含む元の.p12全体を保存・書き出しします。証明書の選択は表示情報だけを変えます。")
@@ -705,7 +757,7 @@ struct CredentialImportView: View {
                                 Text("旧：\(old.name) → 新：\(p8?.purpose.title ?? parsed.name)（\(file?.name ?? "")）")
                                 Text("影響するApp：" + (old.isTeamShared
                                     ? (app.team?.apps.map { "\($0.name)（\($0.bundleID)）" }.sorted().joined(separator: "、") ?? app.name)
-                                    : "\(app.name)（\(app.bundleID)）"))
+                                    : "\(importApp.name)（\(importApp.bundleID)）"))
                                 Toggle("旧→新と共有先を確認しました。旧ファイルを保持して置き換えます", isOn: $confirmReplacement)
                             }
                         }
@@ -743,6 +795,15 @@ struct CredentialImportView: View {
         }
         .padding(.horizontal, 26).padding(.vertical, 24).frame(width: isP8 ? 600 : 720, height: 620)
         .font(.system(size: 13)).buttonStyle(AppMateButtonStyle()).background(AppMateStyle.canvas).tint(AppMateStyle.accent)
+        .sheet(isPresented: $addingTarget) {
+            if let bundle = unregisteredBundle {
+                let parent = app.product
+                RegistrationForm(container: vault.context.container, teams: parent.team.map { [$0] } ?? [], initialTeam: parent.team?.id, isTeam: false, parentApp: parent, initialBundleID: bundle, initialName: parsed?.name ?? "") { id in
+                    importTargetID = id
+                    error = nil
+                }
+            }
+        }
         .task { if !initialSources.isEmpty { start(initialSources) } }
         .onChange(of: password) { _, _ in lastActivity = .now }
         .onChange(of: selected) { _, _ in lastActivity = .now; confirmUnknownTeam = false; targetID = nil; confirmReplacement = false }
@@ -761,6 +822,7 @@ struct CredentialImportView: View {
     }
 
     private func clear() {
+        importTargetID = nil
         parseID = UUID()
         file = nil
         candidates = []
@@ -872,16 +934,17 @@ struct CredentialImportView: View {
         error = nil
         lastActivity = .now
         let password = savePassword ? parsedPassword : nil
+        let destination = importApp
         let confirmed = confirmUnknownTeam
         let metadata = p8
         let replacingID = replacing ? targetID : nil
         let replacementConfirmed = confirmReplacement
         Task { @MainActor in
             do {
-                try vault.validate(file: file, parsed: parsed, app: app, confirmUnknownTeam: confirmed, p8: metadata, replacingID: replacingID, confirmReplacement: replacementConfirmed)
+                try vault.validate(file: file, parsed: parsed, app: destination, confirmUnknownTeam: confirmed, p8: metadata, replacingID: replacingID, confirmReplacement: replacementConfirmed)
                 let canCreate = try vault.canCreateKey()
                 let id = try await access.withKey(reason: "資格情報を暗号化して保存します", allowCreation: canCreate, vault: vault) { key in
-                    try vault.importFile(file, parsed: parsed, app: app, password: password, confirmUnknownTeam: confirmed, key: key, p8: metadata, replacingID: replacingID, confirmReplacement: replacementConfirmed)
+                    try vault.importFile(file, parsed: parsed, app: destination, password: password, confirmUnknownTeam: confirmed, key: key, p8: metadata, replacingID: replacingID, confirmReplacement: replacementConfirmed)
                 }
                 lastSavedID = id
                 completedItems.append("保存済み：" + file.name)

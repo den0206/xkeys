@@ -83,7 +83,7 @@ struct RestorePlan: Sendable {
         }
         let apps = try source.apps.map { value -> BackupSnapshot.App in
             guard let id = appIDs[value.id], let team = teamIDs[value.team] else { throw BackupError.invalid }
-            return .init(id: id, name: value.name, bundleID: value.bundleID, platform: value.platform, team: team, createdAt: value.createdAt, deletedAt: value.deletedAt, note: value.note, iconColor: value.iconColor, iconImage: value.iconImage)
+            return .init(id: id, name: value.name, bundleID: value.bundleID, platform: value.platform, team: team, createdAt: value.createdAt, deletedAt: value.deletedAt, note: value.note, parentAppID: value.parentAppID.flatMap { appIDs[$0] }, iconColor: value.iconColor, iconImage: value.iconImage)
         }
         let credentials = try source.credentials.map { value -> BackupSnapshot.Credential in
             guard let id = credentialIDs[value.id], let team = teamIDs[value.team] else { throw BackupError.invalid }
@@ -108,8 +108,8 @@ struct RestorePlan: Sendable {
         }
         for app in apps {
             let local = localApps[app.id]
-            func summary(_ value: BackupSnapshot.App) -> String { "\(value.name) · \(value.bundleID) · \(value.platform) · 登録 \(value.createdAt.formatted())" }
-            items.append(Item(kind: .app, target: app.id, title: "App · \(app.bundleID)", detail: "表示名・プラットフォーム・アイコン・登録日時・メモ（非表示）・削除状態",
+            func summary(_ value: BackupSnapshot.App) -> String { "\(value.name) · \(value.bundleID) · \(value.platform) · 所属 \(value.parentAppID.flatMap { id in apps.first { $0.id == id }?.name } ?? "独立したアプリ") · 登録 \(value.createdAt.formatted())" }
+            items.append(Item(kind: .app, target: app.id, title: "App · \(app.bundleID)", detail: "表示名・所属アプリ・プラットフォーム・アイコン・登録日時・メモ（非表示）・削除状態",
                               current: local.map(summary), incoming: summary(app),
                               state: local == nil ? .added : local == app ? .duplicate : .conflict))
         }
@@ -148,7 +148,7 @@ struct RestorePlan: Sendable {
         for value in incoming.teams where selected.contains("team:" + value.id.uuidString) { teams[value.id] = value }
         for value in incoming.apps where selected.contains("app:" + value.id.uuidString) { apps[value.id] = value }
         for value in incoming.credentials where selected.contains("credential:" + value.id.uuidString) { credentials[value.id] = value }
-        let result = BackupSnapshot(version: 2, createdAt: .now, appVersion: current.appVersion,
+        let result = BackupSnapshot(version: 3, createdAt: .now, appVersion: current.appVersion,
                                     teams: Array(teams.values), apps: Array(apps.values), credentials: Array(credentials.values), preferences: selected.contains("preferences:" + Self.preferencesID.uuidString) ? incoming.preferences : current.preferences)
         do { try result.validate() }
         catch BackupError.tooLarge { throw BackupError.tooLarge }
@@ -180,7 +180,7 @@ struct BackupRestore {
         if let safetyBackup {
             guard try current.revision() == plan.localRevision, safetyBackup.revision == plan.localRevision else { throw RestoreError.stale }
             var replacement = plan.incoming
-            replacement.version = 2
+            replacement.version = 3
             if replacement.preferences == nil { replacement.preferences = current.preferences }
             final = replacement
             try final.validate()
@@ -209,6 +209,7 @@ struct BackupRestore {
                     app.name = value.name
                     app.bundleID = value.bundleID
                     app.platform = value.platform
+                    app.parentAppID = value.parentAppID
                     app.iconColor = value.iconColor
                     app.iconImage = value.iconImage
                     app.createdAt = value.createdAt
@@ -216,6 +217,7 @@ struct BackupRestore {
                 } else {
                     let app = ManagedApp(name: value.name, bundleID: value.bundleID, platform: value.platform, team: team)
                     app.id = value.id
+                    app.parentAppID = value.parentAppID
                     app.iconColor = value.iconColor
                     app.iconImage = value.iconImage
                     app.createdAt = value.createdAt

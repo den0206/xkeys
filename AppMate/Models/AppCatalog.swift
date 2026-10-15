@@ -26,6 +26,7 @@ final class ManagedApp {
     var createdAt: Date
     var deletedAt: Date?
     var noteBlobID: UUID?
+    var parentAppID: UUID?
     var iconColor: String?
     var iconImage: Data?
 
@@ -38,13 +39,32 @@ final class ManagedApp {
         self.team = team
         createdAt = .now
     }
+
+    var product: ManagedApp {
+        guard let parentAppID else { return self }
+        return team?.apps.first { $0.id == parentAppID } ?? self
+    }
+    var targets: [ManagedApp] {
+        let root = product
+        return [root] + (root.team?.apps.filter { $0.parentAppID == root.id && $0.deletedAt == nil }
+            .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending } ?? [])
+    }
+
+    func target(forProfileBundleID bundleID: String) -> ManagedApp? {
+        let candidates = product.targets
+        if let exact = candidates.first(where: { $0.bundleID == bundleID }) { return exact }
+        let matches = candidates.filter { CredentialVault.profileMatches(bundleID, bundleID: $0.bundleID) }
+        return matches.count == 1 ? matches[0] : nil
+    }
+
 }
 
 enum RegistrationError: LocalizedError {
-    case nameRequired, invalidTeamID, duplicateTeam, invalidBundleID, duplicateApp, invalidPlatform, teamMissing
+    case nameRequired, invalidTeamID, duplicateTeam, invalidBundleID, duplicateApp, invalidPlatform, teamMissing, invalidParent
 
     var errorDescription: String? {
         switch self {
+        case .invalidParent: "同じTeam内の、削除されていないアプリを選んでください。ターゲットを持つアプリは別のアプリの配下へ移動できません。"
         case .nameRequired: "表示名を入力してください。"
         case .invalidTeamID: "Team IDは英大文字と数字の10文字で入力してください。"
         case .duplicateTeam: "このTeam IDは登録済みです。既存のTeamを選択してください。"
@@ -84,7 +104,7 @@ struct AppCatalog {
         } catch { context.rollback(); throw error }
     }
 
-    func addApp(name: String, bundleID: String, platform: String, teamID: UUID, iconColor: String? = nil, iconImage: Data? = nil) throws -> UUID {
+    func addApp(name: String, bundleID: String, platform: String, teamID: UUID, iconColor: String? = nil, iconImage: Data? = nil, parentAppID: UUID? = nil) throws -> UUID {
         guard !context.hasChanges else { throw RestoreError.pendingChanges }
         let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
         let bundleID = bundleID.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -101,9 +121,13 @@ struct AppCatalog {
         let key = teamID.uuidString + ":" + bundleID.lowercased()
         let existing = try context.fetch(FetchDescriptor<ManagedApp>())
         guard !existing.contains(where: { $0.registrationKey == key }) else { throw RegistrationError.duplicateApp }
+        if let parentAppID {
+            guard existing.contains(where: { $0.id == parentAppID && $0.team?.id == teamID && $0.parentAppID == nil && $0.deletedAt == nil }) else { throw RegistrationError.invalidParent }
+        }
         do {
             try BackupHistory.prepare(in: context)
             let app = ManagedApp(name: name, bundleID: bundleID, platform: platform, team: team)
+            app.parentAppID = parentAppID
             app.iconColor = iconColor
             app.iconImage = iconImage
             context.insert(app)
@@ -112,4 +136,22 @@ struct AppCatalog {
             return app.id
         } catch { context.rollback(); throw error }
     }
+
+    func setParent(_ parentAppID: UUID?, for app: ManagedApp, name: String, platform: String) throws {
+        let value = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !value.isEmpty else { throw RegistrationError.nameRequired }
+        guard Self.platforms.contains(platform), app.modelContext === context, app.deletedAt == nil else { throw RegistrationError.invalidParent }
+        let apps = try context.fetch(FetchDescriptor<ManagedApp>())
+        if let parentAppID {
+            guard parentAppID != app.id,
+                  !apps.contains(where: { $0.parentAppID == app.id }),
+                  apps.contains(where: { $0.id == parentAppID && $0.team?.id == app.team?.id && $0.parentAppID == nil && $0.deletedAt == nil }) else { throw RegistrationError.invalidParent }
+        }
+        try VaultManagement(vault: CredentialVault(context: context, blobs: EncryptedBlobStore(directory: CredentialVault.directory))).change {
+            app.name = value
+            app.platform = platform
+            app.parentAppID = parentAppID
+        }
+    }
+
 }

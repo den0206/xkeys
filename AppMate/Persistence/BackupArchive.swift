@@ -18,6 +18,7 @@ struct BackupSnapshot: Codable, Sendable, Equatable {
         let createdAt: Date
         var deletedAt: Date? = nil
         var note: String? = nil
+        var parentAppID: UUID? = nil
         var iconColor: String? = nil
         var iconImage: Data? = nil
     }
@@ -65,7 +66,7 @@ struct BackupSnapshot: Codable, Sendable, Equatable {
         }
         let apps = try vault.context.fetch(FetchDescriptor<ManagedApp>()).map { app in
             guard let team = app.team else { throw VaultError.invalidAssociation }
-            return App(id: app.id, name: app.name, bundleID: app.bundleID, platform: app.platform, team: team.id, createdAt: app.createdAt, deletedAt: app.deletedAt, note: try VaultManagement(vault: vault).readNote(app, key: key), iconColor: app.iconColor, iconImage: app.iconImage)
+            return App(id: app.id, name: app.name, bundleID: app.bundleID, platform: app.platform, team: team.id, createdAt: app.createdAt, deletedAt: app.deletedAt, note: try VaultManagement(vault: vault).readNote(app, key: key), parentAppID: app.parentAppID, iconColor: app.iconColor, iconImage: app.iconImage)
         }
         var credentials: [Credential] = []
         var originalBytes = 0
@@ -84,7 +85,7 @@ struct BackupSnapshot: Codable, Sendable, Equatable {
                 issuerID: record.issuerID, replacesCredentialID: record.replacesCredentialID, replacedByID: record.replacedByID,
                 original: payload.original, password: payload.password, note: payload.note, deletedAt: record.deletedAt, revokedAt: record.revokedAt))
         }
-        let snapshot = BackupSnapshot(version: 2, createdAt: .now,
+        let snapshot = BackupSnapshot(version: 3, createdAt: .now,
                                       appVersion: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "development",
                                       teams: teams, apps: apps, credentials: credentials, preferences: try PreferencesStore.read(in: vault.context))
         try snapshot.validate()
@@ -92,9 +93,11 @@ struct BackupSnapshot: Codable, Sendable, Equatable {
     }
 
     func selecting(appIDs: Set<UUID>) throws -> BackupSnapshot {
-        let selectedApps = apps.filter { appIDs.contains($0.id) }
+        let roots = Set(apps.filter { appIDs.contains($0.id) }.map { $0.parentAppID ?? $0.id })
+        let selectedApps = apps.filter { roots.contains($0.parentAppID ?? $0.id) }
+        let selectedIDs = Set(selectedApps.map(\.id))
         let teamIDs = Set(selectedApps.map(\.team))
-        let selectedRecords = credentials.filter { $0.isTeamShared ? teamIDs.contains($0.team) : $0.app.map(appIDs.contains) == true }
+        let selectedRecords = credentials.filter { $0.isTeamShared ? teamIDs.contains($0.team) : $0.app.map(selectedIDs.contains) == true }
         let result = BackupSnapshot(version: version, createdAt: createdAt, appVersion: appVersion, teams: teams.filter { teamIDs.contains($0.id) }, apps: selectedApps, credentials: selectedRecords)
         try result.validate()
         return result
@@ -116,7 +119,8 @@ struct BackupSnapshot: Codable, Sendable, Equatable {
         if version == 1 {
             guard preferences == nil, apps.allSatisfy({ $0.note == nil && $0.deletedAt == nil && $0.iconColor == nil && $0.iconImage == nil }), credentials.allSatisfy({ $0.note == nil && $0.deletedAt == nil && $0.revokedAt == nil }) else { throw BackupError.invalid }
         }
-        guard [1, 2].contains(version), teams.count <= 1000, apps.count <= 10000, credentials.count <= 10000,
+        if version < 3 && apps.contains(where: { $0.parentAppID != nil }) { throw BackupError.invalid }
+        guard [1, 2, 3].contains(version), teams.count <= 1000, apps.count <= 10000, credentials.count <= 10000,
               Set(teams.map(\.id)).count == teams.count, Set(teams.map(\.teamID)).count == teams.count,
               Set(apps.map(\.id)).count == apps.count, Set(credentials.map(\.id)).count == credentials.count,
               Set(credentials.map(\.registrationKey)).count == credentials.count else { throw BackupError.invalid }
@@ -139,6 +143,12 @@ struct BackupSnapshot: Codable, Sendable, Equatable {
                   app.bundleID.range(of: "^[A-Za-z0-9-]+(?:\\.[A-Za-z0-9-]+)*$", options: .regularExpression) != nil,
                   ["iOS", "macOS", "iPadOS", "watchOS", "tvOS", "visionOS"].contains(app.platform),
                   appKeys.insert(app.team.uuidString + ":" + app.bundleID.lowercased()).inserted else { throw BackupError.invalid }
+        }
+        for app in apps {
+            if let parentID = app.parentAppID {
+                guard parentID != app.id, let parent = appValues[parentID], parent.team == app.team,
+                      parent.parentAppID == nil, parent.deletedAt == nil || app.deletedAt != nil else { throw BackupError.invalid }
+            }
         }
         var totalBytes = 0
         for record in credentials {

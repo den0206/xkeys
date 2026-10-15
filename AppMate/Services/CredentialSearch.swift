@@ -39,7 +39,9 @@ enum CredentialSearch {
         case .all: return true
         case .expired: return record.displayState(at: now) == .expired
         case .expiring: return record.displayState(at: now).needsRenewal
-        case .app: return app.map { record.isVisible(in: $0) } ?? false
+        case .app: return app.map { app in
+            app.parentAppID == nil ? app.targets.contains { record.isVisible(in: $0) } : record.isVisible(in: app)
+        } ?? false
         case .shared(let purpose): return record.isTeamShared && record.keyPurpose == purpose.rawValue
         }
     }
@@ -51,7 +53,7 @@ enum CredentialSearch {
                       record.keyID ?? "", record.issuerID ?? "", record.bundleID ?? "",
                       record.team?.name ?? "", record.team?.teamID ?? ""]
         let apps = record.isTeamShared ? record.team?.apps ?? [] : record.app.map { [$0] } ?? []
-        fields += apps.flatMap { [$0.name, $0.bundleID, $0.platform] }
+        fields += apps.flatMap { [$0.name, $0.bundleID, $0.platform, $0.product.name] }
         return words.allSatisfy { word in fields.contains { $0.localizedStandardContains(word) } }
     }
 }

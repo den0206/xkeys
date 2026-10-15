@@ -8,6 +8,112 @@ import XCTest
 
 final class AppMateTests: XCTestCase {
     @MainActor
+    func testTargetsGroupExistingAppsAndRouteProfilesWithoutChangingCredentials() throws {
+        let (vault, root, child, other) = try makeVault()
+        defer { try? FileManager.default.removeItem(at: vault.blobs.directory) }
+        let key = SymmetricKey(size: .bits256)
+        let profile = CredentialFile(data: try fixture("mobileprovision"), name: "sample.mobileprovision")
+        let parsed = try CredentialParser.parse(profile.data, extension: "mobileprovision")
+        // The fixture's profile belongs to root; use that existing target as the extension.
+        try AppCatalog(context: vault.context).setParent(child.id, for: root, name: root.name, platform: root.platform)
+        let id = try vault.importFile(profile, parsed: parsed, app: root, password: nil, confirmUnknownTeam: false, key: key)
+        let record = try XCTUnwrap(vault.records().first { $0.id == id })
+        XCTAssertEqual(child.targets.count, 2)
+        XCTAssertEqual(child.target(forProfileBundleID: root.bundleID)?.id, root.id)
+        XCTAssertNil(child.target(forProfileBundleID: "com.example.unregistered"))
+        XCTAssertNil(child.target(forProfileBundleID: "*"))
+        XCTAssertTrue(CredentialSearch.includes(record, scope: .app(child.id), app: child, query: "", type: .all, showReplaced: false, at: .now))
+        XCTAssertFalse(record.isVisible(in: child))
+        XCTAssertThrowsError(try AppCatalog(context: vault.context).setParent(root.id, for: child, name: child.name, platform: child.platform))
+        XCTAssertThrowsError(try AppCatalog(context: vault.context).setParent(other.id, for: root, name: root.name, platform: root.platform))
+        let aad = try record.authenticatedData()
+        try AppCatalog(context: vault.context).setParent(nil, for: root, name: root.name, platform: root.platform)
+        XCTAssertEqual(try record.authenticatedData(), aad)
+        XCTAssertEqual(try vault.read(record, key: key).original, profile.data)
+    }
+
+    @MainActor
+    func testTargetRegistrationAndBackupRelationshipsRoundTrip() throws {
+        let (vault, root, _, other) = try makeVault()
+        defer { try? FileManager.default.removeItem(at: vault.blobs.directory) }
+        let catalog = AppCatalog(context: vault.context)
+        let teamID = try XCTUnwrap(root.team?.id)
+        let id = try catalog.addApp(name: "Share", bundleID: "com.example.AppMate.fixture.share", platform: "iOS", teamID: teamID, parentAppID: root.id)
+        XCTAssertThrowsError(try catalog.addApp(name: "Wrong Team", bundleID: "com.example.wrong", platform: "iOS", teamID: teamID, parentAppID: other.id))
+        let child = try XCTUnwrap(root.targets.first { $0.id == id })
+        XCTAssertEqual(child.product.id, root.id)
+        let key = SymmetricKey(size: .bits256)
+        let snapshot = try BackupSnapshot.capture(vault: vault, key: key)
+        XCTAssertEqual(snapshot.apps.first { $0.id == id }?.parentAppID, root.id)
+        let selected = try snapshot.selecting(appIDs: [id])
+        XCTAssertEqual(Set(selected.apps.map(\.id)), [root.id, id])
+        let decoded = try BackupArchive.decode(BackupArchive.encode(selected, password: nil), password: nil)
+        XCTAssertEqual(decoded, selected)
+        var invalid = selected
+        invalid.version = 2
+        XCTAssertThrowsError(try invalid.validate())
+        let (destination, localRoot, _, _) = try makeVault()
+        defer { try? FileManager.default.removeItem(at: destination.blobs.directory) }
+        let plan = try BackupRestore(vault: destination).prepare(decoded, key: key)
+        let choices = Dictionary(uniqueKeysWithValues: plan.conflicts.map { ($0.id, RestoreChoice.backup) })
+        _ = try BackupRestore(vault: destination).merge(plan, choices: choices, key: key)
+        let restored = try XCTUnwrap(destination.context.fetch(FetchDescriptor<ManagedApp>()).first { $0.bundleID == child.bundleID })
+        XCTAssertEqual(restored.parentAppID, localRoot.id)
+        XCTAssertEqual(restored.product.id, localRoot.id)
+    }
+
+    @MainActor
+    func testBackupRejectsInvalidTargetParents() throws {
+        let (vault, root, child, other) = try makeVault()
+        defer { try? FileManager.default.removeItem(at: vault.blobs.directory) }
+        let source = try BackupSnapshot.capture(vault: vault, key: SymmetricKey(size: .bits256))
+        for parent in [child.id, other.id, UUID()] {
+            let apps = source.apps.map { value -> BackupSnapshot.App in
+                var value = value
+                if value.id == child.id { value.parentAppID = parent }
+                return value
+            }
+            let invalid = BackupSnapshot(version: 3, createdAt: source.createdAt, appVersion: source.appVersion,
+                                         teams: source.teams, apps: apps, credentials: source.credentials)
+            XCTAssertThrowsError(try invalid.validate())
+        }
+        let nestedApps = source.apps.map { value -> BackupSnapshot.App in
+            var value = value
+            if value.id == root.id { value.parentAppID = child.id }
+            if value.id == child.id { value.parentAppID = root.id }
+            return value
+        }
+        XCTAssertThrowsError(try BackupSnapshot(version: 3, createdAt: source.createdAt, appVersion: source.appVersion,
+                                              teams: source.teams, apps: nestedApps, credentials: source.credentials).validate())
+    }
+
+    @MainActor
+    func testTargetTrashRestoreAndParentPurgePreserveRelationships() throws {
+        let (vault, root, child, _) = try makeVault()
+        defer { try? FileManager.default.removeItem(at: vault.blobs.directory) }
+        try AppCatalog(context: vault.context).setParent(root.id, for: child, name: child.name, platform: child.platform)
+        let management = VaultManagement(vault: vault)
+        let key = SymmetricKey(size: .bits256)
+        try management.trash(root, key: key)
+        XCTAssertNotNil(child.deletedAt)
+        XCTAssertThrowsError(try management.restore(child))
+        try management.restore(root)
+        XCTAssertNil(root.deletedAt)
+        XCTAssertNil(child.deletedAt)
+        try management.trash(child, key: key)
+        let childDeletedAt = child.deletedAt
+        try management.trash(root, key: key)
+        try management.restore(root)
+        XCTAssertEqual(child.deletedAt, childDeletedAt)
+        try management.trash(root, key: key)
+        try management.purge(records: [], apps: [root], key: key)
+        XCTAssertNil(child.parentAppID)
+        try management.restore(child)
+        XCTAssertNil(child.deletedAt)
+        _ = try BackupSnapshot.capture(vault: vault, key: key)
+    }
+
+    @MainActor
     func testP8ImportsWithoutUnknownTeamConfirmation() throws {
         let (vault, app, sibling, other) = try makeVault()
         defer { try? FileManager.default.removeItem(at: vault.blobs.directory) }
@@ -451,7 +557,7 @@ final class AppMateTests: XCTestCase {
         let key = SymmetricKey(size: .bits256)
         let snapshot = try BackupSnapshot.capture(vault: vault, key: key)
         XCTAssertEqual(snapshot.preferences, prefs)
-        XCTAssertEqual(snapshot.version, 2)
+        XCTAssertEqual(snapshot.version, 3)
         var downgraded = snapshot; downgraded.version = 1
         XCTAssertThrowsError(try downgraded.validate())
         let (other, _, _, _) = try makeVault()
@@ -512,7 +618,7 @@ final class AppMateTests: XCTestCase {
         try Data([2]).write(to: root.appendingPathComponent("ignore.txt"))
         try FileManager.default.createSymbolicLink(at: root.appendingPathComponent("loop"), withDestinationURL: root)
         try FileManager.default.createSymbolicLink(at: root.appendingPathComponent("linked.cer"), withDestinationURL: file)
-        XCTAssertEqual(try ImportSources.collect([root, file]), [file])
+        XCTAssertEqual(try ImportSources.collect([root, file]).map { $0.resolvingSymlinksInPath() }, [file.resolvingSymlinksInPath()])
         XCTAssertThrowsError(try ImportSources.collect([root.appendingPathComponent("linked.cer")]))
     }
 

@@ -84,19 +84,19 @@ struct BackupView: View {
                         Text("対象").font(.system(size: 12, weight: .bold))
                         if onSafetyBackup == nil {
                             Picker("対象", selection: $selectedOnly) {
-                                Text("すべて（アプリ \(apps.count) · 鍵とファイル \(credentials.count) · 設定）").tag(false)
+                                Text("すべて（アプリ \(apps.filter { $0.parentAppID == nil }.count) · 鍵とファイル \(credentials.count) · 設定）").tag(false)
                                 Text("アプリを選ぶ…").tag(true)
                             }.pickerStyle(.radioGroup).labelsHidden()
-                        } else { Text("すべて（チーム \(teams.count) · アプリ \(apps.count) · 鍵とファイル \(credentials.count)）") }
+                        } else { Text("すべて（チーム \(teams.count) · アプリ \(apps.filter { $0.parentAppID == nil }.count) · 鍵とファイル \(credentials.count)）") }
                         if selectedOnly {
                             ScrollView {
                                 VStack(alignment: .leading) {
-                                    ForEach(apps) { app in
+                                    ForEach(apps.filter { $0.parentAppID == nil }) { app in
                                         Toggle(app.name, isOn: Binding(get: { selectedApps.contains(app.id) }, set: { if $0 { selectedApps.insert(app.id) } else { selectedApps.remove(app.id) } }))
                                     }
                                 }
                             }.frame(maxHeight: 100)
-                            Text("必要なTeamと共有資格情報を含めます。全体の未バックアップ件数は解除しません。").font(.caption)
+                            Text("配下の全ターゲット・必要なTeamと共有資格情報を含めます。全体の未バックアップ件数は解除しません。").font(.caption)
                         }
                     }
                     VStack(alignment: .leading, spacing: 8) {
