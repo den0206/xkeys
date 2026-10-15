@@ -63,6 +63,7 @@ struct AppCatalog {
     let context: ModelContext
 
     func addTeam(name: String, teamID: String) throws -> UUID {
+        guard !context.hasChanges else { throw RestoreError.pendingChanges }
         let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
         let teamID = teamID.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty else { throw RegistrationError.nameRequired }
@@ -84,6 +85,7 @@ struct AppCatalog {
     }
 
     func addApp(name: String, bundleID: String, platform: String, teamID: UUID, iconColor: String? = nil, iconImage: Data? = nil) throws -> UUID {
+        guard !context.hasChanges else { throw RestoreError.pendingChanges }
         let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
         let bundleID = bundleID.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty else { throw RegistrationError.nameRequired }

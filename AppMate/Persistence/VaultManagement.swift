@@ -121,13 +121,15 @@ struct VaultManagement {
     func purge(records: [StoredCredential], apps: [ManagedApp], at now: Date = .now, expiredOnly: Bool = false, key: SymmetricKey? = nil) throws {
         let cutoff = now.addingTimeInterval(-30 * 86400)
         let all = try vault.records()
+        let children = Dictionary(grouping: all, by: { $0.app?.id })
+        let selectedIDs = Set(records.filter { $0.deletedAt.map { !expiredOnly || $0 <= cutoff } ?? false }.map(\.id))
         let selectedApps = apps.filter { app in
             guard app.deletedAt.map({ !expiredOnly || $0 <= cutoff }) == true else { return false }
-            return !expiredOnly || all.filter { $0.app?.id == app.id }.allSatisfy { $0.deletedAt.map { $0 <= cutoff } == true }
+            return !expiredOnly || (children[app.id] ?? []).allSatisfy { $0.deletedAt.map { $0 <= cutoff } == true }
         }
         let appIDs = Set(selectedApps.map(\.id))
         let selected = all.filter { record in
-            appIDs.contains(record.app?.id ?? UUID()) || records.contains(where: { $0.id == record.id && ($0.deletedAt.map { !expiredOnly || $0 <= cutoff } ?? false) })
+            record.app.map { appIDs.contains($0.id) } == true || selectedIDs.contains(record.id)
         }
         guard !selected.isEmpty || !selectedApps.isEmpty else { return }
         let deletedIDs = Set(selected.map(\.id))

@@ -221,7 +221,6 @@ struct BackupRestore {
                     app.createdAt = value.createdAt
                     app.deletedAt = value.deletedAt
                     context.insert(app)
-                    app.deletedAt = value.deletedAt
                     apps[value.id] = app
                 }
             }

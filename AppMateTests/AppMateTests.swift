@@ -8,6 +8,69 @@ import XCTest
 
 final class AppMateTests: XCTestCase {
     @MainActor
+    func testCatalogAndCredentialWritesPreserveOtherPendingChanges() throws {
+        let (vault, app, _, _) = try makeVault()
+        defer { try? FileManager.default.removeItem(at: vault.blobs.directory) }
+        let key = SymmetricKey(size: .bits256)
+        let metadata = P8Metadata(purpose: .apns, keyID: "DUMMYKEY01", issuerID: nil)
+        let oldFile = p8File()
+        let oldID = try vault.importFile(oldFile, parsed: CredentialParser.parse(oldFile.data, extension: "p8"), app: app,
+                                         password: nil, confirmUnknownTeam: true, key: key, p8: metadata)
+        let newFile = p8File()
+        let parsed = try CredentialParser.parse(newFile.data, extension: "p8")
+        try vault.importFile(newFile, parsed: parsed, app: app, password: nil, confirmUnknownTeam: true,
+                             key: key, p8: metadata, replacingID: oldID, confirmReplacement: true)
+        let old = try XCTUnwrap(vault.records().first { $0.id == oldID })
+        let replacement = old.replacedByID
+        let files = try FileManager.default.contentsOfDirectory(atPath: vault.blobs.directory.path).sorted()
+        let history = try vault.context.fetchCount(FetchDescriptor<BackupChange>())
+        let teamID = try XCTUnwrap(app.team?.id)
+        app.name = "pending edit"
+        let catalog = AppCatalog(context: vault.context)
+        let extra = p8File()
+        for operation: () throws -> Void in [
+            { _ = try catalog.addTeam(name: "Extra", teamID: "EXTRATEAM1") },
+            { _ = try catalog.addApp(name: "Extra", bundleID: "com.example.extra", platform: "iOS", teamID: teamID) },
+            { _ = try vault.importFile(extra, parsed: CredentialParser.parse(extra.data, extension: "p8"), app: app,
+                                      password: nil, confirmUnknownTeam: true, key: key, p8: metadata) },
+            { try vault.restoreToList(old, key: key) }
+        ] {
+            XCTAssertThrowsError(try operation()) { error in
+                guard case RestoreError.pendingChanges = error else { return XCTFail("Unexpected error: \(error)") }
+            }
+            XCTAssertTrue(vault.context.hasChanges)
+            XCTAssertEqual(app.name, "pending edit")
+        }
+        XCTAssertEqual(old.replacedByID, replacement)
+        XCTAssertEqual(try vault.records().count, 2)
+        XCTAssertEqual(try vault.context.fetchCount(FetchDescriptor<BackupChange>()), history)
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: vault.blobs.directory.path).sorted(), files)
+        vault.context.rollback()
+    }
+
+    @MainActor
+    func testV1BackupRejectsIconFieldsAndAcceptsLegacyApps() throws {
+        let (vault, _, _, _) = try makeVault()
+        let captured = try BackupSnapshot.capture(vault: vault, key: SymmetricKey(size: .bits256))
+        var legacy = try editing(captured) { json in
+            json["version"] = 1
+            json.removeValue(forKey: "preferences")
+        }
+        XCTAssertNoThrow(try legacy.validate())
+        for field in ["iconColor", "iconImage"] {
+            let invalid = try editing(legacy) { json in
+                var apps = json["apps"] as! [[String: Any]]
+                apps[0][field] = field == "iconColor" ? "blue" : Data([1]).base64EncodedString()
+                json["apps"] = apps
+            }
+            XCTAssertThrowsError(try invalid.validate())
+            XCTAssertThrowsError(try BackupArchive.encode(invalid, password: nil))
+        }
+        legacy.version = 2
+        XCTAssertNoThrow(try legacy.validate())
+    }
+
+    @MainActor
     func testNoteCommitFailuresKeepOriginalEncryptedReferencesAndHistory() throws {
         let (vault, app, _, _) = try makeVault()
         let key = SymmetricKey(size: .bits256)

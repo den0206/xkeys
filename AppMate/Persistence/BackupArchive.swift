@@ -114,7 +114,7 @@ struct BackupSnapshot: Codable, Sendable, Equatable {
         try preferences?.validate()
         guard apps.allSatisfy({ ($0.note?.utf8.count ?? 0) <= 65536 }), credentials.allSatisfy({ ($0.note?.utf8.count ?? 0) <= 65536 }) else { throw BackupError.tooLarge }
         if version == 1 {
-            guard preferences == nil, apps.allSatisfy({ $0.note == nil && $0.deletedAt == nil }), credentials.allSatisfy({ $0.note == nil && $0.deletedAt == nil && $0.revokedAt == nil }) else { throw BackupError.invalid }
+            guard preferences == nil, apps.allSatisfy({ $0.note == nil && $0.deletedAt == nil && $0.iconColor == nil && $0.iconImage == nil }), credentials.allSatisfy({ $0.note == nil && $0.deletedAt == nil && $0.revokedAt == nil }) else { throw BackupError.invalid }
         }
         guard [1, 2].contains(version), teams.count <= 1000, apps.count <= 10000, credentials.count <= 10000,
               Set(teams.map(\.id)).count == teams.count, Set(teams.map(\.teamID)).count == teams.count,
@@ -278,15 +278,13 @@ enum BackupArchive {
         let payload: Data
         switch header.protection {
         case "password":
-            guard header.kdf == "PBKDF2-HMAC-SHA256", let salt = header.salt, salt.count == 16,
-                  header.iterations == iterations, header.sha256 == nil, bytes.count >= 28 else { throw BackupError.invalid }
+            guard let salt = header.salt else { throw BackupError.invalid }
             guard let password else { throw BackupError.password }
             let key = try derive(password: password, salt: salt)
             do { payload = try AES.GCM.open(AES.GCM.SealedBox(combined: bytes), using: key, authenticating: data.prefix(offset)) }
             catch { throw BackupError.password }
         case "none":
-            guard header.kdf == nil, header.salt == nil, header.iterations == nil,
-                  header.sha256 == digest(bytes) else { throw BackupError.invalid }
+            guard header.sha256 == digest(bytes) else { throw BackupError.invalid }
             payload = bytes
         default: throw BackupError.invalid
         }

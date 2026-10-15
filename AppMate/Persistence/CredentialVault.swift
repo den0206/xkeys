@@ -254,6 +254,7 @@ struct CredentialVault {
     func importFile(_ file: CredentialFile, parsed: ParsedCredential, app: ManagedApp, password: String?,
                     confirmUnknownTeam: Bool, key: SymmetricKey, p8: P8Metadata? = nil,
                     replacingID: UUID? = nil, confirmReplacement: Bool = false, beforeCommit: () throws -> Void = {}) throws -> UUID {
+        guard !context.hasChanges else { throw RestoreError.pendingChanges }
         try validate(file: file, parsed: parsed, app: app, confirmUnknownTeam: confirmUnknownTeam,
                      p8: p8, replacingID: replacingID, confirmReplacement: confirmReplacement)
         guard let team = app.team else { throw VaultError.invalidAssociation }
@@ -285,6 +286,7 @@ struct CredentialVault {
     }
 
     func restoreToList(_ record: StoredCredential, key: SymmetricKey) throws {
+        guard !context.hasChanges else { throw RestoreError.pendingChanges }
         guard record.modelContext === context, let replacement = record.replacedByID,
               let next = try records().first(where: { $0.id == replacement }), next.replacesCredentialID == record.id else {
             throw VaultError.invalidReplacement
