@@ -11,6 +11,7 @@
         "-configuration", "Debug",
         "-destination", "platform=macOS",
         "-derivedDataPath", "${workspaceFolder}/.build/xcode",
+        "-allowProvisioningUpdates",
         "build"
       ],
       "options": {

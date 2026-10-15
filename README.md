@@ -17,6 +17,14 @@ Apple開発者向けの鍵・証明書・プロビジョニングプロファイ
 
 秘密情報の保管にはApple Development署名が必要です。別の開発環境では **Signing & Capabilities** で利用するTeamを選び、Keychain Sharingの専用グループが設定されていることを確認してください。アドホック署名では使えません。
 
+F5で `No Account for Team` / `No profiles` が出る場合は、最初に次の設定を行ってください。
+
+1. Xcode → **Settings → Accounts** で開発用Apple Accountを追加する。登録済みなら再認証する。
+2. `AppMate.xcodeproj` を開き、ターゲット **AppMate → Signing & Capabilities** で **Automatically manage signing** を有効にし、利用できる **Team** を選ぶ。現在のAppMateターゲットの指定は `4KJFNVZ8R6`。テストを実行する場合は **AppMateTests** のTeamも合わせる。
+3. Xcodeで **AppMate / My Mac** を一度ビルドし、署名エラーが解消してからF5を実行する。
+
+F5のビルドはプロビジョニングプロファイルの自動更新を許可しますが、Apple Accountの追加・再認証はXcodeで行う必要があります。
+
 開発用Bundle IDは `com.example.AppMate.prototype`。Bundle IDや署名Teamを変更すると、既存のコンテナ・暗号鍵をそのまま利用できない場合があります。データの移行にはバックアップを使用してください。
 
 ## 主な操作

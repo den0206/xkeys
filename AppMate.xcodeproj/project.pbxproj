@@ -7,32 +7,32 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		AA1000000000000000000001 = {isa = PBXBuildFile; fileRef = AA1000000000000000000002; };
-		BB0000000000000000000006 = {isa = PBXBuildFile; fileRef = BC0000000000000000000006; };
-		BB0000000000000000000005 = {isa = PBXBuildFile; fileRef = BC0000000000000000000005; };
-		BB0000000000000000000004 = {isa = PBXBuildFile; fileRef = BC0000000000000000000004; };
-		BB0000000000000000000003 = {isa = PBXBuildFile; fileRef = BC0000000000000000000003; };
-		BB0000000000000000000002 = {isa = PBXBuildFile; fileRef = BC0000000000000000000002; };
-		BB0000000000000000000001 = {isa = PBXBuildFile; fileRef = BC0000000000000000000001; };
-		BB0000000000000000000000 = {isa = PBXBuildFile; fileRef = BC0000000000000000000000; };
-		BA000000000000000000000D = {isa = PBXBuildFile; fileRef = BA000000000000000000000E; };
-		BA000000000000000000000B = {isa = PBXBuildFile; fileRef = BA000000000000000000000C; };
-		BA0000000000000000000009 = {isa = PBXBuildFile; fileRef = BA000000000000000000000A; };
-		BA0000000000000000000007 = {isa = PBXBuildFile; fileRef = BA0000000000000000000008; };
-		BA0000000000000000000005 = {isa = PBXBuildFile; fileRef = BA0000000000000000000006; };
-		BA0000000000000000000003 = {isa = PBXBuildFile; fileRef = BA0000000000000000000004; };
-		BA0000000000000000000001 = {isa = PBXBuildFile; fileRef = BA0000000000000000000002; };
-		D5AB3D6787FE83109935B0E3 /* Features/CredentialAppView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF4E022172D3641297064FC2 /* Features/CredentialAppView.swift */; };
-		8F70FEAAA107ADEF37464932 /* Persistence/CredentialVault.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D0C25BD41FF872EF528DB22 /* Persistence/CredentialVault.swift */; };
-		3490D0655DC60B16ADB47404 /* Features/CatalogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22CAFBB626C0E80C30E7D31D /* Features/CatalogView.swift */; };
-		205FC0C6AD696D68E9D5AE01 /* Models/AppCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 735DACB0CD1890235097A8AF /* Models/AppCatalog.swift */; };
 		0222C866A7070CA9D77B371B /* Services/OwnerAuthentication.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D32500D0DC4CC98B7AC172B /* Services/OwnerAuthentication.swift */; };
 		0B9177794691F3018677DFFA /* Application/AppMateApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100C041E14DE33E0152765FE /* Application/AppMateApp.swift */; };
+		205FC0C6AD696D68E9D5AE01 /* Models/AppCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 735DACB0CD1890235097A8AF /* Models/AppCatalog.swift */; };
 		21409CD07CBD9751EE632E3B /* Application/VerificationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C132DC34710247253C2C4104 /* Application/VerificationView.swift */; };
 		3151368B61B05343A55C77DF /* Resources/sample.mobileprovision in Resources */ = {isa = PBXBuildFile; fileRef = AF2BDBE1AA9B6EC1E2ADE1D6 /* Resources/sample.mobileprovision */; };
+		3490D0655DC60B16ADB47404 /* Features/CatalogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22CAFBB626C0E80C30E7D31D /* Features/CatalogView.swift */; };
 		587854A59EFBF8969CAFD37F /* AppMateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D37B9395C2BAF168F977CE9F /* AppMateTests.swift */; };
 		8AAD9CB9833BC16230BD9766 /* Services/CredentialParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E1814744B33849C5EC9325F /* Services/CredentialParser.swift */; };
+		8F70FEAAA107ADEF37464932 /* Persistence/CredentialVault.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D0C25BD41FF872EF528DB22 /* Persistence/CredentialVault.swift */; };
+		AA1000000000000000000001 /* Resources/DesignAssets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AA1000000000000000000002 /* Resources/DesignAssets.xcassets */; };
 		B4D9566931CF573707CC0A1A /* Persistence/EncryptedProbeStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFA38885211ADBBDEF2389B2 /* Persistence/EncryptedProbeStore.swift */; };
+		BA0000000000000000000001 /* Persistence/BackupArchive.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA0000000000000000000002 /* Persistence/BackupArchive.swift */; };
+		BA0000000000000000000003 /* Features/BackupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA0000000000000000000004 /* Features/BackupView.swift */; };
+		BA0000000000000000000005 /* Persistence/BackupRestore.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA0000000000000000000006 /* Persistence/BackupRestore.swift */; };
+		BA0000000000000000000007 /* Features/RestoreView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA0000000000000000000008 /* Features/RestoreView.swift */; };
+		BA0000000000000000000009 /* Persistence/BackupHistory.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA000000000000000000000A /* Persistence/BackupHistory.swift */; };
+		BA000000000000000000000B /* Services/CredentialSearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA000000000000000000000C /* Services/CredentialSearch.swift */; };
+		BA000000000000000000000D /* Features/MenuBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA000000000000000000000E /* Features/MenuBarView.swift */; };
+		BB0000000000000000000000 /* Persistence/VaultManagement.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC0000000000000000000000 /* Persistence/VaultManagement.swift */; };
+		BB0000000000000000000001 /* Services/AppPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC0000000000000000000001 /* Services/AppPreferences.swift */; };
+		BB0000000000000000000002 /* Services/LocalNotifications.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC0000000000000000000002 /* Services/LocalNotifications.swift */; };
+		BB0000000000000000000003 /* Features/SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC0000000000000000000003 /* Features/SettingsView.swift */; };
+		BB0000000000000000000004 /* Features/ManagementViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC0000000000000000000004 /* Features/ManagementViews.swift */; };
+		BB0000000000000000000005 /* Features/CICopyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC0000000000000000000005 /* Features/CICopyView.swift */; };
+		BB0000000000000000000006 /* Services/ImportSources.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC0000000000000000000006 /* Services/ImportSources.swift */; };
+		D5AB3D6787FE83109935B0E3 /* Features/CredentialAppView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF4E022172D3641297064FC2 /* Features/CredentialAppView.swift */; };
 		FF69530A024A160084203937 /* Fixtures in Resources */ = {isa = PBXBuildFile; fileRef = 5B4818F81C7256E686BA2E05 /* Fixtures */; };
 /* End PBXBuildFile section */
 
@@ -47,34 +47,34 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		AA1000000000000000000002 = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Resources/DesignAssets.xcassets; sourceTree = "<group>"; };
-		BC0000000000000000000006 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/ImportSources.swift; sourceTree = "<group>"; };
-		BC0000000000000000000005 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/CICopyView.swift; sourceTree = "<group>"; };
-		BC0000000000000000000004 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/ManagementViews.swift; sourceTree = "<group>"; };
-		BC0000000000000000000003 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/SettingsView.swift; sourceTree = "<group>"; };
-		BC0000000000000000000002 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/LocalNotifications.swift; sourceTree = "<group>"; };
-		BC0000000000000000000001 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/AppPreferences.swift; sourceTree = "<group>"; };
-		BC0000000000000000000000 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Persistence/VaultManagement.swift; sourceTree = "<group>"; };
-		BA000000000000000000000E = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/MenuBarView.swift; sourceTree = "<group>"; };
-		BA000000000000000000000C = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/CredentialSearch.swift; sourceTree = "<group>"; };
-		BA000000000000000000000A = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Persistence/BackupHistory.swift; sourceTree = "<group>"; };
-		BA0000000000000000000008 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/RestoreView.swift; sourceTree = "<group>"; };
-		BA0000000000000000000006 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Persistence/BackupRestore.swift; sourceTree = "<group>"; };
-		BA0000000000000000000004 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/BackupView.swift; sourceTree = "<group>"; };
-		BA0000000000000000000002 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Persistence/BackupArchive.swift; sourceTree = "<group>"; };
-		CF4E022172D3641297064FC2 /* Features/CredentialAppView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/CredentialAppView.swift; sourceTree = "<group>"; };
+		100C041E14DE33E0152765FE /* Application/AppMateApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Application/AppMateApp.swift; sourceTree = "<group>"; };
 		1D0C25BD41FF872EF528DB22 /* Persistence/CredentialVault.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Persistence/CredentialVault.swift; sourceTree = "<group>"; };
 		22CAFBB626C0E80C30E7D31D /* Features/CatalogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/CatalogView.swift; sourceTree = "<group>"; };
-		735DACB0CD1890235097A8AF /* Models/AppCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models/AppCatalog.swift; sourceTree = "<group>"; };
-		100C041E14DE33E0152765FE /* Application/AppMateApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Application/AppMateApp.swift; sourceTree = "<group>"; };
 		5B4818F81C7256E686BA2E05 /* Fixtures */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Fixtures; sourceTree = "<group>"; };
 		5D32500D0DC4CC98B7AC172B /* Services/OwnerAuthentication.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/OwnerAuthentication.swift; sourceTree = "<group>"; };
+		735DACB0CD1890235097A8AF /* Models/AppCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models/AppCatalog.swift; sourceTree = "<group>"; };
 		7E1814744B33849C5EC9325F /* Services/CredentialParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/CredentialParser.swift; sourceTree = "<group>"; };
+		AA1000000000000000000002 /* Resources/DesignAssets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Resources/DesignAssets.xcassets; sourceTree = "<group>"; };
 		AE0042EC290704DA7E641B97 /* App Mate.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; path = "App Mate.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		AF2BDBE1AA9B6EC1E2ADE1D6 /* Resources/sample.mobileprovision */ = {isa = PBXFileReference; lastKnownFileType = file; path = Resources/sample.mobileprovision; sourceTree = "<group>"; };
+		BA0000000000000000000002 /* Persistence/BackupArchive.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Persistence/BackupArchive.swift; sourceTree = "<group>"; };
+		BA0000000000000000000004 /* Features/BackupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/BackupView.swift; sourceTree = "<group>"; };
+		BA0000000000000000000006 /* Persistence/BackupRestore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Persistence/BackupRestore.swift; sourceTree = "<group>"; };
+		BA0000000000000000000008 /* Features/RestoreView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/RestoreView.swift; sourceTree = "<group>"; };
+		BA000000000000000000000A /* Persistence/BackupHistory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Persistence/BackupHistory.swift; sourceTree = "<group>"; };
+		BA000000000000000000000C /* Services/CredentialSearch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/CredentialSearch.swift; sourceTree = "<group>"; };
+		BA000000000000000000000E /* Features/MenuBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/MenuBarView.swift; sourceTree = "<group>"; };
+		BC0000000000000000000000 /* Persistence/VaultManagement.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Persistence/VaultManagement.swift; sourceTree = "<group>"; };
+		BC0000000000000000000001 /* Services/AppPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/AppPreferences.swift; sourceTree = "<group>"; };
+		BC0000000000000000000002 /* Services/LocalNotifications.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/LocalNotifications.swift; sourceTree = "<group>"; };
+		BC0000000000000000000003 /* Features/SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/SettingsView.swift; sourceTree = "<group>"; };
+		BC0000000000000000000004 /* Features/ManagementViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/ManagementViews.swift; sourceTree = "<group>"; };
+		BC0000000000000000000005 /* Features/CICopyView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/CICopyView.swift; sourceTree = "<group>"; };
+		BC0000000000000000000006 /* Services/ImportSources.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/ImportSources.swift; sourceTree = "<group>"; };
 		BFA38885211ADBBDEF2389B2 /* Persistence/EncryptedProbeStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Persistence/EncryptedProbeStore.swift; sourceTree = "<group>"; };
 		C132DC34710247253C2C4104 /* Application/VerificationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Application/VerificationView.swift; sourceTree = "<group>"; };
 		CCB32DA757F8CB91EA8A9F9D /* AppMate.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = AppMate.entitlements; sourceTree = "<group>"; };
+		CF4E022172D3641297064FC2 /* Features/CredentialAppView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/CredentialAppView.swift; sourceTree = "<group>"; };
 		D37B9395C2BAF168F977CE9F /* AppMateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppMateTests.swift; sourceTree = "<group>"; };
 		E7F08BCC397888750F5CB9BD /* AppMateTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; path = AppMateTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -127,20 +127,20 @@
 		E17E80AD8E2103CF3FC3FD96 /* AppMate */ = {
 			isa = PBXGroup;
 			children = (
-				BA000000000000000000000E,
-				BC0000000000000000000006,
-				BC0000000000000000000005,
-				BC0000000000000000000004,
-				BC0000000000000000000003,
-				BC0000000000000000000002,
-				BC0000000000000000000001,
-				BC0000000000000000000000,
-				BA000000000000000000000C,
-				BA000000000000000000000A,
-				BA0000000000000000000008,
-				BA0000000000000000000006,
-				BA0000000000000000000004,
-				BA0000000000000000000002,
+				BA000000000000000000000E /* Features/MenuBarView.swift */,
+				BC0000000000000000000006 /* Services/ImportSources.swift */,
+				BC0000000000000000000005 /* Features/CICopyView.swift */,
+				BC0000000000000000000004 /* Features/ManagementViews.swift */,
+				BC0000000000000000000003 /* Features/SettingsView.swift */,
+				BC0000000000000000000002 /* Services/LocalNotifications.swift */,
+				BC0000000000000000000001 /* Services/AppPreferences.swift */,
+				BC0000000000000000000000 /* Persistence/VaultManagement.swift */,
+				BA000000000000000000000C /* Services/CredentialSearch.swift */,
+				BA000000000000000000000A /* Persistence/BackupHistory.swift */,
+				BA0000000000000000000008 /* Features/RestoreView.swift */,
+				BA0000000000000000000006 /* Persistence/BackupRestore.swift */,
+				BA0000000000000000000004 /* Features/BackupView.swift */,
+				BA0000000000000000000002 /* Persistence/BackupArchive.swift */,
 				CF4E022172D3641297064FC2 /* Features/CredentialAppView.swift */,
 				1D0C25BD41FF872EF528DB22 /* Persistence/CredentialVault.swift */,
 				22CAFBB626C0E80C30E7D31D /* Features/CatalogView.swift */,
@@ -152,7 +152,7 @@
 				BFA38885211ADBBDEF2389B2 /* Persistence/EncryptedProbeStore.swift */,
 				CCB32DA757F8CB91EA8A9F9D /* AppMate.entitlements */,
 				AF2BDBE1AA9B6EC1E2ADE1D6 /* Resources/sample.mobileprovision */,
-				AA1000000000000000000002,
+				AA1000000000000000000002 /* Resources/DesignAssets.xcassets */,
 			);
 			path = AppMate;
 			sourceTree = "<group>";
@@ -237,7 +237,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				3151368B61B05343A55C77DF /* Resources/sample.mobileprovision in Resources */,
-				AA1000000000000000000001,
+				AA1000000000000000000001 /* Resources/DesignAssets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -256,20 +256,20 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				BA000000000000000000000D,
-				BB0000000000000000000006,
-				BB0000000000000000000005,
-				BB0000000000000000000004,
-				BB0000000000000000000003,
-				BB0000000000000000000002,
-				BB0000000000000000000001,
-				BB0000000000000000000000,
-				BA000000000000000000000B,
-				BA0000000000000000000009,
-				BA0000000000000000000007,
-				BA0000000000000000000005,
-				BA0000000000000000000003,
-				BA0000000000000000000001,
+				BA000000000000000000000D /* Features/MenuBarView.swift in Sources */,
+				BB0000000000000000000006 /* Services/ImportSources.swift in Sources */,
+				BB0000000000000000000005 /* Features/CICopyView.swift in Sources */,
+				BB0000000000000000000004 /* Features/ManagementViews.swift in Sources */,
+				BB0000000000000000000003 /* Features/SettingsView.swift in Sources */,
+				BB0000000000000000000002 /* Services/LocalNotifications.swift in Sources */,
+				BB0000000000000000000001 /* Services/AppPreferences.swift in Sources */,
+				BB0000000000000000000000 /* Persistence/VaultManagement.swift in Sources */,
+				BA000000000000000000000B /* Services/CredentialSearch.swift in Sources */,
+				BA0000000000000000000009 /* Persistence/BackupHistory.swift in Sources */,
+				BA0000000000000000000007 /* Features/RestoreView.swift in Sources */,
+				BA0000000000000000000005 /* Persistence/BackupRestore.swift in Sources */,
+				BA0000000000000000000003 /* Features/BackupView.swift in Sources */,
+				BA0000000000000000000001 /* Persistence/BackupArchive.swift in Sources */,
 				D5AB3D6787FE83109935B0E3 /* Features/CredentialAppView.swift in Sources */,
 				8F70FEAAA107ADEF37464932 /* Persistence/CredentialVault.swift in Sources */,
 				3490D0655DC60B16ADB47404 /* Features/CatalogView.swift in Sources */,
@@ -315,7 +315,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				DEVELOPMENT_TEAM = KDRYQJ357G;
+				DEVELOPMENT_TEAM = 4KJFNVZ8R6;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -336,8 +336,8 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = KDRYQJ357G;
 				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = KDRYQJ357G;
 				ENABLE_TESTABILITY = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -399,7 +399,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				DEBUG_INFORMATION_FORMAT = dwarf;
-				DEVELOPMENT_TEAM = KDRYQJ357G;
+				DEVELOPMENT_TEAM = 4KJFNVZ8R6;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_TESTABILITY = YES;
