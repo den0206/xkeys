@@ -26,6 +26,8 @@ final class ManagedApp {
     var createdAt: Date
     var deletedAt: Date?
     var noteBlobID: UUID?
+    var iconColor: String?
+    var iconImage: Data?
 
     init(name: String, bundleID: String, platform: String, team: DeveloperTeam) {
         id = UUID()
@@ -56,6 +58,7 @@ enum RegistrationError: LocalizedError {
 
 @MainActor
 struct AppCatalog {
+    nonisolated static let iconColors = ["purple", "orange", "green", "blue"]
     static let platforms = ["iOS", "macOS", "iPadOS", "watchOS", "tvOS", "visionOS"]
     let context: ModelContext
 
@@ -80,7 +83,7 @@ struct AppCatalog {
         } catch { context.rollback(); throw error }
     }
 
-    func addApp(name: String, bundleID: String, platform: String, teamID: UUID) throws -> UUID {
+    func addApp(name: String, bundleID: String, platform: String, teamID: UUID, iconColor: String? = nil, iconImage: Data? = nil) throws -> UUID {
         let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
         let bundleID = bundleID.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty else { throw RegistrationError.nameRequired }
@@ -88,6 +91,7 @@ struct AppCatalog {
             throw RegistrationError.invalidBundleID
         }
         guard Self.platforms.contains(platform) else { throw RegistrationError.invalidPlatform }
+        guard (iconImage?.count ?? 0) <= 1_048_576, iconColor.map(Self.iconColors.contains) ?? true else { throw ValidationError.invalidFile }
         context.autosaveEnabled = false
         guard let team = try context.fetch(FetchDescriptor<DeveloperTeam>()).first(where: { $0.id == teamID }) else {
             throw RegistrationError.teamMissing
@@ -98,6 +102,8 @@ struct AppCatalog {
         do {
             try BackupHistory.prepare(in: context)
             let app = ManagedApp(name: name, bundleID: bundleID, platform: platform, team: team)
+            app.iconColor = iconColor
+            app.iconImage = iconImage
             context.insert(app)
             BackupHistory.record(in: context)
             try context.save()

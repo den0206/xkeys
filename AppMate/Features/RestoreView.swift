@@ -5,6 +5,7 @@ import UniformTypeIdentifiers
 
 struct RestoreView: View {
     let container: ModelContainer
+    let onCreate: () -> Void
     @Environment(\.dismiss) private var dismiss
     @State private var file: CredentialFile?
     @State private var protected = false
@@ -34,7 +35,15 @@ struct RestoreView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
-            Text("バックアップを復元").font(.title2.bold())
+            HStack {
+                Text("バックアップ").font(.system(size: 18, weight: .bold))
+                Spacer()
+                HStack(spacing: 0) {
+                    Button("作る", action: onCreate).buttonStyle(.plain).padding(.horizontal, 14).frame(height: 28)
+                    Text("復元・移行").padding(.horizontal, 14).frame(height: 28).background(AppMateStyle.selection)
+                }.font(.system(size: 12)).clipShape(RoundedRectangle(cornerRadius: 8))
+                    .overlay(RoundedRectangle(cornerRadius: 8).stroke(AppMateStyle.border, lineWidth: 1))
+            }
             if let result {
                 Label("復元が完了しました", systemImage: "checkmark.circle.fill").font(.headline).foregroundStyle(.green)
                 Text("追加 \(result.added)件 · 更新 \(result.updated)件 · スキップ \(result.skipped)件")
@@ -120,11 +129,13 @@ struct RestoreView: View {
                     else if snapshot != nil { Button("差分を更新") { refresh() } }
                     Spacer()
                     Button("キャンセル") { clear(); dismiss() }.keyboardShortcut(.cancelAction)
-                    Button("認証して復元する", action: merge).buttonStyle(.borderedProminent).disabled(!ready)
+                    Button("認証して復元する", action: merge).buttonStyle(AppMateButtonStyle(primary: true)).disabled(!ready)
                 }
             }
         }
-        .padding(28).frame(width: 680)
+        .font(.system(size: 13)).buttonStyle(AppMateButtonStyle())
+        .padding(.horizontal, 26).padding(.vertical, 22).frame(width: 640)
+        .background(AppMateStyle.canvas).foregroundStyle(AppMateStyle.text).tint(AppMateStyle.accent)
         .disabled(working)
         .interactiveDismissDisabled(working)
         .sheet(isPresented: $makingSafetyBackup) { BackupView(container: container, onSafetyBackup: { safetyBackup = $0 }) }

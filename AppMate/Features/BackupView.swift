@@ -11,6 +11,7 @@ struct BackupView: View {
     @Query private var changes: [BackupChange]
     @Query private var checkpoints: [BackupCheckpoint]
     @Environment(\.dismiss) private var dismiss
+    @State private var restoring = false
     @State private var selectedOnly = false
     @State private var selectedApps: Set<UUID> = []
     @State private var protected = true
@@ -23,6 +24,12 @@ struct BackupView: View {
     @State private var trackingWarning = false
     @State private var access = VaultAccess()
     @State private var work: Task<Void, Never>?
+
+    init(container: ModelContainer, onSafetyBackup: ((SafetyBackup) -> Void)? = nil, restoring: Bool = false) {
+        self.container = container
+        self.onSafetyBackup = onSafetyBackup
+        _restoring = State(initialValue: restoring)
+    }
 
     private var vault: CredentialVault {
         CredentialVault(context: container.mainContext, blobs: EncryptedBlobStore(directory: CredentialVault.directory))
@@ -37,8 +44,24 @@ struct BackupView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 22) {
-            Text("バックアップを作る").font(.title2.bold())
+        if restoring {
+            RestoreView(container: container, onCreate: { restoring = false })
+        } else { creation }
+    }
+
+    private var creation: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            HStack {
+                Text("バックアップ").font(.system(size: 18, weight: .bold))
+                Spacer()
+                if onSafetyBackup == nil {
+                    HStack(spacing: 0) {
+                        Text("作る").padding(.horizontal, 14).frame(height: 28).background(AppMateStyle.selection)
+                        Button("復元・移行") { restoring = true }.buttonStyle(.plain).padding(.horizontal, 14).frame(height: 28)
+                    }.font(.system(size: 12)).clipShape(RoundedRectangle(cornerRadius: 8))
+                        .overlay(RoundedRectangle(cornerRadius: 8).stroke(AppMateStyle.border, lineWidth: 1))
+                }
+            }
             Text("すべてのデータを1つのファイルにまとめます。保存先を選んで、ご自身で保管してください。")
                 .foregroundStyle(.secondary)
             if completed {
@@ -56,45 +79,52 @@ struct BackupView: View {
                     .foregroundStyle(.secondary)
                 HStack { Spacer(); Button("閉じる") { dismiss() }.keyboardShortcut(.defaultAction) }
             } else {
-                Grid(alignment: .leading, horizontalSpacing: 24, verticalSpacing: 20) {
-                    GridRow {
-                        Text("対象").foregroundStyle(.secondary)
-                        VStack(alignment: .leading, spacing: 5) {
-                            Text("すべて（チーム \(teams.count) · アプリ \(apps.count) · 鍵とファイル \(credentials.count)）")
-                            if onSafetyBackup == nil {
-                                Toggle("Appを選んでエクスポート", isOn: $selectedOnly)
-                                if selectedOnly {
-                                    ScrollView {
-                                        ForEach(apps) { app in
-                                            Toggle(app.name, isOn: Binding(get: { selectedApps.contains(app.id) }, set: { if $0 { selectedApps.insert(app.id) } else { selectedApps.remove(app.id) } }))
-                                        }
-                                    }.frame(maxHeight: 100)
-                                    Text("必要なTeamと共有資格情報を含めます。全体の未バックアップ件数は解除しません。").font(.caption)
+                VStack(alignment: .leading, spacing: 18) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("対象").font(.system(size: 12, weight: .bold))
+                        if onSafetyBackup == nil {
+                            Picker("対象", selection: $selectedOnly) {
+                                Text("すべて（アプリ \(apps.count) · 鍵とファイル \(credentials.count) · 設定）").tag(false)
+                                Text("アプリを選ぶ…").tag(true)
+                            }.pickerStyle(.radioGroup).labelsHidden()
+                        } else { Text("すべて（チーム \(teams.count) · アプリ \(apps.count) · 鍵とファイル \(credentials.count)）") }
+                        if selectedOnly {
+                            ScrollView {
+                                VStack(alignment: .leading) {
+                                    ForEach(apps) { app in
+                                        Toggle(app.name, isOn: Binding(get: { selectedApps.contains(app.id) }, set: { if $0 { selectedApps.insert(app.id) } else { selectedApps.remove(app.id) } }))
+                                    }
                                 }
-                            }
-                            Text("元ファイル・メモ・設定・削除状態・保存済み.p12パスワード・置き換え履歴を含みます。")
-                                .font(.caption).foregroundStyle(.secondary)
+                            }.frame(maxHeight: 100)
+                            Text("必要なTeamと共有資格情報を含めます。全体の未バックアップ件数は解除しません。").font(.caption)
                         }
                     }
-                    GridRow {
-                        Text("保護").foregroundStyle(.secondary)
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("保護").font(.system(size: 12, weight: .bold))
                         Picker("保護", selection: $protected) {
-                            Text("パスワードで保護する（推奨）").tag(true)
+                            Text("パスワードで保護する（おすすめ）").tag(true)
                             Text("パスワードなし").tag(false)
                         }.pickerStyle(.radioGroup).labelsHidden()
                     }
                     if protected {
-                        GridRow { Text("パスワード"); SecureField("バックアップ用パスワード", text: $password) }
-                        GridRow { Text("もう一度入力"); SecureField("確認用パスワード", text: $confirmation) }
-                        GridRow {
-                            Text("強さ").foregroundStyle(.secondary)
-                            Text(strength).foregroundStyle(.secondary).font(.caption)
-                        }
+                        Grid(alignment: .leading, horizontalSpacing: 14, verticalSpacing: 12) {
+                            GridRow {
+                                Text("バックアップ用パスワード").fixedSize(horizontal: false, vertical: true).frame(width: 140, alignment: .leading)
+                                SecureField("12文字以上", text: $password).labelsHidden()
+                            }
+                            GridRow { Text("もう一度入力"); SecureField("確認用パスワード", text: $confirmation).labelsHidden() }
+                            GridRow {
+                                Text("強さ").foregroundStyle(AppMateStyle.secondary)
+                                Text(strength).foregroundStyle(AppMateStyle.secondary).font(.system(size: 12))
+                            }
+                        }.textFieldStyle(.roundedBorder).controlSize(.large).padding(16)
+                            .background(AppMateStyle.sidebar, in: RoundedRectangle(cornerRadius: 10))
+                            .overlay(RoundedRectangle(cornerRadius: 10).stroke(AppMateStyle.border, lineWidth: 1))
                     }
                 }
                 if protected {
                     Text("Macのログインパスワードとは別の値を12文字以上で指定してください。忘れると復元できません。App Mateはバックアップ用パスワードを保存しません。")
-                        .font(.callout).foregroundStyle(.secondary)
+                        .font(.system(size: 12)).foregroundStyle(AppMateStyle.secondary).fixedSize(horizontal: false, vertical: true)
                 } else {
                     Label("暗号化されません。ファイルを持つ人は秘密鍵・保存済みパスワードを取り出せます。作成前に再確認します。", systemImage: "exclamationmark.triangle")
                         .foregroundStyle(.orange)
@@ -109,17 +139,20 @@ struct BackupView: View {
                     Text("変更状態は作成前に確認します。").font(.caption).foregroundStyle(.secondary)
                 }
                 if let error { Text(error).foregroundStyle(.red).textSelection(.enabled) }
-                HStack {
+                Divider()
+                HStack(spacing: 10) {
                     if working { ProgressView().controlSize(.small); Text("認証・バックアップ作成中…").foregroundStyle(.secondary) }
                     Spacer()
                     Button("キャンセル") { cancel(); dismiss() }.keyboardShortcut(.cancelAction)
                     Button("保存先を選んで作成…") {
                         if protected { save() } else { confirmUnprotected = true }
-                    }.buttonStyle(.borderedProminent).disabled(!canSave)
+                    }.buttonStyle(AppMateButtonStyle(primary: true)).disabled(!canSave)
                 }
             }
         }
-        .padding(28).frame(width: 620)
+        .font(.system(size: 13)).buttonStyle(AppMateButtonStyle())
+        .padding(.horizontal, 26).padding(.vertical, 22).frame(width: 600)
+        .background(AppMateStyle.canvas).foregroundStyle(AppMateStyle.text).tint(AppMateStyle.accent)
         .disabled(working)
         .interactiveDismissDisabled(working)
         .confirmationDialog("暗号化せずに作成しますか？", isPresented: $confirmUnprotected, titleVisibility: .visible) {

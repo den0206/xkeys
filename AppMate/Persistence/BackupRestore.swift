@@ -83,7 +83,7 @@ struct RestorePlan: Sendable {
         }
         let apps = try source.apps.map { value -> BackupSnapshot.App in
             guard let id = appIDs[value.id], let team = teamIDs[value.team] else { throw BackupError.invalid }
-            return .init(id: id, name: value.name, bundleID: value.bundleID, platform: value.platform, team: team, createdAt: value.createdAt, deletedAt: value.deletedAt, note: value.note)
+            return .init(id: id, name: value.name, bundleID: value.bundleID, platform: value.platform, team: team, createdAt: value.createdAt, deletedAt: value.deletedAt, note: value.note, iconColor: value.iconColor, iconImage: value.iconImage)
         }
         let credentials = try source.credentials.map { value -> BackupSnapshot.Credential in
             guard let id = credentialIDs[value.id], let team = teamIDs[value.team] else { throw BackupError.invalid }
@@ -109,7 +109,7 @@ struct RestorePlan: Sendable {
         for app in apps {
             let local = localApps[app.id]
             func summary(_ value: BackupSnapshot.App) -> String { "\(value.name) · \(value.bundleID) · \(value.platform) · 登録 \(value.createdAt.formatted())" }
-            items.append(Item(kind: .app, target: app.id, title: "App · \(app.bundleID)", detail: "表示名・プラットフォーム・登録日時・メモ（非表示）・削除状態",
+            items.append(Item(kind: .app, target: app.id, title: "App · \(app.bundleID)", detail: "表示名・プラットフォーム・アイコン・登録日時・メモ（非表示）・削除状態",
                               current: local.map(summary), incoming: summary(app),
                               state: local == nil ? .added : local == app ? .duplicate : .conflict))
         }
@@ -209,11 +209,15 @@ struct BackupRestore {
                     app.name = value.name
                     app.bundleID = value.bundleID
                     app.platform = value.platform
+                    app.iconColor = value.iconColor
+                    app.iconImage = value.iconImage
                     app.createdAt = value.createdAt
                     app.deletedAt = value.deletedAt
                 } else {
                     let app = ManagedApp(name: value.name, bundleID: value.bundleID, platform: value.platform, team: team)
                     app.id = value.id
+                    app.iconColor = value.iconColor
+                    app.iconImage = value.iconImage
                     app.createdAt = value.createdAt
                     app.deletedAt = value.deletedAt
                     context.insert(app)

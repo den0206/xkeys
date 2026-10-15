@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		AA1000000000000000000001 = {isa = PBXBuildFile; fileRef = AA1000000000000000000002; };
 		BB0000000000000000000006 = {isa = PBXBuildFile; fileRef = BC0000000000000000000006; };
 		BB0000000000000000000005 = {isa = PBXBuildFile; fileRef = BC0000000000000000000005; };
 		BB0000000000000000000004 = {isa = PBXBuildFile; fileRef = BC0000000000000000000004; };
@@ -46,6 +47,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		AA1000000000000000000002 = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Resources/DesignAssets.xcassets; sourceTree = "<group>"; };
 		BC0000000000000000000006 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/ImportSources.swift; sourceTree = "<group>"; };
 		BC0000000000000000000005 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/CICopyView.swift; sourceTree = "<group>"; };
 		BC0000000000000000000004 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/ManagementViews.swift; sourceTree = "<group>"; };
@@ -150,6 +152,7 @@
 				BFA38885211ADBBDEF2389B2 /* Persistence/EncryptedProbeStore.swift */,
 				CCB32DA757F8CB91EA8A9F9D /* AppMate.entitlements */,
 				AF2BDBE1AA9B6EC1E2ADE1D6 /* Resources/sample.mobileprovision */,
+				AA1000000000000000000002,
 			);
 			path = AppMate;
 			sourceTree = "<group>";
@@ -234,6 +237,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				3151368B61B05343A55C77DF /* Resources/sample.mobileprovision in Resources */,
+				AA1000000000000000000001,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

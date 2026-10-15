@@ -18,6 +18,8 @@ struct BackupSnapshot: Codable, Sendable, Equatable {
         let createdAt: Date
         var deletedAt: Date? = nil
         var note: String? = nil
+        var iconColor: String? = nil
+        var iconImage: Data? = nil
     }
     struct Credential: Codable, Sendable, Equatable {
         let id: UUID
@@ -63,7 +65,7 @@ struct BackupSnapshot: Codable, Sendable, Equatable {
         }
         let apps = try vault.context.fetch(FetchDescriptor<ManagedApp>()).map { app in
             guard let team = app.team else { throw VaultError.invalidAssociation }
-            return App(id: app.id, name: app.name, bundleID: app.bundleID, platform: app.platform, team: team.id, createdAt: app.createdAt, deletedAt: app.deletedAt, note: try VaultManagement(vault: vault).readNote(app, key: key))
+            return App(id: app.id, name: app.name, bundleID: app.bundleID, platform: app.platform, team: team.id, createdAt: app.createdAt, deletedAt: app.deletedAt, note: try VaultManagement(vault: vault).readNote(app, key: key), iconColor: app.iconColor, iconImage: app.iconImage)
         }
         var credentials: [Credential] = []
         var originalBytes = 0
@@ -128,7 +130,11 @@ struct BackupSnapshot: Codable, Sendable, Equatable {
                   team.teamID.range(of: "^[A-Z0-9]{10}$", options: .regularExpression) != nil else { throw BackupError.invalid }
         }
         var appKeys = Set<String>()
+        var iconBytes = 0
         for app in apps {
+            let bytes = app.iconImage?.count ?? 0
+            iconBytes += bytes
+            guard bytes <= 1_048_576, iconBytes <= BackupArchive.maximumPayloadBytes / 4, app.iconColor.map(AppCatalog.iconColors.contains) ?? true else { throw BackupError.tooLarge }
             guard teamIDs.contains(app.team), !app.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
                   app.bundleID.range(of: "^[A-Za-z0-9-]+(?:\\.[A-Za-z0-9-]+)*$", options: .regularExpression) != nil,
                   ["iOS", "macOS", "iPadOS", "watchOS", "tvOS", "visionOS"].contains(app.platform),

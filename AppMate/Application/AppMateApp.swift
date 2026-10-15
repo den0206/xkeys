@@ -30,7 +30,8 @@ struct AppMateApp: App {
                                        description: Text("既存データを変更せずに停止しました。保存先とアクセス権を確認して再起動してください。"))
             }
         }
-        .defaultSize(width: 1280, height: 800)
+        .windowStyle(.hiddenTitleBar)
+        .defaultSize(width: 1232, height: 752)
         .commands { VerificationCommands() }
 
         MenuBarExtra(isInserted: Binding(get: { menuInserted && navigation.menuVisible }, set: { menuInserted = $0 })) {
@@ -43,7 +44,7 @@ struct AppMateApp: App {
         .menuBarExtraStyle(.window)
 
         Settings {
-            if case .success(let container) = container { AppSettingsView(container: container) }
+            if case .success(let container) = container { AppSettingsView(container: container).modelContainer(container) }
         }
 
         Window("技術検証", id: "verification") {

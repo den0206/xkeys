@@ -48,9 +48,123 @@ final class AppMateTests: XCTestCase {
             view.cacheDisplay(in: view.bounds, to: bitmap)
             let png = try XCTUnwrap(bitmap.representation(using: .png, properties: [:]))
             try png.write(to: directory.appendingPathComponent("catalog-\(Int(size.width)).png"))
+            let attachment = XCTAttachment(data: png, uniformTypeIdentifier: "public.png")
+            attachment.name = "catalog-\(Int(size.width))"
+            attachment.lifetime = .keepAlways
+            add(attachment)
             XCTAssertGreaterThan(png.count, 1000)
             window.close()
         }
+    }
+
+    @MainActor
+    func testDesignReferenceScreensRenderWithIsolatedFixtures() async throws {
+        let (vault, app, _, _) = try makeVault()
+        app.name = "Tsumiki"
+        app.platform = "iOS"
+        app.iconColor = "orange"
+        let team = try XCTUnwrap(app.team)
+        for other in try vault.context.fetch(FetchDescriptor<ManagedApp>()) where other.id != app.id { vault.context.delete(other) }
+        for other in try vault.context.fetch(FetchDescriptor<DeveloperTeam>()) where other.id != team.id { vault.context.delete(other) }
+        team.name = "個人開発"
+        for (name, bundle) in [("Pocket Ledger", "com.example.ledger"), ("Hikari Notes", "com.example.hikari")] {
+            let item = ManagedApp(name: name, bundleID: bundle, platform: "iOS", team: team)
+            item.iconColor = name == "Pocket Ledger" ? "green" : "blue"
+            vault.context.insert(item)
+        }
+        let calendar = Calendar(identifier: .gregorian)
+        let expires = calendar.date(byAdding: .day, value: 12, to: .now)!
+        var sample: StoredCredential?
+        for (index, item) in [("App Store 配布用", "mobileprovision"), ("開発用", "mobileprovision"), ("配布用", "p12"), ("開発用", "cer"), ("App Store Connect の鍵", "p8"), ("プッシュ通知の鍵", "p8")].enumerated() {
+            let file = CredentialFile(data: Data("design-fixture-\(index)".utf8), name: "sample-\(index)." + item.1)
+            let record = StoredCredential(file: file, parsed: ParsedCredential(name: item.0, kind: item.1 == "p8" ? "鍵" : item.1 == "mobileprovision" ? "プロファイル" : "証明書", teamID: team.teamID, bundleID: item.1 == "mobileprovision" ? app.bundleID : nil, expiresAt: index >= 4 ? nil : index % 2 == 0 ? expires : calendar.date(byAdding: .year, value: 1, to: .now)), app: app, team: team, savePassword: item.1 == "p12")
+            record.keyPurpose = index == 4 ? P8Purpose.appStoreConnect.rawValue : index == 5 ? P8Purpose.apns.rawValue : nil
+            vault.context.insert(record)
+            if index == 2 { sample = record }
+        }
+        try vault.context.save()
+        let container = vault.context.container
+        let navigation = AppNavigation()
+        navigation.scope = .app(app.id)
+        let importURL = vault.blobs.directory.appendingPathComponent("design-sample.p8")
+        try FileManager.default.createDirectory(at: vault.blobs.directory, withIntermediateDirectories: true)
+        try p8File().data.write(to: importURL)
+        let trashed = StoredCredential(file: CredentialFile(data: Data("design-trash".utf8), name: "previous.cer"), parsed: ParsedCredential(name: "配布用（2024年発行）", kind: "証明書", teamID: team.teamID, bundleID: nil, expiresAt: nil), app: app, team: team, savePassword: false)
+        trashed.deletedAt = .now.addingTimeInterval(-7 * 86400)
+        vault.context.insert(trashed)
+        try vault.context.save()
+        let screens: [(String, NSSize, AnyView)] = [
+            ("main", NSSize(width: 1232, height: 752), AnyView(CatalogView(container: container, navigation: navigation).modelContainer(container))),
+            ("main-narrow", NSSize(width: 960, height: 640), AnyView(CatalogView(container: container, navigation: navigation).modelContainer(container))),
+            ("settings", NSSize(width: 852, height: 592), AnyView(AppSettingsView(container: container))),
+            ("welcome", NSSize(width: 760, height: 518), AnyView(OnboardingView(onFinished: { _ in }))),
+            ("onboarding-import", NSSize(width: 760, height: 518), AnyView(OnboardingView(step: 1, onFinished: { _ in }))),
+            ("onboarding-security", NSSize(width: 760, height: 518), AnyView(OnboardingView(step: 2, onFinished: { _ in }))),
+            ("add-app", NSSize(width: 560, height: 520), AnyView(RegistrationForm(container: container, teams: [team], initialTeam: team.id, isTeam: false, onSaved: { _ in }))),
+            ("add-team", NSSize(width: 600, height: 320), AnyView(RegistrationForm(container: container, teams: [team], initialTeam: team.id, isTeam: true, onSaved: { _ in }))),
+            ("backup", NSSize(width: 600, height: 620), AnyView(BackupView(container: container).modelContainer(container))),
+            ("restore", NSSize(width: 640, height: 300), AnyView(BackupView(container: container, restoring: true))),
+            ("ci-copy", NSSize(width: 600, height: 620), AnyView(CICopyView(vault: vault, record: try XCTUnwrap(sample)))),
+            ("import", NSSize(width: 720, height: 620), AnyView(CredentialImportView(app: app, vault: vault, access: VaultAccess(), existing: [], onSaved: { _ in }))),
+            ("p8-metadata", NSSize(width: 720, height: 620), AnyView(CredentialImportView(app: app, vault: vault, access: VaultAccess(), existing: [], initialSources: [importURL], onSaved: { _ in }))),
+            ("delete", NSSize(width: 460, height: 380), AnyView(CredentialDeleteConfirmation(record: try XCTUnwrap(sample), onDelete: {}))),
+            ("trash", NSSize(width: 996, height: 700), AnyView(TrashView(vault: vault)))
+        ]
+        for (name, size, screen) in screens {
+            let view = NSHostingView(rootView: screen.modelContainer(container).environment(\.colorScheme, .light))
+            let window = NSWindow(contentRect: NSRect(origin: .zero, size: size), styleMask: [.borderless], backing: .buffered, defer: false)
+            window.isReleasedWhenClosed = false
+            window.contentView = view
+            window.orderFront(nil)
+            try await Task.sleep(for: .milliseconds(400))
+            view.layoutSubtreeIfNeeded()
+            let bitmap = try XCTUnwrap(view.bitmapImageRepForCachingDisplay(in: view.bounds))
+            view.cacheDisplay(in: view.bounds, to: bitmap)
+            let png = try XCTUnwrap(bitmap.representation(using: .png, properties: [:]))
+            let attachment = XCTAttachment(data: png, uniformTypeIdentifier: "public.png")
+            attachment.name = name
+            attachment.lifetime = .keepAlways
+            add(attachment)
+            XCTAssertGreaterThan(png.count, 1000, name)
+            window.close()
+        }
+    }
+
+    @MainActor
+    func testAppIconSurvivesProtectedBackupAndRestoreAndOlderBackups() throws {
+        let (vault, app, _, _) = try makeVault()
+        let key = SymmetricKey(size: .bits256)
+        app.iconColor = "blue"
+        // A valid one-pixel PNG keeps the archive test independent of image generation.
+        app.iconImage = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a6WQAAAAASUVORK5CYII=")!
+        try vault.context.save()
+        let snapshot = try BackupSnapshot.capture(vault: vault, key: key)
+        let archive = try BackupArchive.encode(snapshot, password: "design-fixture-password")
+        let decoded = try BackupArchive.decode(archive, password: "design-fixture-password")
+        let restoredApp = try XCTUnwrap(decoded.apps.first { $0.id == app.id })
+        XCTAssertEqual(restoredApp.iconColor, "blue")
+        XCTAssertEqual(restoredApp.iconImage, app.iconImage)
+        let originalIcon = app.iconImage
+        app.iconImage = nil
+        app.iconColor = "orange"
+        try vault.context.save()
+        let restore = BackupRestore(vault: vault)
+        let plan = try restore.prepare(decoded, key: key)
+        _ = try restore.merge(plan, choices: Dictionary(uniqueKeysWithValues: plan.conflicts.map { ($0.id, RestoreChoice.backup) }), key: key)
+        XCTAssertEqual(app.iconImage, originalIcon)
+        XCTAssertEqual(app.iconColor, "blue")
+        let old = try editing(snapshot) { json in
+            var apps = json["apps"] as! [[String: Any]]
+            for index in apps.indices { apps[index].removeValue(forKey: "iconColor"); apps[index].removeValue(forKey: "iconImage") }
+            json["apps"] = apps
+        }
+        XCTAssertTrue(old.apps.allSatisfy { $0.iconColor == nil && $0.iconImage == nil })
+        let invalid = try editing(snapshot) { json in
+            var apps = json["apps"] as! [[String: Any]]
+            apps[0]["iconImage"] = Data(repeating: 0, count: 1_048_577).base64EncodedString()
+            json["apps"] = apps
+        }
+        XCTAssertThrowsError(try invalid.validate())
     }
 
     func testBackupReminderOnlyQueuesOncePerPeriodAndCanRescheduleBeforeDelivery() throws {

@@ -121,41 +121,66 @@ struct TrashView: View {
     private var deletedApps: [ManagedApp] { apps.filter { $0.deletedAt != nil } }
     private var deletedRecords: [StoredCredential] { records.filter { $0.deletedAt != nil } }
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("最近削除した項目").font(.title.bold())
-            Text("30日間復元できます。30日経過後は次回起動・認証時に完全削除します。既存のバックアップは残り、SSD上の物理消去は保証しません。")
-                .foregroundStyle(.secondary)
-            if deletedApps.isEmpty && deletedRecords.isEmpty { ContentUnavailableView("削除した項目はありません", systemImage: "trash") }
-            else {
-                List {
-                    Section("App") {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .bottom, spacing: 12) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("最近削除した項目").font(.system(size: 20, weight: .bold))
+                    Text("削除から30日後、次回起動・認証時に完全に削除します。それまでは元に戻せます。")
+                        .font(.system(size: 12)).foregroundStyle(AppMateStyle.secondary)
+                }
+                Spacer()
+                Button("すべて完全に削除…", role: .destructive) { purging = true }
+                    .buttonStyle(AppMateButtonStyle()).disabled(deletedApps.isEmpty && deletedRecords.isEmpty)
+            }
+            if deletedApps.isEmpty && deletedRecords.isEmpty {
+                ContentUnavailableView("削除した項目はありません", systemImage: "trash").frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                HStack {
+                    Text("名前").frame(maxWidth: .infinity, alignment: .leading)
+                    Text("種類").frame(width: 90, alignment: .leading)
+                    Text("使っていたアプリ").frame(width: 130, alignment: .leading)
+                    Text("完全に消えるまで").frame(width: 120, alignment: .leading)
+                    Color.clear.frame(width: 90, height: 1)
+                }.font(.system(size: 12)).foregroundStyle(AppMateStyle.secondary).padding(8)
+                Divider()
+                ScrollView {
+                    VStack(spacing: 0) {
                         ForEach(deletedApps) { app in
-                            HStack {
-                                VStack(alignment: .leading) { Text(app.name); Text(app.deletedAt!.formatted()).font(.caption).foregroundStyle(.secondary) }
-                                Spacer()
-                                Button("復元") { perform { _ in try VaultManagement(vault: vault).restore(app) } }
+                            trashRow(app.name, kind: "アプリ", owner: app.team?.name ?? "", deletedAt: app.deletedAt!) {
+                                perform { _ in try VaultManagement(vault: vault).restore(app) }
                             }
                         }
-                    }
-                    Section("鍵とファイル") {
                         ForEach(deletedRecords) { record in
-                            HStack {
-                                VStack(alignment: .leading) { Text(record.name); Text(record.originalName).font(.caption).foregroundStyle(.secondary) }
-                                Spacer()
-                                Button("復元") { perform { _ in try VaultManagement(vault: vault).restore(record) } }.disabled(record.app?.deletedAt != nil)
+                            trashRow(record.name, kind: record.kind, owner: record.isTeamShared ? "チームで共通" : record.app?.name ?? "", deletedAt: record.deletedAt!, disabled: record.app?.deletedAt != nil) {
+                                perform { _ in try VaultManagement(vault: vault).restore(record) }
                             }
                         }
                     }
                 }
-                Button("すべて完全に削除…", role: .destructive) { purging = true }
+                Text("完全に削除するときはTouch IDまたはMacのパスワードで確認します。既存のバックアップは残り、SSD上の物理消去は保証しません。")
+                    .font(.system(size: 12)).foregroundStyle(AppMateStyle.secondary)
             }
             if let error { Text(error).foregroundStyle(.red) }
-        }.padding(24).disabled(access.busy)
+            Spacer(minLength: 0)
+        }.font(.system(size: 13)).padding(.horizontal, 28).padding(.vertical, 22)
+            .background(AppMateStyle.canvas).foregroundStyle(AppMateStyle.text).disabled(access.busy)
             .confirmationDialog("すべて完全に削除しますか？元に戻せません。", isPresented: $purging, titleVisibility: .visible) {
                 Button("認証して完全削除", role: .destructive) { perform { key in try VaultManagement(vault: vault).purge(records: deletedRecords, apps: deletedApps, key: key) } }
             }
             .onDisappear { access.lock() }
     }
+    private func trashRow(_ name: String, kind: String, owner: String, deletedAt: Date, disabled: Bool = false, action: @escaping () -> Void) -> some View {
+        let remaining = max(0, Int(ceil((deletedAt.addingTimeInterval(30 * 86400).timeIntervalSinceNow) / 86400)))
+        return HStack {
+            Text(name).fontWeight(.medium).frame(maxWidth: .infinity, alignment: .leading)
+            Text(kind).foregroundStyle(AppMateStyle.secondary).frame(width: 90, alignment: .leading)
+            Text(owner).foregroundStyle(AppMateStyle.secondary).frame(width: 130, alignment: .leading)
+            Text("あと\(remaining)日").foregroundStyle(remaining <= 7 ? AppMateStyle.warningText : AppMateStyle.text).frame(width: 120, alignment: .leading)
+            Button("元に戻す", action: action).buttonStyle(AppMateButtonStyle()).frame(width: 90).disabled(disabled)
+        }.padding(.horizontal, 8).padding(.vertical, 12)
+            .overlay(alignment: .bottom) { Rectangle().fill(AppMateStyle.rowBorder).frame(height: 1) }
+    }
+
     private func perform(_ operation: @escaping (SymmetricKey) throws -> Void) {
         Task { @MainActor in
             do {
@@ -164,5 +189,42 @@ struct TrashView: View {
                 error = nil
             } catch { self.error = error.localizedDescription }
         }
+    }
+}
+
+
+struct CredentialDeleteConfirmation: View {
+    let record: StoredCredential
+    let onDelete: () -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Image(systemName: "trash").font(.system(size: 24)).foregroundStyle(AppMateStyle.dangerText)
+                .frame(width: 48, height: 48).background(AppMateStyle.dangerBackground, in: RoundedRectangle(cornerRadius: 12))
+            Text("「\(record.name)」を\(record.isTeamShared ? "チーム全体から" : "")削除しますか？")
+                .font(.system(size: 17, weight: .bold))
+            if ["p8", "p12"].contains(record.fileExtension) {
+                Label(record.fileExtension == "p8" ? "鍵はAppleからもう一度ダウンロードできません。ほかに控えがなければ、鍵を作り直してCIの設定も更新する必要があります。" : "秘密鍵の控えがなければ、証明書の再発行とCI設定の更新が必要になる場合があります。", systemImage: "exclamationmark.triangle")
+                    .font(.system(size: 13)).foregroundStyle(AppMateStyle.dangerText).padding(12)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(AppMateStyle.dangerBackground.opacity(0.6), in: RoundedRectangle(cornerRadius: 10))
+            }
+            if record.isTeamShared {
+                let apps = record.team?.apps.filter { $0.deletedAt == nil } ?? []
+                Label(apps.isEmpty ? "チームで共通の資格情報です" : apps.map(\.name).sorted().joined(separator: "・") + " の\(apps.count)アプリで使っています", systemImage: "sidebar.left")
+                    .font(.system(size: 13)).padding(12).frame(maxWidth: .infinity, alignment: .leading)
+                    .background(AppMateStyle.sidebar, in: RoundedRectangle(cornerRadius: 10))
+            }
+            Text("\(record.isTeamShared ? "すべての共有先の一覧から外れます。" : "このアプリの専用ファイルを削除します。")Apple側の鍵やCIの設定は変更しません。30日間は元に戻せます。")
+                .font(.system(size: 12)).foregroundStyle(AppMateStyle.secondary)
+            HStack(spacing: 8) {
+                Spacer()
+                Button("キャンセル") { dismiss() }.buttonStyle(AppMateButtonStyle()).keyboardShortcut(.cancelAction)
+                Button(action: onDelete) { Label("認証して削除", systemImage: "touchid").padding(.horizontal, 14).frame(height: 34) }
+                    .buttonStyle(.plain).foregroundStyle(.white)
+                    .background(AppMateStyle.danger, in: RoundedRectangle(cornerRadius: 8))
+            }.padding(.top, 4)
+        }.padding(26).frame(width: 460).background(AppMateStyle.canvas).foregroundStyle(AppMateStyle.text)
     }
 }

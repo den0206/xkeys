@@ -30,34 +30,73 @@ struct CICopyView: View {
     @State private var templates: [CITemplate] = []
     @State private var message: String?
     @State private var repository = "owner/repo"
+    @State private var commandTemplateID: UUID?
+    private var shownTemplates: [CITemplate] {
+        templates.filter { template in
+            switch template.value {
+            case .base64: return ["p8", "p12"].contains(record.fileExtension)
+            case .password: return record.fileExtension == "p12"
+            case .keyID: return record.keyID != nil
+            case .issuerID: return record.issuerID != nil
+            case .teamID: return true
+            }
+        }.map { template in
+            var item = template
+            if record.fileExtension == "p12", item.id == AppPreferences().templates.first?.id, item.variable == "ASC_KEY_P8_BASE64" {
+                item.variable = "BUILD_CERTIFICATE_BASE64"
+            }
+            return item
+        }
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            Text("CIに登録する値").font(.title2.bold())
-            Text(record.originalName).font(.body.monospaced())
-            Text("値は1項目ずつ認証してコピーします。60秒後、コピー内容が変わっていなければ消去します。ほかのアプリによる記録を完全には防げません。")
-                .font(.caption).foregroundStyle(.secondary)
-            TextField("GitHubリポジトリ（owner/repo）", text: $repository)
+        VStack(spacing: 16) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    ForEach(templates) { template in
-                        VStack(alignment: .leading, spacing: 6) {
+                    Text("CIに登録する値をコピー").font(.system(size: 18, weight: .bold))
+                    Text("\(record.app?.name ?? record.team?.name ?? "") · \(record.name)（.\(record.fileExtension)）")
+                    Text("変数名と値を1項目ずつCIの設定画面へ貼り付けます。App MateからCIへは送信しません。")
+                        .font(.system(size: 12)).foregroundStyle(AppMateStyle.secondary)
+                    VStack(spacing: 0) {
+                        HStack {
+                            Text("変数名").frame(maxWidth: .infinity, alignment: .leading)
+                            Text("値").frame(width: 90, alignment: .leading)
+                            Text("操作").frame(width: 120, alignment: .leading)
+                        }.font(.system(size: 12)).foregroundStyle(AppMateStyle.secondary).padding(.horizontal, 6).padding(.vertical, 8)
+                        Divider()
+                        ForEach(shownTemplates) { template in
                             HStack {
-                                VStack(alignment: .leading) { Text(template.variable).font(.body.monospaced()); Text(template.value.title + " · ••••••••").font(.caption).foregroundStyle(.secondary) }
-                                Spacer()
-                                Button("認証してコピー") { copy(template.value) }.disabled(!available(template.value) || access.busy)
-                            }
-                            if repository.range(of: "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$", options: .regularExpression) != nil {
-                                Text("pbpaste | gh secret set \(template.variable) --repo '\(repository)'").font(.caption.monospaced()).textSelection(.enabled)
-                            }
-                        }.padding(12).background(Color.secondary.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+                                Text(template.variable).font(.system(size: 12, design: .monospaced)).frame(maxWidth: .infinity, alignment: .leading).textSelection(.enabled)
+                                Text(available(template.value) ? "••••••••" : "未保存").font(.system(size: 12)).foregroundStyle(AppMateStyle.secondary).frame(width: 90, alignment: .leading)
+                                Button("認証してコピー") { commandTemplateID = template.id; copy(template.value) }
+                                    .buttonStyle(AppMateButtonStyle()).disabled(!available(template.value) || access.busy).frame(width: 120)
+                            }.padding(.horizontal, 6).padding(.vertical, 10)
+                                .overlay(alignment: .bottom) { Rectangle().fill(AppMateStyle.rowBorder).frame(height: 1) }
+                        }
                     }
-                }
+                    Text("Touch ID またはMacのパスワードで確認します。コピーした値は60秒後、内容が変わっていない場合だけ消去します。")
+                        .font(.system(size: 13)).foregroundStyle(AppMateStyle.warningText).padding(14)
+                        .frame(maxWidth: .infinity, alignment: .leading).background(AppMateStyle.warningBackground, in: RoundedRectangle(cornerRadius: 9))
+                    Text("値を含まないコマンド").font(.system(size: 14, weight: .bold))
+                    TextField("GitHubリポジトリ（owner/repo）", text: $repository).textFieldStyle(.roundedBorder)
+                    if repository.range(of: "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$", options: .regularExpression) != nil,
+                       let template = shownTemplates.first(where: { $0.id == commandTemplateID }) ?? shownTemplates.first(where: { available($0.value) }) {
+                        Text("pbpaste | gh secret set \(template.variable) --repo '\(repository)'")
+                            .font(.system(size: 12, design: .monospaced)).textSelection(.enabled)
+                            .padding(12).frame(maxWidth: .infinity, alignment: .leading)
+                            .background(AppMateStyle.sidebar, in: RoundedRectangle(cornerRadius: 8))
+                    }
+                    DisclosureGroup("テンプレートについて") {
+                        Text("追加・変数名の編集は「設定 → CIテンプレート」で行えます。Bitriseへは元形式の書き出しを使ってください。")
+                            .font(.system(size: 12)).foregroundStyle(AppMateStyle.secondary)
+                    }
+                    if let message { Text(message).font(.caption) }
+                }.frame(maxWidth: .infinity, alignment: .leading)
             }
-            Text("テンプレートの追加・変数名の編集は「設定 → CIテンプレート」で行えます。Bitriseへは元形式の書き出しを使ってください。")
-                .font(.caption).foregroundStyle(.secondary)
-            if let message { Text(message).font(.caption) }
-            HStack { Spacer(); Button("閉じる") { dismiss() }.keyboardShortcut(.cancelAction) }
-        }.padding(24).frame(width: 660, height: 550)
+            Divider()
+            HStack { Spacer(); Button("閉じる") { dismiss() }.buttonStyle(AppMateButtonStyle()).keyboardShortcut(.cancelAction) }
+        }.font(.system(size: 13)).padding(.horizontal, 26).padding(.vertical, 24).frame(width: 600, height: 620)
+            .background(AppMateStyle.canvas).foregroundStyle(AppMateStyle.text).tint(AppMateStyle.accent)
             .task { do { templates = try PreferencesStore.read(in: vault.context).templates } catch { message = error.localizedDescription } }
             .onReceive(NotificationCenter.default.publisher(for: NSApplication.didResignActiveNotification)) { _ in if !access.busy { access.lock(); dismiss() } }
             .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.sessionDidResignActiveNotification)) { _ in access.lock(); dismiss() }
