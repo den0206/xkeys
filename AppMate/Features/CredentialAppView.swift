@@ -23,6 +23,15 @@ enum CredentialDisplayState: Equatable {
 }
 
 extension StoredCredential {
+    var fileTypeTitle: String {
+        return switch fileExtension {
+        case "cer": "証明書"
+        case "p12": "証明書＋秘密鍵"
+        case "p8": "秘密鍵"
+        default: "プロファイル"
+        }
+    }
+
     func displayState(at now: Date) -> CredentialDisplayState {
         if revokedAt != nil { return .revoked }
         if replacedByID != nil { return .replaced }
@@ -336,8 +345,10 @@ struct CredentialAppView: View {
                             .font(.system(size: 10)).foregroundStyle(AppMateStyle.secondary).lineLimit(2)
                     }
                 }.frame(maxWidth: .infinity, alignment: .leading)
-                Text(record.fileExtension == "p8" ? "鍵" : record.isTeamShared ? "証明書" : "プロファイル")
-                    .foregroundStyle(AppMateStyle.secondary).frame(width: typeWidth, alignment: .leading)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(record.fileTypeTitle).font(.system(size: 12)).fixedSize(horizontal: false, vertical: true)
+                    Text("." + record.fileExtension).font(.system(size: 10, design: .monospaced))
+                }.foregroundStyle(AppMateStyle.secondary).frame(width: typeWidth, alignment: .leading)
                 Text(record.expiresAt?.formatted(.dateTime.year().month(.twoDigits).day(.twoDigits)) ?? "なし")
                     .font(.system(size: 12)).frame(width: expirationWidth, alignment: .leading)
                 CredentialStatusBadge(state: record.displayState(at: clock)).frame(width: stateWidth, alignment: .trailing)
@@ -355,7 +366,7 @@ struct CredentialAppView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("\(record.kind) · \(record.isTeamShared ? "チームで共通" : "このアプリ専用")")
+                            Text("\(record.fileTypeTitle)（.\(record.fileExtension)） · \(record.isTeamShared ? "チームで共通" : "このアプリ専用")")
                                 .font(.system(size: 12)).foregroundStyle(AppMateStyle.secondary)
                             Text(record.name).font(.system(size: 20, weight: .bold))
                             Text(record.fileExtension == "p12" ? "アプリへの署名に使う証明書と秘密鍵です" : record.fileExtension == "p8" ? "Appleのサービスへの認証に使います" : record.isTeamShared ? "アプリへの署名に使う証明書です" : "このアプリの署名と配布に使います")
@@ -379,7 +390,7 @@ struct CredentialAppView: View {
                             }
                         }.buttonStyle(AppMateButtonStyle()).frame(maxWidth: .infinity).disabled(access.busy)
                         VStack(alignment: .leading, spacing: 10) {
-                            metadata("ファイルの種類", record.fileExtension == "p12" ? "証明書＋秘密鍵（.p12）" : record.kind)
+                            metadata("ファイルの種類", "\(record.fileTypeTitle)（.\(record.fileExtension)）")
                             metadata("チームID", record.team?.teamID ?? "未取得", monospaced: true)
                             if let owner = record.app { metadata("アプリ", owner.name); metadata("Bundle ID", owner.bundleID, monospaced: true) }
                             metadata("追加した日", record.createdAt.formatted(date: .long, time: .omitted))

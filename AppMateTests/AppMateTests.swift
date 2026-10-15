@@ -226,6 +226,8 @@ final class AppMateTests: XCTestCase {
         let key = SymmetricKey(size: .bits256)
         let file = CredentialFile(data: try fixture("cer"), name: "sample.cer")
         _ = try vault.importFile(file, parsed: CredentialParser.parse(file.data, extension: "cer"), app: app, password: nil, confirmUnknownTeam: true, key: key)
+        let identity = CredentialFile(data: try fixture("p12"), name: "sample.p12")
+        _ = try vault.importFile(identity, parsed: CredentialParser.parse(identity.data, extension: "p12", password: "fixture-only"), app: app, password: nil, confirmUnknownTeam: false, key: key)
         let catalog = AppCatalog(context: vault.context)
         try catalog.setParent(nil, for: app, name: "Example App Store", platform: app.platform)
         try catalog.setParent(app.id, for: child, name: "Example Share App Store Extension", platform: child.platform)
