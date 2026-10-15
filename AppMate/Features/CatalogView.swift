@@ -75,6 +75,9 @@ struct CatalogView: View {
         }
         .onReceive(Timer.publish(every: 60, on: .main, in: .common).autoconnect()) { _ in clock = .now }
         .onChange(of: selection) { _, _ in search = "" }
+        .onChange(of: selectedApp?.deletedAt) { _, deletedAt in
+            if deletedAt != nil { selection = .all }
+        }
         .onChange(of: navigation.request) { _, _ in
             search = ""
             typeFilter = .all
@@ -147,15 +150,22 @@ struct CatalogView: View {
         }.padding(.horizontal, 16).frame(height: 52).background(AppMateStyle.sidebar)
     }
 
+    private var expiredCount: Int { active.filter { $0.displayState(at: clock) == .expired }.count }
+    private var expiringCount: Int { active.filter { $0.displayState(at: clock).needsRenewal }.count }
+
     private var sidebar: some View {
         VStack(spacing: 0) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 4) {
                     sidebarHeading("まとめて見る")
-                    sidebarItem("期限切れ", symbol: "square.fill", scope: .expired,
-                                count: active.filter { $0.displayState(at: clock) == .expired }.count, color: AppMateStyle.danger)
-                    sidebarItem("30日以内に期限", symbol: "circle.fill", scope: .expiring,
-                                count: active.filter { $0.displayState(at: clock).needsRenewal }.count, color: Color(red: 224/255, green: 160/255, blue: 48/255))
+                    if expiredCount > 0 {
+                        sidebarItem("期限切れ", symbol: "square.fill", scope: .expired,
+                                    count: expiredCount, color: AppMateStyle.danger)
+                    }
+                    if expiringCount > 0 {
+                        sidebarItem("30日以内に期限", symbol: "circle.fill", scope: .expiring,
+                                    count: expiringCount, color: Color(red: 224/255, green: 160/255, blue: 48/255))
+                    }
                     sidebarItem("すべて", symbol: "circle", scope: .all, count: active.count)
                     sidebarItem("最近削除した項目", symbol: "trash", scope: .trash,
                                 count: credentials.filter { $0.deletedAt != nil }.count + apps.filter { $0.deletedAt != nil }.count)
@@ -187,15 +197,12 @@ struct CatalogView: View {
                     sidebarItem("App Store Connect の鍵", symbol: "lock", scope: .shared(.appStoreConnect))
                     sidebarItem("プッシュ通知の鍵", symbol: "lock", scope: .shared(.apns))
                     sidebarItem("Sign in with Apple の鍵", symbol: "lock", scope: .shared(.signInWithApple))
-                    Button("アプリを追加…", systemImage: "plus") { addingApp = true }.disabled(teams.isEmpty).foregroundStyle(AppMateStyle.accent)
-                        .padding(.horizontal, 10).padding(.vertical, 7)
-                    Button("チームを追加…", systemImage: "plus") { addingTeam = true }.foregroundStyle(AppMateStyle.accent)
-                        .padding(.horizontal, 10).padding(.vertical, 7)
+
                 }.font(.system(size: 13)).buttonStyle(.borderless).padding(.horizontal, 10).padding(.top, 14)
             }
             .focusable().focusEffectDisabled()
             .onMoveCommand { direction in
-                let scopes: [CredentialScope] = [.expired, .expiring, .all, .trash] + apps.filter { $0.deletedAt == nil }.map { .app($0.id) } + [.shared(.appStoreConnect), .shared(.apns), .shared(.signInWithApple)]
+                let scopes: [CredentialScope] = (expiredCount > 0 ? [.expired] : []) + (expiringCount > 0 ? [.expiring] : []) + [.all, .trash] + apps.filter { $0.deletedAt == nil }.map { .app($0.id) } + [.shared(.appStoreConnect), .shared(.apns), .shared(.signInWithApple)]
                 guard direction == .up || direction == .down else { return }
                 let index = scopes.firstIndex { $0 == selection } ?? (direction == .down ? -1 : scopes.count)
                 selection = scopes[min(max(index + (direction == .down ? 1 : -1), 0), scopes.count - 1)]
@@ -217,6 +224,23 @@ struct CatalogView: View {
                 .background(AppMateStyle.canvas, in: RoundedRectangle(cornerRadius: 10))
                 .overlay(RoundedRectangle(cornerRadius: 10).stroke(AppMateStyle.border, lineWidth: 1))
                 .padding(14)
+            VStack(spacing: 8) {
+                Divider().padding(.bottom, 4)
+                Button { addingApp = true } label: {
+                    HStack(spacing: 10) {
+                        Image(systemName: "plus.app").frame(width: 16).foregroundStyle(AppMateStyle.accent)
+                        Text("アプリを追加…")
+                        Spacer(minLength: 0)
+                    }.frame(maxWidth: .infinity)
+                }.buttonStyle(AppMateButtonStyle()).disabled(teams.isEmpty)
+                Button { addingTeam = true } label: {
+                    HStack(spacing: 10) {
+                        Image(systemName: "person.2.badge.plus").frame(width: 16).foregroundStyle(AppMateStyle.secondary)
+                        Text("チームを追加…")
+                        Spacer(minLength: 0)
+                    }.frame(maxWidth: .infinity)
+                }.buttonStyle(AppMateButtonStyle())
+            }.padding(.horizontal, 14).padding(.bottom, 14)
         }.background(AppMateStyle.sidebar)
     }
 

@@ -71,6 +71,7 @@ struct CredentialAppView: View {
     @Query(sort: \StoredCredential.name) private var records: [StoredCredential]
     @State private var access = VaultAccess()
     @State private var selected: UUID?
+    @State private var droppedSources: [URL] = []
     @State private var clock = Date.now
     @State private var showReplaced = false
     @State private var error: String?
@@ -80,6 +81,7 @@ struct CredentialAppView: View {
     @State private var editingApp = false
     @State private var copyingCI = false
     @State private var deleting = false
+    @State private var deletingApp = false
     @State private var showingRenewalGuide = false
     @State private var inlineInspector = true
     @State private var showingInspector = false
@@ -137,7 +139,7 @@ struct CredentialAppView: View {
 
         .sheet(isPresented: $importing) {
             if let app {
-                CredentialImportView(app: app, vault: vault, access: access, existing: records, initialSources: initialSources) { id in
+                CredentialImportView(app: app, vault: vault, access: access, existing: records, initialSources: droppedSources.isEmpty ? initialSources : droppedSources) { id in
                     selected = id
                     status = "資格情報を暗号化して保存しました。元ファイルは変更していません。"
                 }
@@ -154,6 +156,12 @@ struct CredentialAppView: View {
                 }
             }
         }
+        .confirmationDialog(app.map { "「\($0.name)」を削除しますか？" } ?? "アプリを削除しますか？", isPresented: $deletingApp, titleVisibility: .visible) {
+            Button("認証してアプリを削除", role: .destructive) { deleteApp() }
+            Button("キャンセル", role: .cancel) {}
+        } message: {
+            Text("アプリと専用プロファイルを「最近削除した項目」へ移します。30日間は復元できます。チームで共有する鍵・証明書は残ります。")
+        }
         .task {
             do {
                 try vault.recover()
@@ -161,6 +169,7 @@ struct CredentialAppView: View {
             }
             catch { self.error = "保存状態を確認できません。\(error.localizedDescription)" }
         }
+        .onChange(of: importing) { _, shown in if !shown { droppedSources = [] } }
         .onDisappear { lock() }
         .onChange(of: selected) { _, _ in access.lock(); revealedPassword = nil }
         .onChange(of: showReplaced) { _, _ in selected = nil }
@@ -194,11 +203,17 @@ struct CredentialAppView: View {
                 }
                 Spacer(minLength: 0)
                 Menu {
-                    if app != nil { Button("App情報") { selected = nil } }
+                    if app != nil {
+                        Button("App情報") { selected = nil; showingInspector = true }
+                        Button("アプリを編集…") { editingApp = true }
+                        Button("アプリを削除…", role: .destructive) { deletingApp = true }.disabled(access.busy)
+                        Divider()
+                    }
                     Toggle("置き換え済みを表示", isOn: $showReplaced)
                     Button("ロック", systemImage: "lock") { lock() }
                 } label: { Image(systemName: "ellipsis") }
-                    .menuStyle(.borderlessButton).frame(width: 20).help("表示と管理")
+                    .menuStyle(.borderlessButton).menuIndicator(.hidden)
+                    .frame(width: 28, height: 28).help("表示と管理").accessibilityLabel("表示と管理")
             }.padding(.bottom, 16)
             let attention = visible.filter { $0.displayState(at: clock).needsRenewal || $0.displayState(at: clock) == .expired }
             if !attention.isEmpty {
@@ -231,10 +246,18 @@ struct CredentialAppView: View {
                 ContentUnavailableView {
                     Label(!CredentialSearch.hasQuery(search) && typeFilter == .all ? "鍵やファイルがありません" : "条件に一致する項目がありません", systemImage: "magnifyingglass")
                 } description: {
-                    Text(CredentialSearch.hasQuery(search) || typeFilter != .all ? "検索語や種類を変えて確認してください。" : app == nil ? "該当する資格情報はありません。" : "このアプリで使う鍵や証明書を追加しましょう。")
+                    Text(CredentialSearch.hasQuery(search) || typeFilter != .all ? "検索語や種類を変えて確認してください。" : app == nil ? "該当する資格情報はありません。" : "このアプリで使う鍵や証明書をここにドラッグ＆ドロップして追加できます。")
                 } actions: {
                     if app != nil { Button("ファイルを追加…") { importing = true } }
                 }.frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .contentShape(Rectangle())
+                    .dropDestination(for: URL.self) { urls, _ in
+                        guard let app, app.deletedAt == nil, !CredentialSearch.hasQuery(search),
+                              !urls.isEmpty, !access.busy, !importing else { return false }
+                        droppedSources = urls
+                        importing = true
+                        return true
+                    }
             } else {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 0) {
@@ -376,7 +399,9 @@ struct CredentialAppView: View {
                                 Button(record.revokedAt == nil ? "認証して手動失効にする" : "認証して手動失効を解除") { manage(record, trash: false) }
                                 Button("ファイルの識別情報…") { showingIdentity = true }
                                 Button("ロック", systemImage: "lock") { lock() }
-                            } label: { Image(systemName: "ellipsis") }.menuStyle(.borderlessButton).frame(width: 22)
+                            } label: { Image(systemName: "ellipsis") }
+                                .menuStyle(.borderlessButton).menuIndicator(.hidden)
+                                .frame(width: 28, height: 28).accessibilityLabel("資格情報の管理")
                         }.font(.system(size: 12)).buttonStyle(.borderless).disabled(access.busy)
                     }.padding(22).frame(maxWidth: .infinity, minHeight: geometry.size.height, alignment: .topLeading)
                 }
@@ -394,6 +419,9 @@ struct CredentialAppView: View {
                 Text("中央の鍵やファイルを選ぶと詳細を表示します。")
                     .font(.system(size: 12)).foregroundStyle(.secondary)
                 Spacer()
+                Divider()
+                Button("アプリを削除…", role: .destructive) { deletingApp = true }
+                    .foregroundStyle(AppMateStyle.dangerText).disabled(access.busy)
             }.padding(22).frame(maxWidth: .infinity, alignment: .leading)
         } else {
             ContentUnavailableView("鍵やファイルを選択", systemImage: "sidebar.right",
@@ -412,6 +440,7 @@ struct CredentialAppView: View {
     private func lock(dismissImport: Bool = true) {
         access.lock()
         deleting = false
+        deletingApp = false
         showingRenewalGuide = false
         showingIdentity = false
         showingInspector = false
@@ -463,6 +492,18 @@ struct CredentialAppView: View {
                     else { try VaultManagement(vault: vault).setRevoked(record, key: key) }
                 }
                 if trash { selected = nil }
+            } catch { self.error = error.localizedDescription }
+        }
+    }
+
+    private func deleteApp() {
+        guard let app else { return }
+        Task { @MainActor in
+            do {
+                let create = try vault.canCreateKey()
+                try await access.withKey(reason: "登録済みアプリを削除します", allowCreation: create, vault: vault) { key in
+                    try VaultManagement(vault: vault).trash(app, key: key)
+                }
             } catch { self.error = error.localizedDescription }
         }
     }

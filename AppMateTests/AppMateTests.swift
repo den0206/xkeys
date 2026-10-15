@@ -1455,7 +1455,16 @@ final class AppMateTests: XCTestCase {
         let parsed = try CredentialParser.parse(file.data, extension: "mobileprovision")
         let key = SymmetricKey(size: .bits256)
         XCTAssertThrowsError(try vault.importFile(file, parsed: parsed, app: other, password: nil, confirmUnknownTeam: true, key: key))
-        XCTAssertThrowsError(try vault.importFile(file, parsed: parsed, app: sibling, password: nil, confirmUnknownTeam: true, key: key))
+        let historyCount = try vault.context.fetchCount(FetchDescriptor<BackupChange>())
+        XCTAssertThrowsError(try vault.validate(file: file, parsed: parsed, app: sibling, confirmUnknownTeam: true)) { error in
+            guard case VaultError.bundleMismatch = error else { return XCTFail("Unexpected error: \(error)") }
+        }
+        XCTAssertThrowsError(try vault.importFile(file, parsed: parsed, app: sibling, password: nil, confirmUnknownTeam: true, key: key)) { error in
+            guard case VaultError.bundleMismatch = error else { return XCTFail("Unexpected error: \(error)") }
+        }
+        XCTAssertFalse(vault.context.hasChanges)
+        XCTAssertEqual(try vault.context.fetchCount(FetchDescriptor<BackupChange>()), historyCount)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: vault.blobs.directory.path))
         XCTAssertTrue(try vault.records().isEmpty)
         try vault.importFile(file, parsed: parsed, app: first, password: nil, confirmUnknownTeam: false, key: key)
         let record = try XCTUnwrap(vault.records().first)
