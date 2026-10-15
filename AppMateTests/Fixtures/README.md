@@ -1,6 +1,8 @@
 # 解析用fixture
 
-すべてこのプロジェクト用に生成した架空のテストデータ。Appleの署名・実アプリの証明書ではありません。
+`developer-id-g2.cer`を除き、このプロジェクト用に生成した架空のテストデータ。実アプリの署名用証明書ではありません。
+
+- developer-id-g2.cer: Apple公開のDeveloper ID G2中間CA証明書。CA属性による分類・Team確認不要・バックアップ往復の検証用。公開証明書のみで、秘密鍵は含みません。配布元：https://www.apple.com/certificateauthority/DeveloperIDG2CA.cer
 
 - sample.mobileprovision: 自己署名証明書でCMS署名したplist。期限2030-01-01 UTC、Team TESTTEAM01。
 - sample.cer: 同じ自己署名証明書のDER表現。

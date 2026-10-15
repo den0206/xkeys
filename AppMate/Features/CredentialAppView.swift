@@ -24,6 +24,7 @@ enum CredentialDisplayState: Equatable {
 
 extension StoredCredential {
     var fileTypeTitle: String {
+        if isIntermediateCA { return ParsedCredential.intermediateCAKind }
         return switch fileExtension {
         case "cer": "証明書"
         case "p12": "証明書＋秘密鍵"
@@ -369,7 +370,7 @@ struct CredentialAppView: View {
                             Text("\(record.fileTypeTitle)（.\(record.fileExtension)） · \(record.isTeamShared ? "チームで共通" : "このアプリ専用")")
                                 .font(.system(size: 12)).foregroundStyle(AppMateStyle.secondary)
                             Text(record.name).font(.system(size: 20, weight: .bold))
-                            Text(record.fileExtension == "p12" ? "アプリへの署名に使う証明書と秘密鍵です" : record.fileExtension == "p8" ? "Appleのサービスへの認証に使います" : record.isTeamShared ? "アプリへの署名に使う証明書です" : "このアプリの署名と配布に使います")
+                            Text(record.isIntermediateCA ? "署名用証明書の発行元となる中間CA証明書です。アプリへの署名に使う個人の証明書とは異なります。" : record.fileExtension == "p12" ? "アプリへの署名に使う証明書と秘密鍵です" : record.fileExtension == "p8" ? "Appleのサービスへの認証に使います" : record.isTeamShared ? "アプリへの署名に使う証明書です" : "このアプリの署名と配布に使います")
                                 .font(.system(size: 12)).foregroundStyle(AppMateStyle.secondary)
                         }
                         VStack(alignment: .leading, spacing: 4) {
@@ -391,7 +392,12 @@ struct CredentialAppView: View {
                         }.buttonStyle(AppMateButtonStyle()).frame(maxWidth: .infinity).disabled(access.busy)
                         VStack(alignment: .leading, spacing: 10) {
                             metadata("ファイルの種類", "\(record.fileTypeTitle)（.\(record.fileExtension)）")
-                            metadata("チームID", record.team?.teamID ?? "未取得", monospaced: true)
+                            if record.isIntermediateCA {
+                                metadata("Team ID", "対象外（中間CA証明書）")
+                                metadata("保管先チーム", record.team?.name ?? "未設定")
+                            } else {
+                                metadata("チームID", record.team?.teamID ?? "未取得", monospaced: true)
+                            }
                             if let owner = record.app { metadata("アプリ", owner.name); metadata("Bundle ID", owner.bundleID, monospaced: true) }
                             metadata("追加した日", record.createdAt.formatted(date: .long, time: .omitted))
                             metadata("元のファイル名", record.originalName, monospaced: true)
@@ -743,16 +749,16 @@ struct CredentialImportView: View {
                             VStack(alignment: .leading, spacing: 8) {
                         LabeledContent("名前", value: parsed.name)
                         LabeledContent("期限", value: parsed.expiresAt?.formatted(date: .abbreviated, time: .standard) ?? "期限なし")
-                        LabeledContent("取得したTeam ID", value: parsed.teamID ?? "未取得")
+                        LabeledContent("取得したTeam ID", value: parsed.isIntermediateCA ? "対象外（中間CA証明書）" : parsed.teamID ?? "未取得")
                         if let bundle = parsed.bundleID { LabeledContent("Bundle ID", value: bundle) }
                         if let fingerprint = parsed.fingerprint { Text("SHA-256：\(fingerprint)").font(.caption.monospaced()).textSelection(.enabled) }
                             }
                         }
-                        if !isP8 && parsed.teamID == nil {
+                        if !isP8 && !parsed.isIntermediateCA && parsed.teamID == nil {
                             Toggle("Team IDを判別できないため、\(app.team?.name ?? "選択中のTeam")に割り当てることを確認しました", isOn: $confirmUnknownTeam)
                         }
                         let isP12 = (file?.name as NSString?)?.pathExtension.lowercased() == "p12"
-                        Text(parsed.bundleID == nil ? "同じTeamのすべてのAppに表示されます。" : "「\(importApp.name)」専用のプロファイルとして保存します。")
+                        Text(parsed.isIntermediateCA ? "中間CA証明書には個人のTeam IDはありません。選択中のTeamを保管先として保存します。" : parsed.bundleID == nil ? "同じTeamのすべてのAppに表示されます。" : "「\(importApp.name)」専用のプロファイルとして保存します。")
                         if isP12 {
                             Toggle(".p12のパスワードも暗号化して保存", isOn: $savePassword)
                             Text("証明書チェーンと秘密鍵を含む元の.p12全体を保存・書き出しします。証明書の選択は表示情報だけを変えます。")

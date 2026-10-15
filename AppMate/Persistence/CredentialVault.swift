@@ -139,6 +139,8 @@ final class StoredCredential {
         return isTeamShared || self.app?.id == app.id
     }
 
+    var isIntermediateCA: Bool { fileExtension == "cer" && kind == ParsedCredential.intermediateCAKind }
+
     func authenticatedData() throws -> Data {
         guard let team else { throw VaultError.invalidAssociation }
         var fields = [
@@ -232,7 +234,7 @@ struct CredentialVault {
         } else if p8 != nil { throw VaultError.missingPurpose }
         if let sourceTeam = parsed.teamID {
             guard sourceTeam == team.teamID else { throw VaultError.teamMismatch }
-        } else if ext != "p8" && !confirmUnknownTeam { throw VaultError.confirmTeam }
+        } else if ext != "p8" && !(ext == "cer" && parsed.isIntermediateCA) && !confirmUnknownTeam { throw VaultError.confirmTeam }
         if ext == "mobileprovision" || ext == "provisionprofile" {
             guard let bundle = parsed.bundleID, Self.profileMatches(bundle, bundleID: app.bundleID) else { throw VaultError.bundleMismatch }
         }

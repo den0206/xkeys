@@ -1787,6 +1787,37 @@ final class AppMateTests: XCTestCase {
         XCTAssertThrowsError(try CredentialParser.parse(plist, extension: "mobileprovision"))
     }
 
+    @MainActor
+    func testIntermediateCAImportsWithoutTeamConfirmationAndSurvivesBackup() throws {
+        let file = CredentialFile(data: try fixture("cer", name: "developer-id-g2"), name: "renamed.cer")
+        let parsed = try CredentialParser.parse(file.data, extension: "cer")
+        XCTAssertTrue(parsed.isIntermediateCA)
+        XCTAssertNil(parsed.teamID)
+        XCTAssertEqual(parsed.name, "Developer ID Certification Authority")
+        let (vault, app, _, _) = try makeVault()
+        defer { try? FileManager.default.removeItem(at: vault.blobs.directory) }
+        let key = SymmetricKey(size: .bits256)
+        let id = try vault.importFile(file, parsed: parsed, app: app, password: nil, confirmUnknownTeam: false, key: key)
+        let record = try XCTUnwrap(vault.records().first { $0.id == id })
+        XCTAssertTrue(record.isIntermediateCA)
+        XCTAssertEqual(record.fileTypeTitle, "中間CA証明書")
+        XCTAssertNil(record.sourceTeamID)
+        XCTAssertEqual(try vault.read(record, key: key).original, file.data)
+        let snapshot = try BackupSnapshot.capture(vault: vault, key: key)
+        let decoded = try BackupArchive.decode(BackupArchive.encode(snapshot, password: nil), password: nil)
+        let (target, _, _, _) = try makeVault()
+        defer { try? FileManager.default.removeItem(at: target.blobs.directory) }
+        let restore = BackupRestore(vault: target)
+        let plan = try restore.prepare(decoded, key: key)
+        _ = try restore.merge(plan, choices: Dictionary(uniqueKeysWithValues: plan.conflicts.map { ($0.id, RestoreChoice.backup) }), key: key)
+        let restored = try XCTUnwrap(target.records().first)
+        XCTAssertTrue(restored.isIntermediateCA)
+        XCTAssertEqual(try target.read(restored, key: key).original, file.data)
+        let ordinary = try CredentialParser.parse(fixture("cer"), extension: "cer")
+        XCTAssertFalse(ordinary.isIntermediateCA)
+        XCTAssertEqual(ordinary.teamID, "TESTTEAM01")
+    }
+
     func testCertificateAndPKCS12() throws {
         let certificate = try CredentialParser.parse(fixture("cer"), extension: "cer")
         let identity = try CredentialParser.parse(fixture("p12"), extension: "p12", password: "fixture-only")

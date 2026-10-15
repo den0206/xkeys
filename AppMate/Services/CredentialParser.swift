@@ -4,6 +4,8 @@ import Foundation
 import Security
 
 struct ParsedCredential: Equatable, Sendable {
+    static let intermediateCAKind = "中間CA証明書"
+    var isIntermediateCA: Bool { kind == Self.intermediateCAKind }
     var fingerprint: String? = nil
     let name: String
     let kind: String
@@ -140,7 +142,7 @@ struct CredentialParser {
     }
 
     private static func certificateInfo(_ certificate: SecCertificate, kind: String) throws -> ParsedCredential {
-        let keys = [kSecOIDX509V1ValidityNotAfter, kSecOIDX509V1SubjectName] as CFArray
+        let keys = [kSecOIDX509V1ValidityNotAfter, kSecOIDX509V1SubjectName, kSecOIDBasicConstraints] as CFArray
         guard let values = SecCertificateCopyValues(certificate, keys, nil) as? [String: Any],
               let expiry = values[kSecOIDX509V1ValidityNotAfter as String] as? [String: Any],
               let time = expiry[kSecPropertyKeyValue as String] as? NSNumber else {
@@ -153,10 +155,19 @@ struct CredentialParser {
         }.compactMap { $0[kSecPropertyKeyValue as String] as? String }.filter {
             $0.range(of: "^[A-Z0-9]{10}$", options: .regularExpression) != nil
         })
-        let team = teams.count == 1 ? teams.first : nil
+        let constraints = values[kSecOIDBasicConstraints as String] as? [String: Any]
+        let constraintFields = constraints?[kSecPropertyKeyValue as String] as? [[String: Any]] ?? []
+        let isCA = constraintFields.contains {
+            ($0[kSecPropertyKeyLabel as String] as? String) == "Certificate Authority" &&
+            ($0[kSecPropertyKeyValue as String] as? String) == "Yes"
+        }
+        let subjectName = SecCertificateCopyNormalizedSubjectSequence(certificate)
+        let issuerName = SecCertificateCopyNormalizedIssuerSequence(certificate)
+        let intermediate = kind == "証明書" && isCA && subjectName != nil && issuerName != nil && subjectName != issuerName
+        let team = !intermediate && teams.count == 1 ? teams.first : nil
         return ParsedCredential(fingerprint: SHA256.hash(data: SecCertificateCopyData(certificate) as Data).map { String(format: "%02x", $0) }.joined(),
                                 name: SecCertificateCopySubjectSummary(certificate) as String? ?? "証明書",
-                                kind: kind, teamID: team, bundleID: nil,
+                                kind: intermediate ? ParsedCredential.intermediateCAKind : kind, teamID: team, bundleID: nil,
                                 expiresAt: Date(timeIntervalSinceReferenceDate: time.doubleValue))
     }
 
