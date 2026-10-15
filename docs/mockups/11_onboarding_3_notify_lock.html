@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>オンボーディング 通知とロック</title>
+</head>
+<body>
+<style>
+body{margin:0}
+a{color:#0A5BC4}a:hover{color:#084494}
+button,select{font-family:inherit}
+</style>
+<div style="width: 800px; height: 560px; box-sizing: border-box; background: #DCDCE0; padding: 20px; font-family: 'Noto Sans JP', -apple-system, sans-serif; color: #1D1D1F">
+<div style="width: 100%; height: 100%; background: #FFFFFF; border-radius: 14px; overflow: hidden; border: 1px solid #C8C8CE; display: flex; box-shadow: 0 20px 50px rgba(20,30,60,0.18)">
+
+<div style="position: relative; width: 320px; flex-shrink: 0; background: #0F2650; overflow: hidden" aria-hidden="true">
+<div style="position: absolute; left: 14px; top: 14px; display: flex; gap: 8px"><div style="width: 12px; height: 12px; border-radius: 6px; background: #FF5F57"></div><div style="width: 12px; height: 12px; border-radius: 6px; background: #FEBC2E"></div><div style="width: 12px; height: 12px; border-radius: 6px; background: #28C840"></div></div>
+<div style="position: absolute; left: 24px; top: 70px; width: 272px; padding: 12px 14px; border-radius: 14px; background: rgba(255,255,255,0.94); box-shadow: 0 14px 30px rgba(0,0,0,0.35); display: flex; gap: 10px">
+<div style="width: 30px; height: 30px; border-radius: 8px; background: #0A64D6; flex-shrink: 0; display: flex; align-items: center; justify-content: center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.4"><circle cx="8" cy="15" r="4"></circle><path d="m11 12 9-9M17 6l3 3"></path></svg></div>
+<div style="flex: 1"><div style="display: flex; justify-content: space-between; font-size: 11px; color: #5F5F66"><span style="font-weight: 700; color: #1D1D1F">App Mate</span><span>今</span></div><div style="font-size: 12px; font-weight: 700; margin-top: 2px">配布用の証明書があと7日で切れます</div><div style="font-size: 11px; color: #4A4A50; margin-top: 1px">Tsumiki ほか2アプリで使用中</div></div>
+</div>
+<div style="position: absolute; left: 40px; top: 152px; width: 240px; height: 10px; border-radius: 0 0 12px 12px; background: rgba(255,255,255,0.35)"></div>
+<div style="position: absolute; left: 100px; top: 222px; width: 120px; height: 120px; border-radius: 60px; background: #1C3D73; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 0 14px rgba(85,133,219,0.18), 0 0 0 30px rgba(85,133,219,0.09)">
+<svg width="58" height="58" viewBox="0 0 24 24" fill="none" stroke="#8FB4F2" stroke-width="1.5"><path d="M12 11c0 3-1 6-3 8M8 6a6 6 0 0 1 10 4c0 2 0 4-1 6M5 10c0-1 .3-2 .8-3M12 15c0 2-1 4-2 5M15 13c0 2-.5 4-1.5 6"></path></svg>
+</div>
+<div style="position: absolute; left: 196px; top: 312px; width: 44px; height: 44px; border-radius: 22px; background: #8EE0AE; border: 4px solid #0F2650; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0F3D22" stroke-width="3"><path d="m5 12 5 5 9-10"></path></svg></div>
+<div style="position: absolute; left: 28px; bottom: 26px; font-size: 22px; font-weight: 900; color: #FFFFFF; letter-spacing: 0.02em">App Mate</div>
+</div>
+
+<div style="flex: 1; display: flex; flex-direction: column; padding: 46px 40px 26px">
+<div style="font-size: 12px; font-weight: 700; color: #0A64D6; letter-spacing: 0.08em">STEP 3 / 3</div>
+<h1 style="margin: 8px 0 0; font-size: 28px; font-weight: 900; line-height: 1.35">安心して使うための<br>設定</h1>
+<p style="margin: 10px 0 0; font-size: 14px; color: #4A4A50">あとから設定でいつでも変えられます。</p>
+
+<div style="margin-top: 18px; display: flex; flex-direction: column; gap: 10px">
+<div style="display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 14px; background: #F7F7F9">
+<div style="width: 36px; height: 36px; border-radius: 10px; background: #FFF1D6; display: flex; align-items: center; justify-content: center; flex-shrink: 0" aria-hidden="true"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#7A4700" stroke-width="2"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path><path d="M10 21a2 2 0 0 0 4 0"></path></svg></div>
+<div style="flex: 1"><div style="font-size: 14px; font-weight: 700">期限の通知</div><div style="font-size: 11px; color: #5F5F66">30日前・7日前・前日・当日にお知らせします</div></div>
+<button style="height: 30px; padding: 0 12px; border: 0; border-radius: 15px; background: #0A64D6; color: #FFFFFF; font-size: 12px; font-weight: 700">通知を許可</button>
+</div>
+<div style="display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 14px; background: #F7F7F9">
+<div style="width: 36px; height: 36px; border-radius: 10px; background: #E8EEF9; display: flex; align-items: center; justify-content: center; flex-shrink: 0" aria-hidden="true"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#234A85" stroke-width="2"><path d="M12 11c0 3-1 6-3 8M8 6a6 6 0 0 1 10 4c0 2 0 4-1 6M5 10c0-1 .3-2 .8-3M12 15c0 2-1 4-2 5"></path></svg></div>
+<div style="flex: 1"><div style="font-size: 14px; font-weight: 700">Macの認証で守る</div><div style="font-size: 11px; color: #5F5F66">Touch ID またはMacのパスワードで確認します</div></div>
+<span style="font-size: 12px; color: #17612E; font-weight: 700">✓ 認証を使用</span>
+</div>
+<div style="display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 14px; background: #F7F7F9">
+<div style="width: 36px; height: 36px; border-radius: 10px; background: #EFEFF2; display: flex; align-items: center; justify-content: center; flex-shrink: 0" aria-hidden="true"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#3A3A40" stroke-width="2"><rect x="5" y="10" width="14" height="11" rx="2"></rect><path d="M8 10V7a4 4 0 0 1 8 0v3"></path></svg></div>
+<div style="flex: 1"><div style="font-size: 14px; font-weight: 700">自動ロック</div><div style="font-size: 11px; color: #5F5F66">しばらく操作がないとロックします</div></div>
+<select aria-label="自動ロックまでの時間" style="height: 28px; border: 1px solid #C8C8CE; border-radius: 7px; padding: 0 6px; font-size: 12px; background: #FFFFFF"><option>5分後</option></select>
+</div>
+</div>
+
+<div style="flex: 1"></div>
+<div style="display: flex; align-items: center">
+<div style="flex: 1; display: flex; gap: 6px" aria-label="ステップ 3 / 3"><span style="width: 6px; height: 6px; border-radius: 3px; background: #C8C8CE"></span><span style="width: 6px; height: 6px; border-radius: 3px; background: #C8C8CE"></span><span style="width: 22px; height: 6px; border-radius: 3px; background: #0A64D6"></span></div>
+<button style="height: 40px; padding: 0 26px; border: 0; border-radius: 20px; background: #0A64D6; color: #FFFFFF; font-size: 14px; font-weight: 700; box-shadow: 0 6px 16px rgba(10,100,214,0.3)">はじめる →</button>
+</div>
+</div>
+</div>
+</div>
+
+<style>
+.spec-states{max-width:1120px;margin:24px;padding:22px;background:#f7f7f9;border:1px solid #dedee2;border-radius:12px;font:13px/1.65 -apple-system,BlinkMacSystemFont,sans-serif;color:#1d1d1f}
+.spec-states h2{font-size:18px;margin:0 0 8px}.spec-states details{margin-top:10px;padding:12px;background:white;border:1px solid #dedee2;border-radius:8px}.spec-states summary{cursor:pointer;font-weight:600}.spec-states .notice{padding:12px;border-radius:8px;background:#fff1d6;color:#7a4700}.spec-states .error{background:#fbd5d1;color:#8f1c12}.spec-states button,.spec-states .action{display:inline-block;padding:7px 12px;border:1px solid #c8c8ce;background:white;border-radius:7px;color:#0a64d6;text-decoration:none;font:inherit}.spec-states input,.spec-states select{padding:6px;border:1px solid #c8c8ce;border-radius:6px;font:inherit}.spec-states label{display:block;margin:8px 0}.spec-states p{margin:10px 0}button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:3px solid #0a64d6!important;outline-offset:3px}
+[role=dialog],[role=alertdialog]{max-height:calc(100% - 76px);overflow:auto}
+</style>
+<section class="spec-states" aria-label="画面状態の見本"><h2>画面状態の見本</h2><p>保存・認証・削除は実行しない静的な見本です。</p><details><summary>Touch IDを使えないMac</summary><p>Macのログインパスワードで認証できます。</p><p>App MateはMacのパスワードを保存しません。</p></details><details><summary>通知を許可しない場合</summary><p>通知なしで続けられます。アプリ内で期限を確認してください。</p><button>通知なしで続ける</button></details></section>
+</body>
+</html>

@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>App Mate 表形式</title>
+</head>
+<body>
+<style>
+body{margin:0}
+a{color:#0A5BC4}a:hover{color:#084494}
+button{font-family:inherit}
+th{font-weight:500;text-align:left}
+</style>
+<div style="width: 1280px; height: 800px; box-sizing: border-box; background: #DCDCE0; padding: 24px; font-family: 'Noto Sans JP', -apple-system, sans-serif; color: #1D1D1F">
+<div style="width: 100%; height: 100%; background: #FFFFFF; border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; border: 1px solid #C8C8CE">
+
+<div style="height: 52px; flex-shrink: 0; display: flex; align-items: center; gap: 16px; padding: 0 16px; background: #F3F3F5; border-bottom: 1px solid #DEDEE2">
+<div style="display: flex; gap: 8px" aria-hidden="true"><div style="width: 12px; height: 12px; border-radius: 6px; background: #FF5F57"></div><div style="width: 12px; height: 12px; border-radius: 6px; background: #FEBC2E"></div><div style="width: 12px; height: 12px; border-radius: 6px; background: #28C840"></div></div>
+<div style="font-size: 14px; font-weight: 700">App Mate</div>
+<div style="flex: 1; display: flex; justify-content: center">
+<label style="display: flex; align-items: center; gap: 8px; width: 320px; height: 30px; padding: 0 10px; background: #E6E6EA; border-radius: 8px; font-size: 13px; color: #5F5F66"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-4-4"></path></svg><input type="search" disabled placeholder="検索はv1.1で対応" aria-label="アプリや鍵を探す" style="border: 0; background: transparent;  font: inherit; width: 100%; color: #1D1D1F"></label>
+</div>
+<button style="height: 32px; padding: 0 14px; border: 0; border-radius: 8px; background: #0A64D6; color: #FFFFFF; font-size: 13px; font-weight: 500">＋ ファイルを追加</button>
+</div>
+
+<div style="flex: 1; display: flex; min-height: 0">
+
+<nav style="width: 236px; flex-shrink: 0; background: #F3F3F5; border-right: 1px solid #DEDEE2; padding: 14px 10px; overflow: auto; display: flex; flex-direction: column; gap: 4px; box-sizing: border-box" aria-label="サイドメニュー">
+<div style="font-size: 11px; font-weight: 700; color: #6E6E73; padding: 6px 10px 4px">まとめて見る</div>
+<a href="#" style="display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 6px; color: #1D1D1F; text-decoration: none; font-size: 13px"><span style="width: 10px; height: 10px; border-radius: 2px; background: #D93A2B" aria-hidden="true"></span><span style="flex: 1">期限切れ</span><span style="font-size: 12px; color: #6E6E73">1</span></a>
+<a href="#" style="display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 6px; color: #1D1D1F; text-decoration: none; font-size: 13px"><span style="width: 10px; height: 10px; border-radius: 5px; background: #E0A030" aria-hidden="true"></span><span style="flex: 1">30日以内に期限</span><span style="font-size: 12px; color: #6E6E73">2</span></a>
+<a href="#" style="display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 6px; color: #1D1D1F; text-decoration: none; font-size: 13px"><span style="width: 10px; height: 10px; border-radius: 5px; border: 1.5px solid #6E6E73; box-sizing: border-box" aria-hidden="true"></span><span style="flex: 1">すべて</span><span style="font-size: 12px; color: #6E6E73">14</span></a>
+<a href="#" style="display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 6px; color: #1D1D1F; text-decoration: none; font-size: 13px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#6E6E73" stroke-width="2.4" aria-hidden="true"><path d="M4 7h16M10 7V4h4v3M6 7l1 13h10l1-13"></path></svg><span style="flex: 1">最近削除した項目</span><span style="font-size: 12px; color: #6E6E73">2</span></a>
+<div style="font-size: 11px; font-weight: 700; color: #6E6E73; padding: 14px 10px 4px">アプリ</div>
+<a href="#" style="display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 6px; background: #D9E6FB; color: #1D1D1F; text-decoration: none; font-size: 13px; font-weight: 500"><div style="width: 20px; height: 20px; border-radius: 5px; background: #F2994A" aria-hidden="true"></div><span style="flex: 1">Tsumiki</span><span style="font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 9px; background: #FFE2A8; color: #7A4700">注意</span></a>
+<a href="#" style="display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 6px; color: #1D1D1F; text-decoration: none; font-size: 13px"><div style="width: 20px; height: 20px; border-radius: 5px; background: #3FA27A" aria-hidden="true"></div><span style="flex: 1">Pocket Ledger</span><span style="font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 9px; background: #FBD5D1; color: #8F1C12">期限切れ</span></a>
+<a href="#" style="display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 6px; color: #1D1D1F; text-decoration: none; font-size: 13px"><div style="width: 20px; height: 20px; border-radius: 5px; background: #6B8AFD" aria-hidden="true"></div><span style="flex: 1">Hikari Notes</span></a>
+<div style="font-size: 11px; font-weight: 700; color: #6E6E73; padding: 14px 10px 4px">複数のアプリで使う鍵</div>
+<a href="#" style="display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 6px; color: #1D1D1F; text-decoration: none; font-size: 13px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#5F5F66" stroke-width="2" aria-hidden="true"><rect x="4" y="10" width="16" height="11" rx="2"></rect><path d="M8 10V7a4 4 0 0 1 8 0v3"></path></svg><span style="flex: 1">App Store Connect の鍵</span></a>
+<a href="#" style="display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 6px; color: #1D1D1F; text-decoration: none; font-size: 13px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#5F5F66" stroke-width="2" aria-hidden="true"><rect x="4" y="10" width="16" height="11" rx="2"></rect><path d="M8 10V7a4 4 0 0 1 8 0v3"></path></svg><span style="flex: 1">プッシュ通知の鍵</span></a>
+<a href="03_add_app.html" style="padding:7px 10px">＋ アプリを追加…</a><a href="12_add_team.html" style="padding:7px 10px">＋ チームを追加…</a>
+<div style="flex: 1"></div>
+<div style="margin: 0 4px; padding: 12px; border-radius: 10px; background: #FFFFFF; border: 1px solid #DEDEE2; display: flex; flex-direction: column; gap: 8px"><div style="font-size: 12px; font-weight: 500">バックアップしていない変更が 2件 あります</div><button style="height: 30px; border: 1px solid #C8C8CE; border-radius: 7px; background: #FFFFFF; font-size: 12px; color: #1D1D1F">今すぐバックアップ</button></div>
+</nav>
+
+<section style="flex: 1; min-width: 0; overflow: auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 16px; border-right: 1px solid #E6E6EA">
+<div style="display: flex; align-items: center; gap: 12px">
+<div style="width: 40px; height: 40px; border-radius: 10px; background: #F2994A" aria-hidden="true"></div>
+<div style="flex: 1"><h1 style="margin: 0; font-size: 20px; font-weight: 700">Tsumiki</h1><div style="font-size: 12px; color: #5F5F66">iOSアプリ · 鍵とファイル 6件</div></div>
+</div>
+<div style="padding: 10px 14px; border-radius: 10px; background: #FFF6E3; border: 1px solid #F2D28C; display: flex; align-items: center; gap: 10px; font-size: 13px">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7A4700" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg>
+<span style="flex: 1"><b>2件</b>が10月27日に期限切れ。新しい証明書とプロファイルを追加しましょう</span>
+<a href="#" style="font-weight: 500">手順を見る</a>
+</div>
+<table style="width: 100%; border-collapse: collapse; font-size: 13px">
+<thead><tr style="color: #5F5F66; font-size: 12px; border-bottom: 1px solid #E6E6EA"><th style="padding: 8px 8px">名前</th><th style="padding: 8px 8px">種類</th><th style="padding: 8px 8px">期限</th><th style="padding: 8px 8px; text-align: right">状態</th></tr></thead>
+<tbody>
+<tr><td colspan="4" style="padding: 14px 8px 6px; font-size: 12px; font-weight: 700; color: #3A3A40">このアプリ専用</td></tr>
+<tr style="border-bottom: 1px solid #F0F0F3"><td style="padding: 8px 8px"><div style="font-weight: 500">App Store 配布用</div></td><td style="padding: 10px 8px; color: #5F5F66">プロファイル</td><td style="padding: 10px 8px">2026/10/27</td><td style="padding: 10px 8px; text-align: right"><span style="font-size: 12px; font-weight: 700; padding: 3px 8px; border-radius: 10px; background: #FFF1D6; color: #7A4700">あと12日</span></td></tr>
+<tr style="border-bottom: 1px solid #F0F0F3"><td style="padding: 8px 8px"><div style="font-weight: 500">開発用</div></td><td style="padding: 10px 8px; color: #5F5F66">プロファイル</td><td style="padding: 10px 8px">2027/06/02</td><td style="padding: 10px 8px; text-align: right"><span style="font-size: 12px; font-weight: 700; padding: 3px 8px; border-radius: 10px; background: #E3F4E8; color: #17612E">有効</span></td></tr>
+<tr><td colspan="4" style="padding: 18px 8px 6px; font-size: 12px; font-weight: 700; color: #3A3A40">チームで共通 <span style="font-weight: 400; color: #234A85; background: #E8EEF9; padding: 2px 7px; border-radius: 9px; margin-left: 4px">3アプリで共有</span></td></tr>
+<tr style="border-bottom: 1px solid #F0F0F3; background: #EEF3FD"><td style="padding: 8px 8px"><div style="font-weight: 500">配布用</div></td><td style="padding: 10px 8px; color: #5F5F66">証明書</td><td style="padding: 10px 8px">2026/10/27</td><td style="padding: 10px 8px; text-align: right"><span style="font-size: 12px; font-weight: 700; padding: 3px 8px; border-radius: 10px; background: #FFF1D6; color: #7A4700">あと12日</span></td></tr>
+<tr style="border-bottom: 1px solid #F0F0F3"><td style="padding: 8px 8px"><div style="font-weight: 500">開発用</div></td><td style="padding: 10px 8px; color: #5F5F66">証明書</td><td style="padding: 10px 8px">2027/06/02</td><td style="padding: 10px 8px; text-align: right"><span style="font-size: 12px; font-weight: 700; padding: 3px 8px; border-radius: 10px; background: #E3F4E8; color: #17612E">有効</span></td></tr>
+<tr style="border-bottom: 1px solid #F0F0F3"><td style="padding: 8px 8px"><div style="font-weight: 500">App Store Connect の鍵</div></td><td style="padding: 10px 8px; color: #5F5F66">鍵</td><td style="padding: 10px 8px; color: #5F5F66">なし</td><td style="padding: 10px 8px; text-align: right"><span style="font-size: 12px; padding: 3px 8px; border-radius: 10px; background: #EFEFF2; color: #4A4A50">保管中</span></td></tr>
+<tr style="border-bottom: 1px solid #F0F0F3"><td style="padding: 8px 8px"><div style="font-weight: 500">プッシュ通知の鍵</div></td><td style="padding: 10px 8px; color: #5F5F66">鍵</td><td style="padding: 10px 8px; color: #5F5F66">なし</td><td style="padding: 10px 8px; text-align: right"><span style="font-size: 12px; padding: 3px 8px; border-radius: 10px; background: #EFEFF2; color: #4A4A50">保管中</span></td></tr>
+</tbody>
+</table>
+</section>
+
+<aside style="width: 300px; box-sizing: border-box; overflow: auto; flex-shrink: 0; padding: 22px 22px; display: flex; flex-direction: column; gap: 16px; background: #FBFBFC">
+<div><div style="font-size: 12px; color: #5F5F66">証明書 · チームで共通</div><h2 style="margin: 4px 0 0; font-size: 20px; font-weight: 700">配布用の証明書</h2><div style="font-size: 12px; color: #5F5F66; margin-top: 2px">App Store に出すアプリへの署名に使います</div></div>
+<div style="padding: 12px 14px; border-radius: 10px; background: #FFF1D6"><div style="font-size: 22px; font-weight: 700; color: #7A4700">あと12日</div><div style="font-size: 12px; color: #5C4A26">2026年10月27日に期限切れ</div></div>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<button style="height: 34px; border: 0; border-radius: 8px; background: #0A64D6; color: #FFFFFF; font-size: 13px; font-weight: 500">ファイルを書き出す</button>
+<button style="height: 34px; border: 1px solid #C8C8CE; border-radius: 8px; background: #FFFFFF; color: #1D1D1F; font-size: 13px">CIに登録する値をコピー</button><a href="14_ci_copy.html" style="font-size:12px">コピー項目を選ぶ…</a>
+<button style="height: 34px; border: 1px solid #C8C8CE; border-radius: 8px; background: #FFFFFF; color: #1D1D1F; font-size: 13px; display: flex; align-items: center; justify-content: center; gap: 6px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg>Finderで表示</button>
+<div style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #6E6E73; word-break: break-all">~/Developer/Keys/Team/dist_2025.p12</div>
+</div>
+<dl style="margin: 0; display: grid; grid-template-columns: 96px 1fr; gap: 10px 12px; font-size: 13px">
+<dt style="color: #5F5F66">ファイルの種類</dt><dd style="margin: 0">証明書＋秘密鍵（.p12）</dd>
+<dt style="color: #5F5F66">チームID</dt><dd style="margin: 0; font-family: 'JetBrains Mono', monospace">A1B2C3D4E5</dd>
+<dt style="color: #5F5F66">追加した日</dt><dd style="margin: 0">2025年10月27日</dd>
+<dt style="color: #5F5F66">元のファイル名</dt><dd style="margin: 0; font-family: 'JetBrains Mono', monospace">dist_2025.p12</dd>
+<dt style="color: #5F5F66">パスワード</dt><dd style="margin: 0; display: flex; align-items: center; gap: 8px"><span style="font-family: 'JetBrains Mono', monospace; letter-spacing: 0.15em; flex: 1">••••••••</span><button style="height: 24px; padding: 0 8px; border: 1px solid #C8C8CE; border-radius: 6px; background: #FFFFFF; color: #1D1D1F; font-size: 11px">認証して表示</button></dd>
+<dt style="color: #5F5F66">メモ</dt><dd style="margin: 0"><button style="font:inherit;color:#0A64D6;background:white;border:1px solid #C8C8CE;border-radius:6px;padding:3px 8px">認証してメモを表示</button></dd>
+</dl>
+<div style="font-size: 11px; color: #5F5F66">表示・書き出し・コピーにはTouch IDまたはMacのパスワードで認証します。コピーした値は60秒後に消えます。</div>
+<div style="flex: 1"></div>
+<div style="display: flex; gap: 14px; padding-top: 10px; border-top: 1px solid #E6E6EA; font-size: 12px">
+<a href="#" style="color: #A3241A; text-decoration: none">削除…</a>
+</div>
+</aside>
+
+</div>
+</div>
+</div>
+
+<style>
+.spec-states{max-width:1120px;margin:24px;padding:22px;background:#f7f7f9;border:1px solid #dedee2;border-radius:12px;font:13px/1.65 -apple-system,BlinkMacSystemFont,sans-serif;color:#1d1d1f}
+.spec-states h2{font-size:18px;margin:0 0 8px}.spec-states details{margin-top:10px;padding:12px;background:white;border:1px solid #dedee2;border-radius:8px}.spec-states summary{cursor:pointer;font-weight:600}.spec-states .notice{padding:12px;border-radius:8px;background:#fff1d6;color:#7a4700}.spec-states .error{background:#fbd5d1;color:#8f1c12}.spec-states button,.spec-states .action{display:inline-block;padding:7px 12px;border:1px solid #c8c8ce;background:white;border-radius:7px;color:#0a64d6;text-decoration:none;font:inherit}.spec-states input,.spec-states select{padding:6px;border:1px solid #c8c8ce;border-radius:6px;font:inherit}.spec-states label{display:block;margin:8px 0}.spec-states p{margin:10px 0}button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:3px solid #0a64d6!important;outline-offset:3px}
+[role=dialog],[role=alertdialog]{max-height:calc(100% - 76px);overflow:auto}
+</style>
+<section class="spec-states" aria-label="画面状態の見本"><h2>画面状態の見本</h2><p>保存・認証・削除は実行しない静的な見本です。</p><details><summary>資格情報が0件</summary><p>鍵や証明書を追加しましょう。</p><a class="action" href="02_import_confirm.html">ファイルを追加…</a><a class="action" href="03_add_app.html">アプリを追加…</a></details><details><summary>ロック中</summary><p>App Mateはロックされています。メモと秘密情報は非表示です。</p><button>Touch ID またはMacのパスワードで解除</button></details><details><summary>認証を取り消した場合</summary><p>表示・書き出し・コピーは行いません。</p><p>パスワード　••••••••</p><button>認証をやり直す</button></details><details><summary>置き換え済みを表示</summary><p>配布用（旧） → 配布用（新）</p><p>旧ファイルは保管されています。3アプリで共通です。</p><button>旧ファイルを一覧へ戻す…</button></details><details><summary>狭いウィンドウと長い名前</summary><p>960×640ptを最小寸法とします。詳細は選択項目から別表示に切り替えます。</p><p>長い名前の項目…</p><button>詳細で全文を見る</button></details></section>
+</body>
+</html>

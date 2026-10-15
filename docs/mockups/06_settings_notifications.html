@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>設定 通知</title>
+</head>
+<body>
+<style>
+body{margin:0}
+a{color:#0A5BC4}a:hover{color:#084494}
+button,input,select{font-family:inherit}
+</style>
+<div style="width: 900px; height: 640px; box-sizing: border-box; background: #DCDCE0; padding: 24px; font-family: 'Noto Sans JP', -apple-system, sans-serif; color: #1D1D1F">
+<div style="width: 100%; height: 100%; background: #FFFFFF; border-radius: 12px; overflow: hidden; border: 1px solid #C8C8CE; display: flex">
+
+<nav style="width: 200px; flex-shrink: 0; background: #F3F3F5; border-right: 1px solid #DEDEE2; padding: 14px 10px; display: flex; flex-direction: column; gap: 2px; box-sizing: border-box" aria-label="設定の項目">
+<div style="display: flex; gap: 8px; padding: 2px 6px 16px" aria-hidden="true"><div style="width: 12px; height: 12px; border-radius: 6px; background: #FF5F57"></div><div style="width: 12px; height: 12px; border-radius: 6px; background: #FEBC2E"></div><div style="width: 12px; height: 12px; border-radius: 6px; background: #28C840"></div></div>
+<a href="#" style="padding: 7px 10px; border-radius: 6px; color: #1D1D1F; text-decoration: none; font-size: 13px">一般</a>
+<a href="#" style="padding: 7px 10px; border-radius: 6px; background: #D9E6FB; color: #1D1D1F; text-decoration: none; font-size: 13px; font-weight: 500">通知</a>
+<a href="#" style="padding: 7px 10px; border-radius: 6px; color: #1D1D1F; text-decoration: none; font-size: 13px">セキュリティ</a>
+<a href="#" style="padding: 7px 10px; border-radius: 6px; color: #1D1D1F; text-decoration: none; font-size: 13px">CIテンプレート</a>
+<a href="#" style="padding: 7px 10px; border-radius: 6px; color: #1D1D1F; text-decoration: none; font-size: 13px">バックアップ</a>
+</nav>
+
+<main style="flex: 1; padding: 26px 30px; display: flex; flex-direction: column; gap: 22px; font-size: 13px">
+<h1 style="margin: 0; font-size: 20px; font-weight: 700">通知</h1>
+
+<section style="display: flex; flex-direction: column; gap: 10px">
+<div style="font-size: 12px; font-weight: 700; color: #3A3A40">期限のお知らせ</div>
+<div style="border: 1px solid #E6E6EA; border-radius: 10px">
+<label style="display: flex; align-items: center; gap: 10px; padding: 11px 14px; border-bottom: 1px solid #F0F0F3"><span style="flex: 1">30日前</span><input type="checkbox" checked="checked"></label>
+<label style="display: flex; align-items: center; gap: 10px; padding: 11px 14px; border-bottom: 1px solid #F0F0F3"><span style="flex: 1">7日前</span><input type="checkbox" checked="checked"></label>
+<label style="display: flex; align-items: center; gap: 10px; padding: 11px 14px; border-bottom: 1px solid #F0F0F3"><span style="flex: 1">前日</span><input type="checkbox" checked="checked"></label>
+<label style="display: flex; align-items: center; gap: 10px; padding: 11px 14px"><span style="flex: 1">当日</span><input type="checkbox" checked="checked"></label>
+</div>
+<div style="font-size: 12px; color: #5F5F66">通知はこのMac内で予約します。Macの通知許可が必要です。</div>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 10px">
+<div style="font-size: 12px; font-weight: 700; color: #3A3A40">バックアップのお知らせ</div>
+<div style="border: 1px solid #E6E6EA; border-radius: 10px">
+<label style="display: flex; align-items: center; gap: 10px; padding: 11px 14px; border-bottom: 1px solid #F0F0F3"><span style="flex: 1">バックアップしていない変更があるとき知らせる</span><input type="checkbox" checked="checked"></label>
+<div style="display: flex; align-items: center; gap: 10px; padding: 9px 14px"><label for="bk-days" style="flex: 1">変更してから</label><select id="bk-days" style="height: 28px; border: 1px solid #C8C8CE; border-radius: 6px; padding: 0 6px; font-size: 13px; background: #FFFFFF"><option>7日後</option></select></div>
+</div>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 10px">
+<div style="font-size: 12px; font-weight: 700; color: #3A3A40">表示</div>
+<div style="border: 1px solid #E6E6EA; border-radius: 10px">
+<label style="display: flex; align-items: center; gap: 10px; padding: 11px 14px; border-bottom: 1px solid #F0F0F3"><span style="flex: 1">Dockアイコンに件数を表示</span><input type="checkbox" checked="checked"></label>
+<label style="display: flex; align-items: center; gap: 10px; padding: 11px 14px"><span style="flex: 1">メニューバーに表示（v1.1）</span><input type="checkbox" disabled></label>
+</div>
+</section>
+</main>
+
+</div>
+</div>
+
+<style>
+.spec-states{max-width:1120px;margin:24px;padding:22px;background:#f7f7f9;border:1px solid #dedee2;border-radius:12px;font:13px/1.65 -apple-system,BlinkMacSystemFont,sans-serif;color:#1d1d1f}
+.spec-states h2{font-size:18px;margin:0 0 8px}.spec-states details{margin-top:10px;padding:12px;background:white;border:1px solid #dedee2;border-radius:8px}.spec-states summary{cursor:pointer;font-weight:600}.spec-states .notice{padding:12px;border-radius:8px;background:#fff1d6;color:#7a4700}.spec-states .error{background:#fbd5d1;color:#8f1c12}.spec-states button,.spec-states .action{display:inline-block;padding:7px 12px;border:1px solid #c8c8ce;background:white;border-radius:7px;color:#0a64d6;text-decoration:none;font:inherit}.spec-states input,.spec-states select{padding:6px;border:1px solid #c8c8ce;border-radius:6px;font:inherit}.spec-states label{display:block;margin:8px 0}.spec-states p{margin:10px 0}button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:3px solid #0a64d6!important;outline-offset:3px}
+[role=dialog],[role=alertdialog]{max-height:calc(100% - 76px);overflow:auto}
+</style>
+<section class="spec-states" aria-label="画面状態の見本"><h2>画面状態の見本</h2><p>保存・認証・削除は実行しない静的な見本です。</p><details><summary>Mac側で通知が拒否されている</summary><p class="notice">通知はオフです。アプリ内の期限表示は利用できます。</p><button>Macの通知設定を開く…</button></details></section>
+</body>
+</html>

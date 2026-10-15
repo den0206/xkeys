@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>オンボーディング 取り込み</title>
+</head>
+<body>
+<style>
+body{margin:0}
+a{color:#0A5BC4}a:hover{color:#084494}
+button{font-family:inherit}
+</style>
+<div style="width: 800px; height: 560px; box-sizing: border-box; background: #DCDCE0; padding: 20px; font-family: 'Noto Sans JP', -apple-system, sans-serif; color: #1D1D1F">
+<div style="width: 100%; height: 100%; background: #FFFFFF; border-radius: 14px; overflow: hidden; border: 1px solid #C8C8CE; display: flex; box-shadow: 0 20px 50px rgba(20,30,60,0.18)">
+
+<div style="position: relative; width: 320px; flex-shrink: 0; background: #0F2650; overflow: hidden" aria-hidden="true">
+<div style="position: absolute; left: 14px; top: 14px; display: flex; gap: 8px"><div style="width: 12px; height: 12px; border-radius: 6px; background: #FF5F57"></div><div style="width: 12px; height: 12px; border-radius: 6px; background: #FEBC2E"></div><div style="width: 12px; height: 12px; border-radius: 6px; background: #28C840"></div></div>
+<div style="position: absolute; left: 60px; top: 60px; width: 300px; height: 300px; border-radius: 150px; border: 1px solid #284C88"></div>
+<div style="position: absolute; left: 34px; top: 82px; font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 500; color: #0F2650; background: #8EE0AE; padding: 5px 10px; border-radius: 8px; transform: rotate(-8deg)">.p8</div>
+<div style="position: absolute; left: 150px; top: 64px; font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 500; color: #0F2650; background: #FFE2A8; padding: 5px 10px; border-radius: 8px; transform: rotate(6deg)">.p12</div>
+<div style="position: absolute; left: 88px; top: 134px; font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 500; color: #FFFFFF; background: #3D6BC0; padding: 5px 10px; border-radius: 8px; transform: rotate(-3deg)">.mobileprovision</div>
+<div style="position: absolute; left: 210px; top: 120px; font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 500; color: #0F2650; background: #D6E2F7; padding: 5px 10px; border-radius: 8px; transform: rotate(9deg)">.cer</div>
+<div style="position: absolute; left: 150px; top: 178px; width: 2px; height: 40px; background: #3D6BC0"></div>
+<div style="position: absolute; left: 60px; top: 220px; width: 200px; height: 140px">
+<div style="position: absolute; left: 0; top: 0; width: 84px; height: 24px; border-radius: 10px 10px 0 0; background: #3D6BC0"></div>
+<div style="position: absolute; left: 0; top: 16px; width: 200px; height: 124px; border-radius: 0 14px 14px 14px; background: #5585DB; box-shadow: 0 16px 30px rgba(0,0,0,0.35); display: flex; align-items: center; justify-content: center">
+<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2"><path d="M12 5v11M7 11l5 5 5-5"></path></svg>
+</div>
+</div>
+<div style="position: absolute; left: 50px; top: 392px; display: flex; gap: 8px">
+<div style="padding: 6px 10px; border-radius: 8px; background: #1C3D73; color: #FFFFFF; font-size: 11px; display: flex; align-items: center; gap: 6px"><span style="width: 10px; height: 10px; border-radius: 3px; background: #F2994A"></span>Tsumiki</div>
+<div style="padding: 6px 10px; border-radius: 8px; background: #1C3D73; color: #FFFFFF; font-size: 11px; display: flex; align-items: center; gap: 6px"><span style="width: 10px; height: 10px; border-radius: 3px; background: #6B8AFD"></span>Hikari</div>
+<div style="padding: 6px 10px; border-radius: 8px; background: #1C3D73; color: #FFFFFF; font-size: 11px; display: flex; align-items: center; gap: 6px"><span style="width: 10px; height: 10px; border-radius: 3px; background: #3FA27A"></span>Ledger</div>
+</div>
+<div style="position: absolute; left: 28px; bottom: 26px; font-size: 22px; font-weight: 900; color: #FFFFFF; letter-spacing: 0.02em">App Mate</div>
+</div>
+
+<div style="flex: 1; display: flex; flex-direction: column; padding: 46px 40px 26px">
+<div style="font-size: 12px; font-weight: 700; color: #0A64D6; letter-spacing: 0.08em">STEP 2 / 3</div>
+<h1 style="margin: 8px 0 0; font-size: 28px; font-weight: 900; line-height: 1.35">今ある鍵を<br>取り込みましょう</h1>
+<p style="margin: 10px 0 0; font-size: 14px; line-height: 1.7; color: #4A4A50">鍵や証明書をまとめているフォルダがあれば、そのまま選んでください。</p>
+
+<div style="margin-top: 20px; height: 128px; border: 2px dashed #9DB4E0; border-radius: 16px; background: #F3F7FE; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px">
+<div style="font-size: 14px; font-weight: 700; color: #1D2F4D">フォルダかファイルをここにドロップ</div>
+<button style="height: 32px; padding: 0 16px; border: 1px solid #9DB4E0; border-radius: 16px; background: #FFFFFF; color: #1D1D1F; font-size: 13px; font-weight: 500">フォルダを選ぶ…</button>
+</div>
+<div style="margin-top: 12px; font-size: 12px; line-height: 1.7; color: #5F5F66">.p8 · .p12 · .cer · .mobileprovision · .provisionprofile を見つけます。プロファイルから追加先を提案し、.p8の用途やチームは確認します。元のファイルは変更されません。</div>
+
+<div style="flex: 1"></div>
+<div style="display: flex; align-items: center; gap: 8px">
+<div style="flex: 1; display: flex; gap: 6px" aria-label="ステップ 2 / 3"><span style="width: 6px; height: 6px; border-radius: 3px; background: #C8C8CE"></span><span style="width: 22px; height: 6px; border-radius: 3px; background: #0A64D6"></span><span style="width: 6px; height: 6px; border-radius: 3px; background: #C8C8CE"></span></div>
+<button style="height: 40px; padding: 0 16px; border: 0; background: transparent; color: #0A5BC4; font-size: 14px; font-weight: 500">あとで</button>
+<button style="height: 40px; padding: 0 26px; border: 0; border-radius: 20px; background: #0A64D6; color: #FFFFFF; font-size: 14px; font-weight: 700; box-shadow: 0 6px 16px rgba(10,100,214,0.3)">次へ →</button>
+</div>
+</div>
+</div>
+</div>
+
+<style>
+.spec-states{max-width:1120px;margin:24px;padding:22px;background:#f7f7f9;border:1px solid #dedee2;border-radius:12px;font:13px/1.65 -apple-system,BlinkMacSystemFont,sans-serif;color:#1d1d1f}
+.spec-states h2{font-size:18px;margin:0 0 8px}.spec-states details{margin-top:10px;padding:12px;background:white;border:1px solid #dedee2;border-radius:8px}.spec-states summary{cursor:pointer;font-weight:600}.spec-states .notice{padding:12px;border-radius:8px;background:#fff1d6;color:#7a4700}.spec-states .error{background:#fbd5d1;color:#8f1c12}.spec-states button,.spec-states .action{display:inline-block;padding:7px 12px;border:1px solid #c8c8ce;background:white;border-radius:7px;color:#0a64d6;text-decoration:none;font:inherit}.spec-states input,.spec-states select{padding:6px;border:1px solid #c8c8ce;border-radius:6px;font:inherit}.spec-states label{display:block;margin:8px 0}.spec-states p{margin:10px 0}button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:3px solid #0a64d6!important;outline-offset:3px}
+[role=dialog],[role=alertdialog]{max-height:calc(100% - 76px);overflow:auto}
+</style>
+<section class="spec-states" aria-label="画面状態の見本"><h2>画面状態の見本</h2><p>保存・認証・削除は実行しない静的な見本です。</p><details><summary>チーム情報が必要な場合</summary><p>所属チームと鍵の用途を確認してください。</p><a class="action" href="12_add_team.html">チームを追加</a><a class="action" href="13_p8_metadata.html">.p8の情報を入力</a></details></section>
+</body>
+</html>
