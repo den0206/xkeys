@@ -1,0 +1,448 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		BB0000000000000000000006 = {isa = PBXBuildFile; fileRef = BC0000000000000000000006; };
+		BB0000000000000000000005 = {isa = PBXBuildFile; fileRef = BC0000000000000000000005; };
+		BB0000000000000000000004 = {isa = PBXBuildFile; fileRef = BC0000000000000000000004; };
+		BB0000000000000000000003 = {isa = PBXBuildFile; fileRef = BC0000000000000000000003; };
+		BB0000000000000000000002 = {isa = PBXBuildFile; fileRef = BC0000000000000000000002; };
+		BB0000000000000000000001 = {isa = PBXBuildFile; fileRef = BC0000000000000000000001; };
+		BB0000000000000000000000 = {isa = PBXBuildFile; fileRef = BC0000000000000000000000; };
+		BA000000000000000000000D = {isa = PBXBuildFile; fileRef = BA000000000000000000000E; };
+		BA000000000000000000000B = {isa = PBXBuildFile; fileRef = BA000000000000000000000C; };
+		BA0000000000000000000009 = {isa = PBXBuildFile; fileRef = BA000000000000000000000A; };
+		BA0000000000000000000007 = {isa = PBXBuildFile; fileRef = BA0000000000000000000008; };
+		BA0000000000000000000005 = {isa = PBXBuildFile; fileRef = BA0000000000000000000006; };
+		BA0000000000000000000003 = {isa = PBXBuildFile; fileRef = BA0000000000000000000004; };
+		BA0000000000000000000001 = {isa = PBXBuildFile; fileRef = BA0000000000000000000002; };
+		D5AB3D6787FE83109935B0E3 /* Features/CredentialAppView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF4E022172D3641297064FC2 /* Features/CredentialAppView.swift */; };
+		8F70FEAAA107ADEF37464932 /* Persistence/CredentialVault.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D0C25BD41FF872EF528DB22 /* Persistence/CredentialVault.swift */; };
+		3490D0655DC60B16ADB47404 /* Features/CatalogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22CAFBB626C0E80C30E7D31D /* Features/CatalogView.swift */; };
+		205FC0C6AD696D68E9D5AE01 /* Models/AppCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 735DACB0CD1890235097A8AF /* Models/AppCatalog.swift */; };
+		0222C866A7070CA9D77B371B /* Services/OwnerAuthentication.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D32500D0DC4CC98B7AC172B /* Services/OwnerAuthentication.swift */; };
+		0B9177794691F3018677DFFA /* Application/AppMateApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100C041E14DE33E0152765FE /* Application/AppMateApp.swift */; };
+		21409CD07CBD9751EE632E3B /* Application/VerificationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C132DC34710247253C2C4104 /* Application/VerificationView.swift */; };
+		3151368B61B05343A55C77DF /* Resources/sample.mobileprovision in Resources */ = {isa = PBXBuildFile; fileRef = AF2BDBE1AA9B6EC1E2ADE1D6 /* Resources/sample.mobileprovision */; };
+		587854A59EFBF8969CAFD37F /* AppMateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D37B9395C2BAF168F977CE9F /* AppMateTests.swift */; };
+		8AAD9CB9833BC16230BD9766 /* Services/CredentialParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E1814744B33849C5EC9325F /* Services/CredentialParser.swift */; };
+		B4D9566931CF573707CC0A1A /* Persistence/EncryptedProbeStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFA38885211ADBBDEF2389B2 /* Persistence/EncryptedProbeStore.swift */; };
+		FF69530A024A160084203937 /* Fixtures in Resources */ = {isa = PBXBuildFile; fileRef = 5B4818F81C7256E686BA2E05 /* Fixtures */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		1241936D4DD3AAD68FE7BFBD /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 244210E48437B6556980A702 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A172CEDCAE47474B615C54D5;
+			remoteInfo = AppMate;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		BC0000000000000000000006 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/ImportSources.swift; sourceTree = "<group>"; };
+		BC0000000000000000000005 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/CICopyView.swift; sourceTree = "<group>"; };
+		BC0000000000000000000004 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/ManagementViews.swift; sourceTree = "<group>"; };
+		BC0000000000000000000003 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/SettingsView.swift; sourceTree = "<group>"; };
+		BC0000000000000000000002 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/LocalNotifications.swift; sourceTree = "<group>"; };
+		BC0000000000000000000001 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/AppPreferences.swift; sourceTree = "<group>"; };
+		BC0000000000000000000000 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Persistence/VaultManagement.swift; sourceTree = "<group>"; };
+		BA000000000000000000000E = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/MenuBarView.swift; sourceTree = "<group>"; };
+		BA000000000000000000000C = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/CredentialSearch.swift; sourceTree = "<group>"; };
+		BA000000000000000000000A = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Persistence/BackupHistory.swift; sourceTree = "<group>"; };
+		BA0000000000000000000008 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/RestoreView.swift; sourceTree = "<group>"; };
+		BA0000000000000000000006 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Persistence/BackupRestore.swift; sourceTree = "<group>"; };
+		BA0000000000000000000004 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/BackupView.swift; sourceTree = "<group>"; };
+		BA0000000000000000000002 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Persistence/BackupArchive.swift; sourceTree = "<group>"; };
+		CF4E022172D3641297064FC2 /* Features/CredentialAppView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/CredentialAppView.swift; sourceTree = "<group>"; };
+		1D0C25BD41FF872EF528DB22 /* Persistence/CredentialVault.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Persistence/CredentialVault.swift; sourceTree = "<group>"; };
+		22CAFBB626C0E80C30E7D31D /* Features/CatalogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/CatalogView.swift; sourceTree = "<group>"; };
+		735DACB0CD1890235097A8AF /* Models/AppCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models/AppCatalog.swift; sourceTree = "<group>"; };
+		100C041E14DE33E0152765FE /* Application/AppMateApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Application/AppMateApp.swift; sourceTree = "<group>"; };
+		5B4818F81C7256E686BA2E05 /* Fixtures */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Fixtures; sourceTree = "<group>"; };
+		5D32500D0DC4CC98B7AC172B /* Services/OwnerAuthentication.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/OwnerAuthentication.swift; sourceTree = "<group>"; };
+		7E1814744B33849C5EC9325F /* Services/CredentialParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/CredentialParser.swift; sourceTree = "<group>"; };
+		AE0042EC290704DA7E641B97 /* App Mate.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; path = "App Mate.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		AF2BDBE1AA9B6EC1E2ADE1D6 /* Resources/sample.mobileprovision */ = {isa = PBXFileReference; lastKnownFileType = file; path = Resources/sample.mobileprovision; sourceTree = "<group>"; };
+		BFA38885211ADBBDEF2389B2 /* Persistence/EncryptedProbeStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Persistence/EncryptedProbeStore.swift; sourceTree = "<group>"; };
+		C132DC34710247253C2C4104 /* Application/VerificationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Application/VerificationView.swift; sourceTree = "<group>"; };
+		CCB32DA757F8CB91EA8A9F9D /* AppMate.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = AppMate.entitlements; sourceTree = "<group>"; };
+		D37B9395C2BAF168F977CE9F /* AppMateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppMateTests.swift; sourceTree = "<group>"; };
+		E7F08BCC397888750F5CB9BD /* AppMateTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; path = AppMateTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		093A8EEF16CCA81BE763994D /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A8422A2543322E1C813E9CDF /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		0A3E27B8CA818264D75C8D81 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				AE0042EC290704DA7E641B97 /* App Mate.app */,
+				E7F08BCC397888750F5CB9BD /* AppMateTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		0D6E4079E36703EBD37C0072 = {
+			isa = PBXGroup;
+			children = (
+				E17E80AD8E2103CF3FC3FD96 /* AppMate */,
+				781CAA6738A604344AE86EE3 /* AppMateTests */,
+				0A3E27B8CA818264D75C8D81 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		781CAA6738A604344AE86EE3 /* AppMateTests */ = {
+			isa = PBXGroup;
+			children = (
+				D37B9395C2BAF168F977CE9F /* AppMateTests.swift */,
+				5B4818F81C7256E686BA2E05 /* Fixtures */,
+			);
+			path = AppMateTests;
+			sourceTree = "<group>";
+		};
+		E17E80AD8E2103CF3FC3FD96 /* AppMate */ = {
+			isa = PBXGroup;
+			children = (
+				BA000000000000000000000E,
+				BC0000000000000000000006,
+				BC0000000000000000000005,
+				BC0000000000000000000004,
+				BC0000000000000000000003,
+				BC0000000000000000000002,
+				BC0000000000000000000001,
+				BC0000000000000000000000,
+				BA000000000000000000000C,
+				BA000000000000000000000A,
+				BA0000000000000000000008,
+				BA0000000000000000000006,
+				BA0000000000000000000004,
+				BA0000000000000000000002,
+				CF4E022172D3641297064FC2 /* Features/CredentialAppView.swift */,
+				1D0C25BD41FF872EF528DB22 /* Persistence/CredentialVault.swift */,
+				22CAFBB626C0E80C30E7D31D /* Features/CatalogView.swift */,
+				735DACB0CD1890235097A8AF /* Models/AppCatalog.swift */,
+				100C041E14DE33E0152765FE /* Application/AppMateApp.swift */,
+				C132DC34710247253C2C4104 /* Application/VerificationView.swift */,
+				7E1814744B33849C5EC9325F /* Services/CredentialParser.swift */,
+				5D32500D0DC4CC98B7AC172B /* Services/OwnerAuthentication.swift */,
+				BFA38885211ADBBDEF2389B2 /* Persistence/EncryptedProbeStore.swift */,
+				CCB32DA757F8CB91EA8A9F9D /* AppMate.entitlements */,
+				AF2BDBE1AA9B6EC1E2ADE1D6 /* Resources/sample.mobileprovision */,
+			);
+			path = AppMate;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		59830EBC3A4184110566BF1A /* AppMateTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 66347432B32AAA402CD1360D /* Build configuration list for PBXNativeTarget "AppMateTests" */;
+			buildPhases = (
+				34667A0B374DB2F8489259B4 /* Sources */,
+				A8422A2543322E1C813E9CDF /* Frameworks */,
+				672C0B726EBAF9D264249857 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				F26350DAFE3F19AABFD69AC4 /* PBXTargetDependency */,
+			);
+			name = AppMateTests;
+			productName = AppMateTests;
+			productReference = E7F08BCC397888750F5CB9BD /* AppMateTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		A172CEDCAE47474B615C54D5 /* AppMate */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 06CB67C35A91E16DBD17B949 /* Build configuration list for PBXNativeTarget "AppMate" */;
+			buildPhases = (
+				6BAB02B549A96CC50D0CA977 /* Sources */,
+				093A8EEF16CCA81BE763994D /* Frameworks */,
+				DAB7151652C25D9B83C5FD83 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = AppMate;
+			productName = AppMate;
+			productReference = AE0042EC290704DA7E641B97 /* App Mate.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		244210E48437B6556980A702 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				LastUpgradeCheck = 2700;
+			};
+			buildConfigurationList = 76F8DEC3DFE0BDB465198890 /* Build configuration list for PBXProject "AppMate" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = ja;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				ja,
+				en,
+				Base,
+			);
+			mainGroup = 0D6E4079E36703EBD37C0072;
+			productRefGroup = 0A3E27B8CA818264D75C8D81 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				A172CEDCAE47474B615C54D5 /* AppMate */,
+				59830EBC3A4184110566BF1A /* AppMateTests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		672C0B726EBAF9D264249857 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				FF69530A024A160084203937 /* Fixtures in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		DAB7151652C25D9B83C5FD83 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				3151368B61B05343A55C77DF /* Resources/sample.mobileprovision in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		34667A0B374DB2F8489259B4 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				587854A59EFBF8969CAFD37F /* AppMateTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		6BAB02B549A96CC50D0CA977 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				BA000000000000000000000D,
+				BB0000000000000000000006,
+				BB0000000000000000000005,
+				BB0000000000000000000004,
+				BB0000000000000000000003,
+				BB0000000000000000000002,
+				BB0000000000000000000001,
+				BB0000000000000000000000,
+				BA000000000000000000000B,
+				BA0000000000000000000009,
+				BA0000000000000000000007,
+				BA0000000000000000000005,
+				BA0000000000000000000003,
+				BA0000000000000000000001,
+				D5AB3D6787FE83109935B0E3 /* Features/CredentialAppView.swift in Sources */,
+				8F70FEAAA107ADEF37464932 /* Persistence/CredentialVault.swift in Sources */,
+				3490D0655DC60B16ADB47404 /* Features/CatalogView.swift in Sources */,
+				205FC0C6AD696D68E9D5AE01 /* Models/AppCatalog.swift in Sources */,
+				0B9177794691F3018677DFFA /* Application/AppMateApp.swift in Sources */,
+				21409CD07CBD9751EE632E3B /* Application/VerificationView.swift in Sources */,
+				8AAD9CB9833BC16230BD9766 /* Services/CredentialParser.swift in Sources */,
+				0222C866A7070CA9D77B371B /* Services/OwnerAuthentication.swift in Sources */,
+				B4D9566931CF573707CC0A1A /* Persistence/EncryptedProbeStore.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		F26350DAFE3F19AABFD69AC4 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A172CEDCAE47474B615C54D5 /* AppMate */;
+			targetProxy = 1241936D4DD3AAD68FE7BFBD /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		0B0C687DF8B6B8DC790B519C /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Manual;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		1B104479E55E37CF8A63CBDF /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = AppMate/AppMate.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				DEVELOPMENT_TEAM = KDRYQJ357G;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "App Mate";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
+				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.AppMate.prototype;
+				PRODUCT_MODULE_NAME = AppMate;
+				PRODUCT_NAME = "App Mate";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				SWIFT_COMPILATION_MODE = wholemodule;
+			};
+			name = Release;
+		};
+		22341BB87F410D35D057D37C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = KDRYQJ357G;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_TESTABILITY = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.AppMate.prototype.tests;
+				PRODUCT_NAME = AppMateTests;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/App Mate.app/Contents/MacOS/App Mate";
+			};
+			name = Debug;
+		};
+		73EBF6644258C120893E685D /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Manual;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		A188B1844D481F2A55033242 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = KDRYQJ357G;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.AppMate.prototype.tests;
+				PRODUCT_NAME = AppMateTests;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/App Mate.app/Contents/MacOS/App Mate";
+			};
+			name = Release;
+		};
+		B00CCDD09424E369308D67FA /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = AppMate/AppMate.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = KDRYQJ357G;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_TESTABILITY = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "App Mate";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
+				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.AppMate.prototype;
+				PRODUCT_MODULE_NAME = AppMate;
+				PRODUCT_NAME = "App Mate";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		06CB67C35A91E16DBD17B949 /* Build configuration list for PBXNativeTarget "AppMate" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B00CCDD09424E369308D67FA /* Debug */,
+				1B104479E55E37CF8A63CBDF /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		66347432B32AAA402CD1360D /* Build configuration list for PBXNativeTarget "AppMateTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				22341BB87F410D35D057D37C /* Debug */,
+				A188B1844D481F2A55033242 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		76F8DEC3DFE0BDB465198890 /* Build configuration list for PBXProject "AppMate" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				73EBF6644258C120893E685D /* Debug */,
+				0B0C687DF8B6B8DC790B519C /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 244210E48437B6556980A702 /* Project object */;
+}

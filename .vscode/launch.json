@@ -1,0 +1,13 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Run App Mate Debug.app",
+      "program": "${workspaceFolder}/.build/xcode/Build/Products/Debug/App Mate.app/Contents/MacOS/App Mate",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "Build App Mate Debug.app"
+    }
+  ]
+}
