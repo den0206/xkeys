@@ -232,7 +232,7 @@ struct CredentialVault {
         } else if p8 != nil { throw VaultError.missingPurpose }
         if let sourceTeam = parsed.teamID {
             guard sourceTeam == team.teamID else { throw VaultError.teamMismatch }
-        } else if !confirmUnknownTeam { throw VaultError.confirmTeam }
+        } else if ext != "p8" && !confirmUnknownTeam { throw VaultError.confirmTeam }
         if ext == "mobileprovision" || ext == "provisionprofile" {
             guard let bundle = parsed.bundleID, Self.profileMatches(bundle, bundleID: app.bundleID) else { throw VaultError.bundleMismatch }
         }

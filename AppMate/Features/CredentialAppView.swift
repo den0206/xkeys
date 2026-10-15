@@ -666,7 +666,7 @@ struct CredentialImportView: View {
                                         ForEach(P8Purpose.allCases, id: \.self) { Text($0.title).tag(Optional($0)) }
                                     }.labelsHidden()
                                 }
-                                GridRow { Text("チーム"); Text("\(app.team?.name ?? "")（\(app.team?.teamID ?? "")）") }
+                                GridRow { Text("登録先チーム"); Text("\(app.team?.name ?? "")（\(app.team?.teamID ?? "")）") }
                                 GridRow { Text("Key ID"); TextField("英大文字・数字10文字", text: $keyID).labelsHidden() }
                                 if purpose == .appStoreConnect {
                                     GridRow { Text("Issuer ID"); TextField("App Store ConnectのIssuer ID", text: $issuerID).labelsHidden() }
@@ -685,7 +685,7 @@ struct CredentialImportView: View {
                         if let fingerprint = parsed.fingerprint { Text("SHA-256：\(fingerprint)").font(.caption.monospaced()).textSelection(.enabled) }
                             }
                         }
-                        if parsed.teamID == nil {
+                        if !isP8 && parsed.teamID == nil {
                             Toggle("Team IDを判別できないため、\(app.team?.name ?? "選択中のTeam")に割り当てることを確認しました", isOn: $confirmUnknownTeam)
                         }
                         let isP12 = (file?.name as NSString?)?.pathExtension.lowercased() == "p12"

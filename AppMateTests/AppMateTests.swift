@@ -8,6 +8,30 @@ import XCTest
 
 final class AppMateTests: XCTestCase {
     @MainActor
+    func testP8ImportsWithoutUnknownTeamConfirmation() throws {
+        let (vault, app, sibling, other) = try makeVault()
+        defer { try? FileManager.default.removeItem(at: vault.blobs.directory) }
+        let file = p8File()
+        let parsed = try CredentialParser.parse(file.data, extension: "p8")
+        XCTAssertNil(parsed.teamID)
+        let metadata = P8Metadata(purpose: .appStoreConnect, keyID: "DUMMYKEY01", issuerID: UUID().uuidString)
+        XCTAssertThrowsError(try vault.validate(file: file, parsed: parsed, app: app, confirmUnknownTeam: false))
+        let id = try vault.importFile(file, parsed: parsed, app: app, password: nil,
+                                      confirmUnknownTeam: false, key: SymmetricKey(size: .bits256), p8: metadata)
+        let record = try XCTUnwrap(vault.records().first { $0.id == id })
+        XCTAssertTrue(record.isVisible(in: app))
+        XCTAssertTrue(record.isVisible(in: sibling))
+        XCTAssertFalse(record.isVisible(in: other))
+        let certificate = CredentialFile(data: try fixture("cer"), name: "sample.cer")
+        let unidentified = ParsedCredential(name: "Unknown Team", kind: "証明書", teamID: nil, bundleID: nil, expiresAt: nil)
+        XCTAssertThrowsError(try vault.validate(file: certificate,
+                                               parsed: unidentified,
+                                               app: app, confirmUnknownTeam: false)) { error in
+            guard case VaultError.confirmTeam = error else { return XCTFail("Unexpected error: \(error)") }
+        }
+    }
+
+    @MainActor
     func testCatalogAndCredentialWritesPreserveOtherPendingChanges() throws {
         let (vault, app, _, _) = try makeVault()
         defer { try? FileManager.default.removeItem(at: vault.blobs.directory) }
