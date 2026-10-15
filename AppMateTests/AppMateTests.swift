@@ -1567,8 +1567,7 @@ final class AppMateTests: XCTestCase {
         let file = CredentialFile(data: try fixture("cer"), name: "sample.cer")
         let parsed = try CredentialParser.parse(file.data, extension: "cer")
         let key = SymmetricKey(size: .bits256)
-        XCTAssertThrowsError(try vault.importFile(file, parsed: parsed, app: first, password: nil, confirmUnknownTeam: false, key: key))
-        let id = try vault.importFile(file, parsed: parsed, app: first, password: nil, confirmUnknownTeam: true, key: key)
+        let id = try vault.importFile(file, parsed: parsed, app: first, password: nil, confirmUnknownTeam: false, key: key)
         let record = try XCTUnwrap(vault.records().first)
         XCTAssertTrue(record.isVisible(in: first))
         XCTAssertTrue(record.isVisible(in: sibling))
@@ -1791,8 +1790,24 @@ final class AppMateTests: XCTestCase {
         let identity = try CredentialParser.parse(fixture("p12"), extension: "p12", password: "fixture-only")
         XCTAssertEqual(certificate.name, "App Mate Test Only")
         XCTAssertEqual(identity.name, certificate.name)
+        XCTAssertEqual(certificate.teamID, "TESTTEAM01")
+        XCTAssertEqual(identity.teamID, "TESTTEAM01")
         XCTAssertEqual(certificate.expiresAt, identity.expiresAt)
         XCTAssertThrowsError(try CredentialParser.parse(fixture("p12"), extension: "p12", password: "wrong"))
+    }
+
+    @MainActor
+    func testCertificateAndPKCS12RejectDifferentTeams() throws {
+        let (vault, app, _, other) = try makeVault()
+        defer { try? FileManager.default.removeItem(at: vault.blobs.directory) }
+        for ext in ["cer", "p12"] {
+            let file = CredentialFile(data: try fixture(ext), name: "sample." + ext)
+            let parsed = try CredentialParser.parse(file.data, extension: ext, password: "fixture-only")
+            XCTAssertNoThrow(try vault.validate(file: file, parsed: parsed, app: app, confirmUnknownTeam: false))
+            XCTAssertThrowsError(try vault.validate(file: file, parsed: parsed, app: other, confirmUnknownTeam: true)) { error in
+                guard case VaultError.teamMismatch = error else { return XCTFail("Unexpected error: \(error)") }
+            }
+        }
     }
 
     func testInvalidAndOversizedFilesRejected() {

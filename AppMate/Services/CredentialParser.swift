@@ -140,14 +140,20 @@ struct CredentialParser {
     }
 
     private static func certificateInfo(_ certificate: SecCertificate, kind: String) throws -> ParsedCredential {
-        let keys = [kSecOIDX509V1ValidityNotAfter, kSecOIDOrganizationalUnitName] as CFArray
+        let keys = [kSecOIDX509V1ValidityNotAfter, kSecOIDX509V1SubjectName] as CFArray
         guard let values = SecCertificateCopyValues(certificate, keys, nil) as? [String: Any],
               let expiry = values[kSecOIDX509V1ValidityNotAfter as String] as? [String: Any],
               let time = expiry[kSecPropertyKeyValue as String] as? NSNumber else {
             throw ValidationError.invalidFile
         }
-        let ou = values[kSecOIDOrganizationalUnitName as String] as? [String: Any]
-        let team = ou?[kSecPropertyKeyValue as String] as? String
+        let subject = values[kSecOIDX509V1SubjectName as String] as? [String: Any]
+        let fields = subject?[kSecPropertyKeyValue as String] as? [[String: Any]] ?? []
+        let teams = Set(fields.filter {
+            ($0[kSecPropertyKeyLabel as String] as? String) == (kSecOIDOrganizationalUnitName as String)
+        }.compactMap { $0[kSecPropertyKeyValue as String] as? String }.filter {
+            $0.range(of: "^[A-Z0-9]{10}$", options: .regularExpression) != nil
+        })
+        let team = teams.count == 1 ? teams.first : nil
         return ParsedCredential(fingerprint: SHA256.hash(data: SecCertificateCopyData(certificate) as Data).map { String(format: "%02x", $0) }.joined(),
                                 name: SecCertificateCopySubjectSummary(certificate) as String? ?? "証明書",
                                 kind: kind, teamID: team, bundleID: nil,
