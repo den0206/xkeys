@@ -168,8 +168,8 @@ final class AppMateTests: XCTestCase {
             ("backup", NSSize(width: 600, height: 620), AnyView(BackupView(container: container).modelContainer(container))),
             ("restore", NSSize(width: 640, height: 300), AnyView(BackupView(container: container, restoring: true))),
             ("ci-copy", NSSize(width: 600, height: 620), AnyView(CICopyView(vault: vault, record: try XCTUnwrap(sample)))),
-            ("import", NSSize(width: 720, height: 620), AnyView(CredentialImportView(app: app, vault: vault, access: VaultAccess(), existing: [], onSaved: { _ in }))),
-            ("p8-metadata", NSSize(width: 720, height: 620), AnyView(CredentialImportView(app: app, vault: vault, access: VaultAccess(), existing: [], initialSources: [importURL], onSaved: { _ in }))),
+            ("import", NSSize(width: 720, height: 620), AnyView(CredentialImportView(app: app, vault: vault, existing: [], onSaved: { _ in }))),
+            ("p8-metadata", NSSize(width: 720, height: 620), AnyView(CredentialImportView(app: app, vault: vault, existing: [], initialSources: [importURL], onSaved: { _ in }))),
             ("delete", NSSize(width: 460, height: 380), AnyView(CredentialDeleteConfirmation(record: try XCTUnwrap(sample), onDelete: {}))),
             ("trash", NSSize(width: 996, height: 700), AnyView(TrashView(vault: vault)))
         ]

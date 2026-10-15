@@ -139,7 +139,7 @@ struct CredentialAppView: View {
 
         .sheet(isPresented: $importing) {
             if let app {
-                CredentialImportView(app: app, vault: vault, access: access, existing: records, initialSources: droppedSources.isEmpty ? initialSources : droppedSources) { id in
+                CredentialImportView(app: app, vault: vault, existing: records, initialSources: droppedSources.isEmpty ? initialSources : droppedSources) { id in
                     selected = id
                     status = "資格情報を暗号化して保存しました。元ファイルは変更していません。"
                 }
@@ -525,7 +525,8 @@ struct CredentialAppView: View {
 struct CredentialImportView: View {
     let app: ManagedApp
     let vault: CredentialVault
-    let access: VaultAccess
+    // 一覧のバックグラウンドロックで取り込み途中の内容を破棄しない。
+    @State private var access = VaultAccess()
     let existing: [StoredCredential]
     var initialSources: [URL] = []
     let onSaved: (UUID) -> Void
@@ -554,6 +555,7 @@ struct CredentialImportView: View {
     @State private var lastActivity = Date.now
     @State private var error: String?
 
+    private var finished: Bool { currentName.isEmpty && queue.isEmpty && !completedItems.isEmpty }
     private var parsed: ParsedCredential? { candidates.indices.contains(selected) ? candidates[selected] : nil }
     private var isP8: Bool { file.map { ($0.name as NSString).pathExtension.lowercased() == "p8" } ?? false }
     private var p8: P8Metadata? {
@@ -578,12 +580,18 @@ struct CredentialImportView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text(isP8 ? ".p8の情報を入力" : currentName.isEmpty ? "ファイルを追加" : "\(completedItems.count + queue.count + 1)件のファイルを追加します")
+            Text(finished ? "ファイルの処理が完了しました" : isP8 ? ".p8の情報を入力" : currentName.isEmpty ? "ファイルを追加" : "\(completedItems.count + queue.count + 1)件のファイルを追加します")
                 .font(.system(size: 18, weight: .bold))
-            Text("内容と追加先を確認してください。\(app.name) ／ \(app.team?.name ?? "チーム未設定")").foregroundStyle(AppMateStyle.secondary)
+            Text(finished ? "処理結果を確認して閉じてください。元ファイルは変更していません。" : "内容と追加先を確認してください。\(app.name) ／ \(app.team?.name ?? "チーム未設定")").foregroundStyle(AppMateStyle.secondary)
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    if file == nil {
+                    if finished {
+                        Label("処理済み \(completedItems.count)件", systemImage: "checkmark.circle")
+                            .font(.headline).foregroundStyle(AppMateStyle.accent)
+                        ForEach(Array(completedItems.enumerated()), id: \.offset) { _, result in
+                            Text(result).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                    } else if file == nil {
                     Button(action: chooseFile) {
                         VStack(spacing: 10) {
                             Image(systemName: "square.and.arrow.down").font(.system(size: 24))
@@ -602,7 +610,7 @@ struct CredentialImportView: View {
                             Button("ファイルを選び直す…", action: chooseFile).buttonStyle(.borderless).foregroundStyle(AppMateStyle.accent)
                         }
                     }
-                    if !completedItems.isEmpty {
+                    if !finished && !completedItems.isEmpty {
                         DisclosureGroup("処理結果 \(completedItems.count)件・残り \(queue.count + (currentName.isEmpty ? 0 : 1))件") {
                             ForEach(Array(completedItems.enumerated()), id: \.offset) { _, result in Text(result).font(.caption) }
                         }
@@ -711,20 +719,26 @@ struct CredentialImportView: View {
                 }.frame(maxWidth: .infinity, alignment: .leading)
             }
             .dropDestination(for: URL.self) { urls, _ in
-                guard !reading, !access.busy else { return false }
+                guard !finished, !reading, !access.busy else { return false }
                 start(urls)
                 return true
             }
             .disabled(reading || access.busy)
             Divider()
             HStack(spacing: 10) {
-                Button(currentName.isEmpty && !completedItems.isEmpty ? "閉じる" : "キャンセル") { access.lock(); dismiss() }.keyboardShortcut(.cancelAction)
-                if !currentName.isEmpty {
-                    Button("スキップ") { completedItems.append("スキップ：" + currentName + (error.map { " · " + $0 } ?? "")); next() }
+                if !finished {
+                    Button("キャンセル") { access.lock(); dismiss() }.keyboardShortcut(.cancelAction)
+                    if !currentName.isEmpty {
+                        Button("スキップ") { completedItems.append("スキップ：" + currentName + (error.map { " · " + $0 } ?? "")); next() }
+                    }
+                    Spacer()
+                    Button("認証して取り込む", action: save).keyboardShortcut(.defaultAction).buttonStyle(AppMateButtonStyle(primary: true))
+                        .disabled(reading || access.busy || parsed == nil || validationIssue != nil)
+                } else {
+                    Spacer()
+                    Button("閉じる") { access.lock(); dismiss() }
+                        .keyboardShortcut(.defaultAction).buttonStyle(AppMateButtonStyle(primary: true))
                 }
-                Spacer()
-                Button("認証して取り込む", action: save).keyboardShortcut(.defaultAction).buttonStyle(AppMateButtonStyle(primary: true))
-                    .disabled(reading || access.busy || parsed == nil || validationIssue != nil)
             }
         }
         .padding(.horizontal, 26).padding(.vertical, 24).frame(width: isP8 ? 600 : 720, height: 620)
