@@ -206,7 +206,7 @@ enum BackupError: LocalizedError {
         case .invalid: "バックアップの形式または整合性を確認できません。既存データは変更していません。"
         case .tooLarge: "このバックアップのサイズ上限を超えています。現在の上限は元ファイル合計32MiB・payload 64MiBです。"
         case .password: "パスワードが違うか、バックアップが破損しています。"
-        case .passwordRequired: "バックアップ用パスワードを12文字以上、UTF-8で1,024バイト以内で入力してください。"
+        case .passwordRequired: "バックアップ用パスワードを6文字以上、UTF-8で1,024バイト以内で入力してください。"
         case .derivation: "バックアップの暗号鍵を作成できませんでした。"
         }
     }
@@ -308,7 +308,7 @@ enum BackupArchive {
 
     private static func derive(password: String, salt: Data) throws -> SymmetricKey {
         var input = Array(password.utf8)
-        guard password.count >= 12, input.count <= 1024 else { throw BackupError.passwordRequired }
+        guard password.count >= 6, input.count <= 1024 else { throw BackupError.passwordRequired }
         var output = [UInt8](repeating: 0, count: 32)
         defer {
             _ = input.withUnsafeMutableBytes { $0.initializeMemory(as: UInt8.self, repeating: 0) }

@@ -36,10 +36,10 @@ struct BackupView: View {
     }
     private var history: BackupHistorySummary { BackupHistorySummary(changes: changes, checkpoint: checkpoints.first) }
     private var canSave: Bool {
-        !working && (!selectedOnly || !selectedApps.isEmpty) && (!protected || (password.count >= 12 && password.utf8.count <= 1024 && password == confirmation))
+        !working && (!selectedOnly || !selectedApps.isEmpty) && (!protected || (password.count >= 6 && password.utf8.count <= 1024 && password == confirmation))
     }
     private var strength: String {
-        if password.count < 12 { return "12文字以上にしてください" }
+        if password.count < 6 { return "6文字以上にしてください" }
         return password.count >= 20 ? "長いパスワードです" : "さらに長くすると強くなります"
     }
 
@@ -110,7 +110,7 @@ struct BackupView: View {
                         Grid(alignment: .leading, horizontalSpacing: 14, verticalSpacing: 12) {
                             GridRow {
                                 Text("バックアップ用パスワード").fixedSize(horizontal: false, vertical: true).frame(width: 140, alignment: .leading)
-                                SecureField("12文字以上", text: $password).labelsHidden()
+                                SecureField("6文字以上", text: $password).labelsHidden()
                             }
                             GridRow { Text("もう一度入力"); SecureField("確認用パスワード", text: $confirmation).labelsHidden() }
                             GridRow {
@@ -123,7 +123,7 @@ struct BackupView: View {
                     }
                 }
                 if protected {
-                    Text("Macのログインパスワードとは別の値を12文字以上で指定してください。忘れると復元できません。App Mateはバックアップ用パスワードを保存しません。")
+                    Text("Macのログインパスワードとは別の値を6文字以上で指定してください。忘れると復元できません。App Mateはバックアップ用パスワードを保存しません。")
                         .font(.system(size: 12)).foregroundStyle(AppMateStyle.secondary).fixedSize(horizontal: false, vertical: true)
                 } else {
                     Label("暗号化されません。ファイルを持つ人は秘密鍵・保存済みパスワードを取り出せます。作成前に再確認します。", systemImage: "exclamationmark.triangle")

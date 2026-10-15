@@ -1266,6 +1266,19 @@ final class AppMateTests: XCTestCase {
         XCTAssertThrowsError(try BackupArchive.encode(snapshot, password: String(repeating: "あ", count: 400)))
     }
 
+    func testBackupPasswordMinimumIsSixCharacters() throws {
+        let snapshot = BackupSnapshot(version: 1, createdAt: .now, appVersion: "fixture", teams: [], apps: [], credentials: [])
+        for password in ["123456", "あいうえおか", "fixture-password"] {
+            let archive = try BackupArchive.encode(snapshot, password: password)
+            XCTAssertEqual(try BackupArchive.decode(archive, password: password), snapshot)
+        }
+        for password in ["", "12345", "あいうえお"] {
+            XCTAssertThrowsError(try BackupArchive.encode(snapshot, password: password)) { error in
+                guard case BackupError.passwordRequired = error else { return XCTFail("Unexpected error: \(error)") }
+            }
+        }
+    }
+
     func testBackupRejectsUnknownFormatAndExcessiveDerivationBeforeDecrypting() throws {
         let snapshot = BackupSnapshot(version: 1, createdAt: .now, appVersion: "fixture", teams: [], apps: [], credentials: [])
         let plain = try BackupArchive.encode(snapshot, password: nil)
