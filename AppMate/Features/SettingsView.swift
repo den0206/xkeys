@@ -7,80 +7,82 @@ struct AppSettingsView: View {
     @State private var error: String?
     @State private var loaded = false
     @State private var apple = AppleDeveloperSession.shared
-    @State private var section = "一般"
-    private let sections = ["一般", "セキュリティ"]
 
+    /// `initialSection` is kept for callers of the old two-page layout; every group is now on one page.
     init(container: ModelContainer, appleSession: AppleDeveloperSession = .shared, initialSection: String = "一般") {
         self.container = container
         _apple = State(initialValue: appleSession)
-        _section = State(initialValue: initialSection)
     }
 
     var body: some View {
-        HStack(spacing: 0) {
-            VStack(alignment: .leading, spacing: 2) {
-                ForEach(sections, id: \.self) { title in
-                    Button { section = title } label: {
-                        Text(title).frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal, 10).padding(.vertical, 7)
-                            .background(section == title ? AppMateStyle.selection : .clear, in: RoundedRectangle(cornerRadius: 6))
-                    }.buttonStyle(.plain)
-                }
-                Spacer()
-            }.padding(.horizontal, 10).padding(.top, 14).frame(width: 200).background(AppMateStyle.sidebar)
+        VStack(alignment: .leading, spacing: 0) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    Text("設定").font(.system(size: 20, weight: .bold))
+                    settingsGroup("Apple Developer") {
+                        AppleDeveloperAccountView(session: apple).padding(14)
+                        settingsNote("パスワードは保存しません。接続情報だけをこの Mac のキーチェーンに保存しています。")
+                    }
+                    settingsGroup("表示") {
+                        settingsToggle("Dock アイコンに件数を表示", detail: "30日以内に期限が来るものの数を出します", isOn: $preferences.showDockBadge)
+                    }
+                    settingsGroup("安全のために") {
+                        safetyRow("touchid", "コピー・書き出し・削除の前に、毎回 Touch ID で確認します")
+                        safetyRow("clock", "5分操作しないと、表示中のパスワードやメモを閉じます")
+                        safetyRow("arrow.triangle.2.circlepath", "iCloud 同期や自動起動はしません。元のファイルも変更しません")
+                    }
+                }.padding(.horizontal, 28).padding(.vertical, 24).frame(maxWidth: .infinity, alignment: .leading)
+            }
             Divider()
-            VStack(alignment: .leading, spacing: 22) {
-                Text(section).font(.system(size: 20, weight: .bold))
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 22) {
-                        switch section {
-                        case "一般":
-                            settingsGroup("表示") {
-                                settingsToggle("Dockアイコンに件数を表示", isOn: $preferences.showDockBadge)
-                            }
-                            Text("Apple Developerへの接続は利用者の操作時に行います。同期・自動起動は行いません。元ファイルは変更しません。")
-                                .foregroundStyle(AppMateStyle.secondary)
-                        case "セキュリティ":
-                            settingsGroup("Apple Developer") {
-                                AppleDeveloperAccountView(session: apple).padding(14)
-                            }
-                            Text("秘密情報の操作はTouch IDまたはMacのパスワードで毎回認証します。5分間の無操作・スリープ・画面ロックで秘密表示を閉じます。")
-                                .foregroundStyle(AppMateStyle.secondary)
-                        default: EmptyView()
-                        }
-                    }.frame(maxWidth: .infinity, alignment: .leading)
-                }
-                HStack {
-                    if let error { Text(error).font(.caption).foregroundStyle(.red) }
-                    Spacer()
-                    Button("設定を保存") {
-                        do { try PreferencesStore.save(preferences, in: container.mainContext); error = nil }
-                        catch { self.error = error.localizedDescription }
-                    }.buttonStyle(AppMateButtonStyle(primary: true)).disabled(!loaded)
-                }
-            }.padding(.horizontal, 30).padding(.vertical, 26).frame(maxWidth: .infinity)
+            HStack {
+                if let error { Text(error).font(.caption).foregroundStyle(AppMateStyle.dangerText) }
+                Spacer()
+                Button("設定を保存") {
+                    do { try PreferencesStore.save(preferences, in: container.mainContext); error = nil }
+                    catch { self.error = error.localizedDescription }
+                }.buttonStyle(AppMateButtonStyle(primary: true)).disabled(!loaded)
+            }.padding(.horizontal, 28).padding(.vertical, 14)
         }
-        .font(.system(size: 13)).foregroundStyle(AppMateStyle.text).background(AppMateStyle.canvas)
-        .tint(AppMateStyle.accent).frame(width: 852, height: 592)
+        .font(.system(size: 13)).foregroundStyle(AppMateStyle.text).background(AppMateStyle.sidebar)
+        .tint(AppMateStyle.accent).frame(width: 640, height: 592)
         .task {
             do { preferences = try PreferencesStore.read(in: container.mainContext); loaded = true }
             catch { self.error = error.localizedDescription }
         }
     }
     private func settingsGroup<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(title).font(.system(size: 12, weight: .bold))
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title).font(.system(size: 12, weight: .bold)).foregroundStyle(AppMateStyle.text.opacity(0.75))
             VStack(spacing: 0, content: content)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .overlay(RoundedRectangle(cornerRadius: 10).stroke(AppMateStyle.border, lineWidth: 1))
+                .background(AppMateStyle.canvas, in: RoundedRectangle(cornerRadius: 12))
+                .overlay(RoundedRectangle(cornerRadius: 12).stroke(AppMateStyle.rowBorder, lineWidth: 1))
         }
     }
 
-    private func settingsToggle(_ title: String, isOn: Binding<Bool>) -> some View {
+    private func settingsNote(_ text: String) -> some View {
+        Text(text).font(.system(size: 12)).foregroundStyle(AppMateStyle.secondary)
+            .padding(.horizontal, 14).padding(.vertical, 10).frame(maxWidth: .infinity, alignment: .leading)
+            .overlay(alignment: .top) { Rectangle().fill(AppMateStyle.rowBorder).frame(height: 1) }
+    }
+
+    private func safetyRow(_ symbol: String, _ text: String) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: symbol).foregroundStyle(AppMateStyle.secondary).frame(width: 20)
+            Text(text)
+            Spacer(minLength: 0)
+        }.padding(.horizontal, 14).padding(.vertical, 12)
+            .overlay(alignment: .top) { Rectangle().fill(AppMateStyle.rowBorder).frame(height: 1) }
+    }
+
+    private func settingsToggle(_ title: String, detail: String, isOn: Binding<Bool>) -> some View {
         HStack {
-            Text(title)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).fontWeight(.semibold)
+                Text(detail).font(.system(size: 12)).foregroundStyle(AppMateStyle.secondary)
+            }
             Spacer(minLength: 10)
-            Toggle(title, isOn: isOn).labelsHidden().toggleStyle(.checkbox)
+            Toggle(title, isOn: isOn).labelsHidden().toggleStyle(.switch)
         }.padding(.horizontal, 14).padding(.vertical, 11)
     }
 

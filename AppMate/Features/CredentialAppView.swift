@@ -838,12 +838,10 @@ struct CredentialImportView: View {
                             }
                         }
                         if isP8 {
+                            Text("用途（複数選べます）").font(.system(size: 12, weight: .semibold)).foregroundStyle(AppMateStyle.text.opacity(0.75))
+                            P8PurposeToggles(purposes: $purposes)
                             Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 14) {
-                                GridRow {
-                                    Text("用途").frame(width: 120, alignment: .leading)
-                                    P8PurposeToggles(purposes: $purposes)
-                                }
-                                GridRow { Text("登録先チーム"); Text("\(team.name)（\(team.teamID)）") }
+                                GridRow { Text("登録先チーム").frame(width: 120, alignment: .leading); Text("\(team.name)（\(team.teamID)）") }
                                 GridRow { Text("Key ID"); TextField("英大文字・数字10文字", text: $keyID).labelsHidden() }
                                 GridRow {
                                     Color.clear.frame(width: 120, height: 1)
@@ -853,9 +851,6 @@ struct CredentialImportView: View {
                                     GridRow { Text("Issuer ID"); TextField("App Store ConnectのIssuer ID", text: $issuerID).labelsHidden() }
                                 }
                             }.textFieldStyle(.roundedBorder).controlSize(.large)
-                            Text("Apple Developerの鍵の詳細にある「Enabled Services」と同じ用途をすべて選んでください。App Store Connect APIの鍵は別に発行されるため、ほかの用途と組み合わせられません。この鍵はチームの一覧に保管します。")
-                                .font(.system(size: 12)).padding(14).frame(maxWidth: .infinity, alignment: .leading)
-                                .background(AppMateStyle.warningBackground, in: RoundedRectangle(cornerRadius: 9))
                         }
                         DisclosureGroup("読み取った識別情報") {
                             VStack(alignment: .leading, spacing: 8) {

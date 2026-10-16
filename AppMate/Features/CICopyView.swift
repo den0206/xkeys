@@ -39,46 +39,69 @@ struct CICopyView: View {
         }
     }
 
+    @State private var copied: CIValue?
+    @State private var copiedAt = Date.distantPast
+    @State private var now = Date.now
+
     var body: some View {
-        VStack(spacing: 16) {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    Text("コピー").font(.system(size: 18, weight: .bold))
-                    Text("\(record.app?.name ?? record.team?.name ?? "") · \(record.name)（.\(record.fileExtension)）")
-                    Text("値を1項目ずつCIの設定画面へ貼り付けます。App MateからCIへは送信しません。Bitriseへは元形式の書き出しを使ってください。")
-                        .font(.system(size: 12)).foregroundStyle(AppMateStyle.secondary)
-                    VStack(spacing: 0) {
-                        HStack {
-                            Text("項目").frame(maxWidth: .infinity, alignment: .leading)
-                            Text("値").frame(width: 90, alignment: .leading)
-                            Text("操作").frame(width: 120, alignment: .leading)
-                        }.font(.system(size: 12)).foregroundStyle(AppMateStyle.secondary).padding(.horizontal, 6).padding(.vertical, 8)
-                        Divider()
-                        ForEach(values, id: \.self) { value in
-                            HStack {
-                                Text(value.title).font(.system(size: 12)).frame(maxWidth: .infinity, alignment: .leading)
-                                Text(available(value) ? "••••••••" : "未保存").font(.system(size: 12)).foregroundStyle(AppMateStyle.secondary).frame(width: 90, alignment: .leading)
-                                Button("認証してコピー") { copy(value) }
-                                    .buttonStyle(AppMateButtonStyle()).disabled(!available(value) || access.busy).frame(width: 120)
-                            }.padding(.horizontal, 6).padding(.vertical, 10)
-                                .overlay(alignment: .bottom) { Rectangle().fill(AppMateStyle.rowBorder).frame(height: 1) }
-                        }
+        VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: 18) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("CI 用にコピー").font(.system(size: 18, weight: .bold))
+                    Text("\(record.name)（.\(record.fileExtension)） · \(record.app?.name ?? record.team?.name ?? "")").foregroundStyle(AppMateStyle.secondary)
+                }
+                Text("GitHub Actions などの CI の設定画面に、1つずつ貼り付けます。\nApp Mate から CI へ送ることはありません。")
+                    .lineSpacing(3).padding(14).frame(maxWidth: .infinity, alignment: .leading)
+                    .background(AppMateStyle.sidebar, in: RoundedRectangle(cornerRadius: 10))
+                VStack(spacing: 0) {
+                    ForEach(values, id: \.self) { value in
+                        HStack(spacing: 12) {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(value.title).fontWeight(.semibold)
+                                Text(detail(value)).font(.system(size: 12)).foregroundStyle(AppMateStyle.secondary)
+                            }.frame(maxWidth: .infinity, alignment: .leading)
+                            let remaining = 60 - Int(now.timeIntervalSince(copiedAt))
+                            if copied == value && remaining > 0 {
+                                Label("コピーしました · 残り \(remaining)秒", systemImage: "checkmark").font(.system(size: 12, weight: .semibold))
+                                    .foregroundStyle(AppMateStyle.successText).padding(.horizontal, 10).frame(height: 30)
+                                    .background(AppMateStyle.successBackground, in: RoundedRectangle(cornerRadius: 7))
+                            } else {
+                                Button { copy(value) } label: { Label("コピー", systemImage: "touchid") }
+                                    .buttonStyle(AppMateButtonStyle(compact: true)).disabled(!available(value) || access.busy)
+                            }
+                        }.padding(.vertical, 12)
+                            .overlay(alignment: .top) { Rectangle().fill(AppMateStyle.rowBorder).frame(height: 1) }
                     }
-                    Text("Touch ID またはMacのパスワードで確認します。コピーした値は60秒後、内容が変わっていない場合だけ消去します。")
-                        .font(.system(size: 13)).foregroundStyle(AppMateStyle.warningText).padding(14)
-                        .frame(maxWidth: .infinity, alignment: .leading).background(AppMateStyle.warningBackground, in: RoundedRectangle(cornerRadius: 9))
-                    if let message { Text(message).font(.caption) }
-                }.frame(maxWidth: .infinity, alignment: .leading)
-            }
+                }
+                Text("コピーした値は画面に表示しません。60秒たつとクリップボードから消します（その間に別のものをコピーした場合は消しません）。")
+                    .font(.system(size: 12)).foregroundStyle(AppMateStyle.secondary).fixedSize(horizontal: false, vertical: true)
+                if let message { Text(message).font(.caption).foregroundStyle(AppMateStyle.dangerText) }
+            }.padding(.horizontal, 28).padding(.vertical, 22)
+            Spacer(minLength: 0)
             Divider()
-            HStack { Spacer(); Button("閉じる") { dismiss() }.buttonStyle(AppMateButtonStyle()).keyboardShortcut(.cancelAction) }
-        }.font(.system(size: 13)).padding(.horizontal, 26).padding(.vertical, 24).frame(width: 600, height: 620)
+            HStack {
+                Text("Bitrise などはファイルを書き出して使います").font(.system(size: 12)).foregroundStyle(AppMateStyle.secondary)
+                Spacer()
+                Button("閉じる") { dismiss() }.buttonStyle(AppMateButtonStyle()).keyboardShortcut(.cancelAction)
+            }.padding(.horizontal, 28).padding(.vertical, 14)
+        }.font(.system(size: 13)).frame(width: 560, height: 520)
             .background(AppMateStyle.canvas).foregroundStyle(AppMateStyle.text).tint(AppMateStyle.accent)
+            .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { now = $0 }
             .onReceive(NotificationCenter.default.publisher(for: NSApplication.didResignActiveNotification)) { _ in if !access.busy { access.lock(); dismiss() } }
             .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.sessionDidResignActiveNotification)) { _ in access.lock(); dismiss() }
             .onDisappear { access.lock() }
             .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.willSleepNotification)) { _ in access.lock(); dismiss() }
     }
+
+    private func detail(_ value: CIValue) -> String {
+        switch value {
+        case .base64: "CI の Secrets に貼り付ける、ファイルの中身（base64）です"
+        case .keyID: "鍵を見分ける ID です"
+        case .issuerID: "App Store Connect の Issuer ID です"
+        case .password: record.hasSavedPassword ? "取り込みのときに保存したパスワードです" : "パスワードは保存していません"
+        }
+    }
+
     private func available(_ value: CIValue) -> Bool {
         value != .password || record.hasSavedPassword
     }
@@ -96,7 +119,10 @@ struct CICopyView: View {
                     guard let secret else { throw ValidationError.invalidFile }
                     try SecretClipboard.copy(secret)
                 }
-                message = "コピーしました。60秒後に内容を確認して消去します。"
+                message = nil
+                copied = value
+                copiedAt = .now
+                now = .now
             } catch { message = error.localizedDescription }
         }
     }

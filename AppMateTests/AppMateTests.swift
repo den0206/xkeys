@@ -855,11 +855,11 @@ final class AppMateTests: XCTestCase {
         let onlineFile = CredentialFile(data: try fixture("cer"), name: "downloaded.cer")
         let screens: [(String, NSSize, AnyView)] = [
             ("online-import", NSSize(width: 640, height: 520), AnyView(AppleDeveloperImportView(team: team, vault: vault, session: loginSession, onSaved: { _ in }))),
-            ("online-confirm", NSSize(width: 720, height: 620), AnyView(CredentialImportView(app: nil, team: team, vault: vault, initialFiles: [onlineFile], onSaved: { _ in }))),
+            ("online-confirm", NSSize(width: 860, height: 640), AnyView(CredentialImportView(app: nil, team: team, vault: vault, initialFiles: [onlineFile], onSaved: { _ in }))),
             ("main", NSSize(width: 1232, height: 752), AnyView(CatalogView(container: container, navigation: navigation, appleSession: loginSession).modelContainer(container))),
             ("main-narrow", NSSize(width: 960, height: 640), AnyView(CatalogView(container: container, navigation: navigation, appleSession: loginSession).modelContainer(container))),
-            ("settings", NSSize(width: 852, height: 592), AnyView(AppSettingsView(container: container))),
-            ("settings-account", NSSize(width: 852, height: 592), AnyView(AppSettingsView(container: container, appleSession: loginSession, initialSection: "セキュリティ"))),
+            ("settings", NSSize(width: 640, height: 592), AnyView(AppSettingsView(container: container))),
+            ("settings-account", NSSize(width: 640, height: 592), AnyView(AppSettingsView(container: container, appleSession: loginSession, initialSection: "セキュリティ"))),
             ("welcome", NSSize(width: 760, height: 518), AnyView(OnboardingView(onFinished: { _ in }))),
             ("onboarding-import", NSSize(width: 760, height: 518), AnyView(OnboardingView(step: 1, onFinished: { _ in }))),
             ("onboarding-security", NSSize(width: 760, height: 518), AnyView(OnboardingView(step: 2, onFinished: { _ in }))),
@@ -872,9 +872,9 @@ final class AppMateTests: XCTestCase {
             ("team-selection", NSSize(width: 540, height: 540), AnyView(AppleDeveloperLoginView(onTeam: { _ in }, session: loginSession))),
             ("backup", NSSize(width: 600, height: 620), AnyView(BackupView(container: container).modelContainer(container))),
             ("restore", NSSize(width: 640, height: 300), AnyView(BackupView(container: container, restoring: true))),
-            ("ci-copy", NSSize(width: 600, height: 620), AnyView(CICopyView(vault: vault, record: try XCTUnwrap(sample)))),
-            ("import", NSSize(width: 720, height: 620), AnyView(CredentialImportView(app: app, team: team, vault: vault, onSaved: { _ in }))),
-            ("p8-metadata", NSSize(width: 720, height: 620), AnyView(CredentialImportView(app: app, team: team, vault: vault, initialSources: [importURL], onSaved: { _ in }))),
+            ("ci-copy", NSSize(width: 560, height: 520), AnyView(CICopyView(vault: vault, record: try XCTUnwrap(sample)))),
+            ("import", NSSize(width: 680, height: 640), AnyView(CredentialImportView(app: app, team: team, vault: vault, onSaved: { _ in }))),
+            ("p8-metadata", NSSize(width: 860, height: 640), AnyView(CredentialImportView(app: app, team: team, vault: vault, initialSources: [importURL], onSaved: { _ in }))),
             ("delete", NSSize(width: 460, height: 380), AnyView(CredentialDeleteConfirmation(record: try XCTUnwrap(sample), onDelete: {}))),
             ("trash", NSSize(width: 996, height: 700), AnyView(TrashView(vault: vault)))
         ]
@@ -889,9 +889,7 @@ final class AppMateTests: XCTestCase {
             let bitmap = try XCTUnwrap(view.bitmapImageRepForCachingDisplay(in: view.bounds))
             view.cacheDisplay(in: view.bounds, to: bitmap)
             let png = try XCTUnwrap(bitmap.representation(using: .png, properties: [:]))
-            if ["team-selection", "team-management", "team-deletion-blocked", "team-deletion-empty"].contains(name) {
-                try png.write(to: FileManager.default.temporaryDirectory.appendingPathComponent("app-mate-" + name + ".png"))
-            }
+            try png.write(to: FileManager.default.temporaryDirectory.appendingPathComponent("app-mate-" + name + ".png"))
             let attachment = XCTAttachment(data: png, uniformTypeIdentifier: "public.png")
             attachment.name = name
             attachment.lifetime = .keepAlways
