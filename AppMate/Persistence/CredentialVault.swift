@@ -3,33 +3,60 @@ import Foundation
 import Observation
 import SwiftData
 
+// Raw values are stored in metadata and authenticated data; never rename them.
 enum P8Purpose: String, CaseIterable, Codable {
-    case appStoreConnect = "asc", apns, signInWithApple = "sign-in"
+    case appStoreConnect = "asc", apns, signInWithApple = "sign-in", deviceCheck = "devicecheck", maps, weatherKit = "weatherkit"
+    case mediaServices = "media", other
     var title: String {
         switch self {
         case .appStoreConnect: "App Store Connect API"
         case .apns: "APNs"
         case .signInWithApple: "Sign in with Apple"
+        case .deviceCheck: "DeviceCheck"
+        case .maps: "Maps"
+        case .weatherKit: "WeatherKit"
+        case .mediaServices: "Media Services"
+        case .other: "その他のサービス"
         }
+    }
+
+    /// Parses the canonical comma-separated form written by `P8Metadata.storedPurpose`.
+    static func purposes(stored value: String) -> [P8Purpose]? {
+        let values = value.split(separator: ",", omittingEmptySubsequences: false).map { P8Purpose(rawValue: String($0)) }
+        guard !values.isEmpty, values.allSatisfy({ $0 != nil }) else { return nil }
+        return values.compactMap { $0 }
     }
 }
 
 struct P8Metadata {
-    let purpose: P8Purpose
+    let purposes: [P8Purpose]
     let keyID: String
     let issuerID: String?
 
+    // Apple names downloaded keys AuthKey_<Key ID>.p8.
+    static func keyID(fromFileName name: String) -> String? {
+        guard name.range(of: "^AuthKey_[A-Z0-9]{10}\\.p8$", options: .regularExpression) != nil else { return nil }
+        return String(name.dropFirst(8).prefix(10))
+    }
+
+    private var ordered: [P8Purpose] { P8Purpose.allCases.filter(purposes.contains) }
+    var storedPurpose: String { ordered.map(\.rawValue).joined(separator: ",") }
+    var title: String { ordered.map(\.title).joined(separator: "・") }
+
     func validated() throws -> P8Metadata {
+        let purposes = ordered
+        // App Store Connect keys are issued separately and cannot carry Developer key services.
+        guard !purposes.isEmpty, !purposes.contains(.appStoreConnect) || purposes.count == 1 else { throw VaultError.missingPurpose }
         let keyID = keyID.trimmingCharacters(in: .whitespacesAndNewlines)
         guard keyID.range(of: "^[A-Z0-9]{10}$", options: .regularExpression) != nil else { throw VaultError.invalidKeyID }
         var issuer: String?
-        if purpose == .appStoreConnect {
+        if purposes == [.appStoreConnect] {
             guard let value = issuerID?.trimmingCharacters(in: .whitespacesAndNewlines), let id = UUID(uuidString: value) else {
                 throw VaultError.invalidIssuerID
             }
             issuer = id.uuidString.lowercased()
         }
-        return P8Metadata(purpose: purpose, keyID: keyID, issuerID: issuer)
+        return P8Metadata(purposes: purposes, keyID: keyID, issuerID: issuer)
     }
 }
 
@@ -66,8 +93,8 @@ final class StoredCredential {
         let shared = ext == "cer" || ext == "p12" || ext == "p8"
         let hash = SHA256.hash(data: file.data).map { String(format: "%02x", $0) }.joined()
         id = UUID()
-        name = p8.map { "\($0.purpose.title)（\($0.keyID)）" } ?? parsed.name
-        kind = p8?.purpose.title ?? parsed.kind
+        name = p8.map { "\($0.title)（\($0.keyID)）" } ?? parsed.name
+        kind = p8?.title ?? parsed.kind
         originalName = file.name
         fileExtension = ext
         digest = hash
@@ -82,7 +109,7 @@ final class StoredCredential {
         self.app = shared ? nil : app
         registrationKey = "\(team.id)|\(shared ? "team" : app?.id.uuidString ?? "")|\(hash)"
         metadataVersion = 2
-        keyPurpose = p8?.purpose.rawValue
+        keyPurpose = p8?.storedPurpose
         keyID = p8?.keyID
         issuerID = p8?.issuerID
     }
@@ -180,7 +207,7 @@ enum VaultError: LocalizedError {
         case .cancelled: "ロックまたはキャンセルにより操作を中止しました。"
         case .invalidKeyID: "Key IDは英大文字と数字の10文字で入力してください。"
         case .invalidIssuerID: "App Store Connect APIのIssuer IDをUUID形式で入力してください。"
-        case .missingPurpose: ".p8の用途とKey IDを確認してください。"
+        case .missingPurpose: ".p8の用途とKey IDを確認してください。App Store Connect APIはほかの用途と組み合わせられません。"
         case .invalidReplacement: "同じTeam・共有範囲・形式・用途の、置き換えられていない資格情報を選んでください。"
         case .replacementConfirmation: "旧→新と共有先を確認して、置き換えの確認をオンにしてください。"
         }
@@ -245,7 +272,7 @@ struct CredentialVault {
         guard try !records().contains(where: { $0.registrationKey == candidate.registrationKey }) else { throw VaultError.duplicate }
         if let replacingID {
             guard confirmReplacement else { throw VaultError.replacementConfirmation }
-            _ = try replacementTarget(replacingID, fileExtension: ext, purpose: p8?.purpose.rawValue, app: app, team: team)
+            _ = try replacementTarget(replacingID, fileExtension: ext, purpose: p8?.storedPurpose, app: app, team: team)
         }
     }
 
@@ -267,7 +294,7 @@ struct CredentialVault {
         guard (password?.utf8.count ?? 0) <= 4096 else { throw ValidationError.tooLarge }
         context.autosaveEnabled = false
         let metadata = try p8?.validated()
-        let old = try replacingID.map { try replacementTarget($0, fileExtension: (file.name as NSString).pathExtension.lowercased(), purpose: metadata?.purpose.rawValue, app: app, team: team) }
+        let old = try replacingID.map { try replacementTarget($0, fileExtension: (file.name as NSString).pathExtension.lowercased(), purpose: metadata?.storedPurpose, app: app, team: team) }
         if let old { _ = try read(old, key: key) }
         var writtenID: UUID?
         do {

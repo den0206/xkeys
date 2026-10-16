@@ -689,7 +689,7 @@ struct CredentialImportView: View {
     @FocusState private var passwordFocused: Bool
     @State private var savePassword = true
     @State private var confirmUnknownTeam = false
-    @State private var purpose: P8Purpose?
+    @State private var purposes: Set<P8Purpose> = []
     @State private var keyID = ""
     @State private var issuerID = ""
     @State private var replacing = false
@@ -704,13 +704,13 @@ struct CredentialImportView: View {
     private var parsed: ParsedCredential? { candidates.indices.contains(selected) ? candidates[selected] : nil }
     private var isP8: Bool { file.map { ($0.name as NSString).pathExtension.lowercased() == "p8" } ?? false }
     private var p8: P8Metadata? {
-        guard isP8, let purpose else { return nil }
-        return P8Metadata(purpose: purpose, keyID: keyID, issuerID: issuerID)
+        guard isP8, !purposes.isEmpty else { return nil }
+        return P8Metadata(purposes: Array(purposes), keyID: keyID, issuerID: issuerID)
     }
     private var replacementCandidates: [StoredCredential] {
         guard let file else { return [] }
         let ext = (file.name as NSString).pathExtension.lowercased()
-        return existing.filter { $0.team?.id == team.id && ($0.isTeamShared || (importApp != nil && $0.app?.id == importApp?.id)) && $0.deletedAt == nil && $0.replacedByID == nil && $0.fileExtension == ext && $0.keyPurpose == p8?.purpose.rawValue }
+        return existing.filter { $0.team?.id == team.id && ($0.isTeamShared || (importApp != nil && $0.app?.id == importApp?.id)) && $0.deletedAt == nil && $0.replacedByID == nil && $0.fileExtension == ext && $0.keyPurpose == p8?.storedPurpose }
     }
     private var importApp: ManagedApp? {
         if let importTargetID, let target = team.apps.first(where: { $0.id == importTargetID && $0.deletedAt == nil }) { return target }
@@ -840,18 +840,23 @@ struct CredentialImportView: View {
                             Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 14) {
                                 GridRow {
                                     Text("用途").frame(width: 120, alignment: .leading)
-                                    Picker("用途", selection: $purpose) {
-                                        Text("用途を選択してください").tag(nil as P8Purpose?)
-                                        ForEach(P8Purpose.allCases, id: \.self) { Text($0.title).tag(Optional($0)) }
-                                    }.labelsHidden()
+                                    LazyVGrid(columns: [GridItem(.flexible(), alignment: .leading), GridItem(.flexible(), alignment: .leading)], alignment: .leading, spacing: 6) {
+                                        ForEach(P8Purpose.allCases, id: \.self) { item in
+                                            Toggle(item.title, isOn: Binding(get: { purposes.contains(item) }, set: { on in
+                                                if !on { purposes.remove(item) }
+                                                else if item == .appStoreConnect { purposes = [item] }
+                                                else { purposes.remove(.appStoreConnect); purposes.insert(item) }
+                                            })).toggleStyle(.checkbox)
+                                        }
+                                    }
                                 }
                                 GridRow { Text("登録先チーム"); Text("\(team.name)（\(team.teamID)）") }
                                 GridRow { Text("Key ID"); TextField("英大文字・数字10文字", text: $keyID).labelsHidden() }
-                                if purpose == .appStoreConnect {
+                                if purposes.contains(.appStoreConnect) {
                                     GridRow { Text("Issuer ID"); TextField("App Store ConnectのIssuer ID", text: $issuerID).labelsHidden() }
                                 }
                             }.textFieldStyle(.roundedBorder).controlSize(.large)
-                            Text("この鍵はチームの一覧に保管します。用途は鍵の登録情報で、共有先アプリの指定ではありません。")
+                            Text("Apple Developerの鍵の詳細にある「Enabled Services」と同じ用途をすべて選んでください。App Store Connect APIの鍵は別に発行されるため、ほかの用途と組み合わせられません。この鍵はチームの一覧に保管します。")
                                 .font(.system(size: 12)).padding(14).frame(maxWidth: .infinity, alignment: .leading)
                                 .background(AppMateStyle.warningBackground, in: RoundedRectangle(cornerRadius: 9))
                         }
@@ -881,7 +886,7 @@ struct CredentialImportView: View {
                                 ForEach(replacementCandidates) { old in Text("\(old.name) ／ \(old.originalName)").tag(Optional(old.id)) }
                             }
                             if let old = replacementCandidates.first(where: { $0.id == targetID }) {
-                                Text("旧：\(old.name) → 新：\(p8?.purpose.title ?? parsed.name)（\(file?.name ?? "")）")
+                                Text("旧：\(old.name) → 新：\(p8?.title ?? parsed.name)（\(file?.name ?? "")）")
                                 Text(old.isTeamShared ? "保管先：チーム「\(team.name)」。実際の利用アプリは記録していません。" : "保管先：\(importApp?.name ?? "未選択")")
                                 Toggle("旧→新と保管先を確認しました。旧ファイルを保持して置き換えます", isOn: $confirmReplacement)
                             }
@@ -941,7 +946,7 @@ struct CredentialImportView: View {
         }
         .onChange(of: password) { _, _ in lastActivity = .now }
         .onChange(of: selected) { _, _ in lastActivity = .now; confirmUnknownTeam = false; targetID = nil; confirmReplacement = false }
-        .onChange(of: purpose) { _, _ in lastActivity = .now; issuerID = ""; targetID = nil; confirmReplacement = false }
+        .onChange(of: purposes) { _, value in lastActivity = .now; if !value.contains(.appStoreConnect) { issuerID = "" }; targetID = nil; confirmReplacement = false }
         .onChange(of: keyID) { _, _ in lastActivity = .now; confirmReplacement = false }
         .onChange(of: issuerID) { _, _ in lastActivity = .now; confirmReplacement = false }
         .onChange(of: targetID) { _, _ in lastActivity = .now; confirmReplacement = false }
@@ -964,7 +969,7 @@ struct CredentialImportView: View {
         password = ""
         parsedPassword = ""
         confirmUnknownTeam = false
-        purpose = nil
+        purposes = []
         keyID = ""
         issuerID = ""
         replacing = false
@@ -1034,6 +1039,7 @@ struct CredentialImportView: View {
                 }.value
                 guard token == parseID, generation == access.generation else { return }
                 self.file = file
+                keyID = P8Metadata.keyID(fromFileName: file.name) ?? ""
                 candidates = results
                 selected = results.count == 1 ? 0 : -1
                 passwordFocused = file.requiresPasswordEntry

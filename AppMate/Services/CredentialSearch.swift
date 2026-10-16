@@ -23,16 +23,15 @@ enum CredentialTypeFilter: String, CaseIterable, Identifiable {
     }
 }
 
-enum CredentialPurposeFilter: String, CaseIterable, Identifiable {
-    case all, signing, appStoreConnect, apns, signInWithApple, intermediateCA, unspecified
-    var id: String { rawValue }
+enum CredentialPurposeFilter: Hashable, CaseIterable, Identifiable {
+    case all, signing, key(P8Purpose), intermediateCA, unspecified
+    static var allCases: [Self] { [.all, .signing] + P8Purpose.allCases.map(Self.key) + [.intermediateCA, .unspecified] }
+    var id: Self { self }
     var title: String {
         switch self {
         case .all: "すべての用途"
         case .signing: "署名"
-        case .appStoreConnect: "App Store Connect API"
-        case .apns: "プッシュ通知"
-        case .signInWithApple: "Appleでサインイン"
+        case .key(let purpose): purpose.title
         case .intermediateCA: "中間CA"
         case .unspecified: "未設定"
         }
@@ -41,12 +40,9 @@ enum CredentialPurposeFilter: String, CaseIterable, Identifiable {
         if self == .all { return true }
         if record.isIntermediateCA { return self == .intermediateCA }
         if record.fileExtension != "p8" { return self == .signing }
-        switch record.keyPurpose.flatMap(P8Purpose.init(rawValue:)) {
-        case .appStoreConnect: return self == .appStoreConnect
-        case .apns: return self == .apns
-        case .signInWithApple: return self == .signInWithApple
-        case nil: return self == .unspecified
-        }
+        guard let purposes = record.keyPurpose.flatMap(P8Purpose.purposes(stored:)) else { return self == .unspecified }
+        guard case .key(let purpose) = self else { return false }
+        return purposes.contains(purpose)
     }
 }
 

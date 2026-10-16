@@ -174,9 +174,9 @@ struct BackupSnapshot: Codable, Sendable, Equatable {
                       CredentialVault.profileMatches(bundle, bundleID: app.bundleID) else { throw BackupError.invalid }
             }
             if record.fileExtension == "p8" {
-                guard let raw = record.keyPurpose, let purpose = P8Purpose(rawValue: raw), let keyID = record.keyID else { throw BackupError.invalid }
-                let metadata = try P8Metadata(purpose: purpose, keyID: keyID, issuerID: record.issuerID).validated()
-                guard metadata.issuerID == record.issuerID else { throw BackupError.invalid }
+                guard let raw = record.keyPurpose, let purposes = P8Purpose.purposes(stored: raw), let keyID = record.keyID else { throw BackupError.invalid }
+                let metadata = try P8Metadata(purposes: purposes, keyID: keyID, issuerID: record.issuerID).validated()
+                guard metadata.issuerID == record.issuerID, metadata.storedPurpose == raw else { throw BackupError.invalid }
             } else if record.keyPurpose != nil || record.keyID != nil || record.issuerID != nil { throw BackupError.invalid }
             if let old = record.replacesCredentialID {
                 guard old != record.id, let previous = records[old], previous.team == record.team, previous.app == record.app,

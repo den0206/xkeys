@@ -309,7 +309,7 @@ final class AppMateTests: XCTestCase {
         let file = p8File()
         let recordID = try vault.importFile(file, parsed: CredentialParser.parse(file.data, extension: "p8"), app: nil, team: shared,
                                             password: nil, confirmUnknownTeam: true, key: key,
-                                            p8: P8Metadata(purpose: .apns, keyID: "DUMMYKEY01", issuerID: nil))
+                                            p8: P8Metadata(purposes: [.apns], keyID: "DUMMYKEY01", issuerID: nil))
         let record = try XCTUnwrap(vault.records().first { $0.id == recordID })
         XCTAssertThrowsError(try management.removeTeam(shared))
         try management.trash(record, key: key)
@@ -615,7 +615,7 @@ final class AppMateTests: XCTestCase {
         let file = p8File()
         let parsed = try CredentialParser.parse(file.data, extension: "p8")
         XCTAssertNil(parsed.teamID)
-        let metadata = P8Metadata(purpose: .appStoreConnect, keyID: "DUMMYKEY01", issuerID: UUID().uuidString)
+        let metadata = P8Metadata(purposes: [.appStoreConnect], keyID: "DUMMYKEY01", issuerID: UUID().uuidString)
         XCTAssertThrowsError(try vault.validate(file: file, parsed: parsed, app: app, confirmUnknownTeam: false))
         let id = try vault.importFile(file, parsed: parsed, app: app, password: nil,
                                       confirmUnknownTeam: false, key: SymmetricKey(size: .bits256), p8: metadata)
@@ -637,7 +637,7 @@ final class AppMateTests: XCTestCase {
         let (vault, app, _, _) = try makeVault()
         defer { try? FileManager.default.removeItem(at: vault.blobs.directory) }
         let key = SymmetricKey(size: .bits256)
-        let metadata = P8Metadata(purpose: .apns, keyID: "DUMMYKEY01", issuerID: nil)
+        let metadata = P8Metadata(purposes: [.apns], keyID: "DUMMYKEY01", issuerID: nil)
         let oldFile = p8File()
         let oldID = try vault.importFile(oldFile, parsed: CredentialParser.parse(oldFile.data, extension: "p8"), app: app,
                                          password: nil, confirmUnknownTeam: true, key: key, p8: metadata)
@@ -1150,7 +1150,7 @@ final class AppMateTests: XCTestCase {
         let file = p8File()
         _ = try source.importFile(file, parsed: CredentialParser.parse(file.data, extension: "p8"), app: app,
                                   password: nil, confirmUnknownTeam: true, key: key,
-                                  p8: P8Metadata(purpose: .apns, keyID: "DUMMYKEY01", issuerID: nil))
+                                  p8: P8Metadata(purposes: [.apns], keyID: "DUMMYKEY01", issuerID: nil))
         let snapshot = try BackupSnapshot.capture(vault: source, key: key)
         let container = try ModelContainer(for: DeveloperTeam.self, ManagedApp.self, StoredCredential.self, BackupChange.self, BackupCheckpoint.self,
                                            configurations: ModelConfiguration(isStoredInMemoryOnly: true))
@@ -1244,7 +1244,7 @@ final class AppMateTests: XCTestCase {
         let record = StoredCredential(file: CredentialFile(data: Data("private-key-byte-sentinel".utf8), name: "AuthKey_FIXTURE.p8"),
                                       parsed: ParsedCredential(name: "開発用キー", kind: "APNs", teamID: nil, bundleID: nil, expiresAt: nil),
                                       app: first, team: try XCTUnwrap(first.team), savePassword: false,
-                                      p8: P8Metadata(purpose: .apns, keyID: "DUMMYKEY01", issuerID: nil))
+                                      p8: P8Metadata(purposes: [.apns], keyID: "DUMMYKEY01", issuerID: nil))
         for query in ["", "  \n　", "dummykey01", "AUTHKEY_fixture", "Fixture Team", "TESTTEAM01", "TESTTEAM01　apns"] {
             XCTAssertTrue(CredentialSearch.matches(record, query: query), query)
         }
@@ -1295,14 +1295,9 @@ final class AppMateTests: XCTestCase {
         for purpose in P8Purpose.allCases {
             let record = StoredCredential(file: CredentialFile(data: Data([1]), name: "key.p8"),
                 parsed: ParsedCredential(name: "key", kind: "鍵", teamID: nil, bundleID: nil, expiresAt: nil),
-                app: nil, team: team, savePassword: false, p8: P8Metadata(purpose: purpose, keyID: "DUMMYKEY01", issuerID: nil))
+                app: nil, team: team, savePassword: false, p8: P8Metadata(purposes: [purpose], keyID: "DUMMYKEY01", issuerID: nil))
             XCTAssertTrue(CredentialPurposeFilter.all.matches(record))
-            let expected: CredentialPurposeFilter = switch purpose {
-            case .appStoreConnect: .appStoreConnect
-            case .apns: .apns
-            case .signInWithApple: .signInWithApple
-            }
-            XCTAssertEqual(CredentialPurposeFilter.allCases.filter { $0 != .all && $0.matches(record) }, [expected])
+            XCTAssertEqual(CredentialPurposeFilter.allCases.filter { $0 != .all && $0.matches(record) }, [.key(purpose)])
             record.keyPurpose = nil
             XCTAssertTrue(CredentialPurposeFilter.unspecified.matches(record))
         }
@@ -1324,7 +1319,7 @@ final class AppMateTests: XCTestCase {
         let key = SymmetricKey(size: .bits256)
         let file = p8File()
         let parsed = try CredentialParser.parse(file.data, extension: "p8")
-        let metadata = P8Metadata(purpose: .apns, keyID: "DUMMYKEY01", issuerID: nil)
+        let metadata = P8Metadata(purposes: [.apns], keyID: "DUMMYKEY01", issuerID: nil)
         let id = try vault.importFile(file, parsed: parsed, app: nil, team: team, password: nil, confirmUnknownTeam: false, key: key, p8: metadata)
         let record = try XCTUnwrap(vault.records().first { $0.id == id })
         XCTAssertNil(record.app)
@@ -1422,7 +1417,7 @@ final class AppMateTests: XCTestCase {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent("AppMateTests/" + UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: directory) }
         let vault = CredentialVault(context: context, blobs: EncryptedBlobStore(directory: directory))
-        let key = SymmetricKey(size: .bits256), metadata = P8Metadata(purpose: .apns, keyID: "DUMMYKEY01", issuerID: nil)
+        let key = SymmetricKey(size: .bits256), metadata = P8Metadata(purposes: [.apns], keyID: "DUMMYKEY01", issuerID: nil)
         let file = p8File(), next = p8File()
         let oldID = try vault.importFile(file, parsed: CredentialParser.parse(file.data, extension: "p8"), app: app,
                                          password: nil, confirmUnknownTeam: true, key: key, p8: metadata)
@@ -1647,7 +1642,7 @@ final class AppMateTests: XCTestCase {
         let profileID = try source.importFile(profile, parsed: CredentialParser.parse(profile.data, extension: "mobileprovision"), app: app,
                                               password: nil, confirmUnknownTeam: false, key: sourceKey)
         let first = p8File(), next = p8File()
-        let metadata = P8Metadata(purpose: .apns, keyID: "DUMMYKEY01", issuerID: nil)
+        let metadata = P8Metadata(purposes: [.apns], keyID: "DUMMYKEY01", issuerID: nil)
         let oldID = try source.importFile(first, parsed: CredentialParser.parse(first.data, extension: "p8"), app: app,
                                           password: nil, confirmUnknownTeam: true, key: sourceKey, p8: metadata)
         let nextID = try source.importFile(next, parsed: CredentialParser.parse(next.data, extension: "p8"), app: app,
@@ -1721,7 +1716,7 @@ final class AppMateTests: XCTestCase {
         let file = p8File()
         _ = try source.importFile(file, parsed: CredentialParser.parse(file.data, extension: "p8"), app: app,
                                   password: nil, confirmUnknownTeam: true, key: sourceKey,
-                                  p8: P8Metadata(purpose: .apns, keyID: "DUMMYKEY01", issuerID: nil))
+                                  p8: P8Metadata(purposes: [.apns], keyID: "DUMMYKEY01", issuerID: nil))
         let container = try ModelContainer(for: DeveloperTeam.self, ManagedApp.self, StoredCredential.self, BackupChange.self, BackupCheckpoint.self,
                                            configurations: ModelConfiguration(isStoredInMemoryOnly: true))
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent("AppMateTests/" + UUID().uuidString)
@@ -1807,7 +1802,7 @@ final class AppMateTests: XCTestCase {
         let sourceKey = SymmetricKey(size: .bits256), targetKey = SymmetricKey(size: .bits256)
         let file = p8File(), renewed = p8File()
         let parsed = try CredentialParser.parse(file.data, extension: "p8")
-        let metadata = P8Metadata(purpose: .apns, keyID: "DUMMYKEY01", issuerID: nil)
+        let metadata = P8Metadata(purposes: [.apns], keyID: "DUMMYKEY01", issuerID: nil)
         let sourceOld = try source.importFile(file, parsed: parsed, app: sourceApp, password: nil, confirmUnknownTeam: true, key: sourceKey, p8: metadata)
         let targetOld = try target.importFile(file, parsed: parsed, app: targetApp, password: nil, confirmUnknownTeam: true, key: targetKey, p8: metadata)
         let newID = try source.importFile(renewed, parsed: CredentialParser.parse(renewed.data, extension: "p8"), app: sourceApp,
@@ -1860,7 +1855,7 @@ final class AppMateTests: XCTestCase {
     func testRestoreRejectsMalformedScopeAndCyclicHistory() throws {
         let (vault, app, _, _) = try makeVault()
         defer { try? FileManager.default.removeItem(at: vault.blobs.directory) }
-        let key = SymmetricKey(size: .bits256), metadata = P8Metadata(purpose: .apns, keyID: "DUMMYKEY01", issuerID: nil)
+        let key = SymmetricKey(size: .bits256), metadata = P8Metadata(purposes: [.apns], keyID: "DUMMYKEY01", issuerID: nil)
         for file in [p8File(), p8File()] {
             _ = try vault.importFile(file, parsed: CredentialParser.parse(file.data, extension: "p8"), app: app,
                                      password: nil, confirmUnknownTeam: true, key: key, p8: metadata)
@@ -1912,7 +1907,7 @@ final class AppMateTests: XCTestCase {
         let parsed = try CredentialParser.parse(file.data, extension: "p12", password: "fixture-only")
         let id = try vault.importFile(file, parsed: parsed, app: app, password: "fixture-only", confirmUnknownTeam: true, key: key)
         let first = p8File()
-        let metadata = P8Metadata(purpose: .apns, keyID: "DUMMYKEY01", issuerID: nil)
+        let metadata = P8Metadata(purposes: [.apns], keyID: "DUMMYKEY01", issuerID: nil)
         let old = try vault.importFile(first, parsed: CredentialParser.parse(first.data, extension: "p8"), app: app,
                                        password: nil, confirmUnknownTeam: true, key: key, p8: metadata)
         let next = p8File()
@@ -2005,7 +2000,7 @@ final class AppMateTests: XCTestCase {
         let key = SymmetricKey(size: .bits256)
         _ = try vault.importFile(file, parsed: CredentialParser.parse(file.data, extension: "p8"), app: app,
                                  password: nil, confirmUnknownTeam: true, key: key,
-                                 p8: P8Metadata(purpose: .apns, keyID: "DUMMYKEY01", issuerID: nil))
+                                 p8: P8Metadata(purposes: [.apns], keyID: "DUMMYKEY01", issuerID: nil))
         XCTAssertThrowsError(try BackupSnapshot.capture(vault: vault, key: SymmetricKey(size: .bits256)))
         let record = try XCTUnwrap(vault.records().first)
         record.name = "tampered"
@@ -2088,14 +2083,50 @@ final class AppMateTests: XCTestCase {
     }
 
     func testP8MetadataRequiresIssuerOnlyForASC() throws {
-        XCTAssertThrowsError(try P8Metadata(purpose: .appStoreConnect, keyID: "DUMMYKEY01", issuerID: nil).validated())
-        XCTAssertThrowsError(try P8Metadata(purpose: .apns, keyID: "short", issuerID: nil).validated())
+        XCTAssertThrowsError(try P8Metadata(purposes: [.appStoreConnect], keyID: "DUMMYKEY01", issuerID: nil).validated())
+        XCTAssertThrowsError(try P8Metadata(purposes: [.apns], keyID: "short", issuerID: nil).validated())
         let issuer = UUID()
-        let asc = try P8Metadata(purpose: .appStoreConnect, keyID: " DUMMYKEY01 ", issuerID: issuer.uuidString).validated()
+        let asc = try P8Metadata(purposes: [.appStoreConnect], keyID: " DUMMYKEY01 ", issuerID: issuer.uuidString).validated()
         XCTAssertEqual(asc.issuerID, issuer.uuidString.lowercased())
         for purpose in [P8Purpose.apns, .signInWithApple] {
-            XCTAssertNil(try P8Metadata(purpose: purpose, keyID: "DUMMYKEY01", issuerID: "irrelevant").validated().issuerID)
+            XCTAssertNil(try P8Metadata(purposes: [purpose], keyID: "DUMMYKEY01", issuerID: "irrelevant").validated().issuerID)
         }
+    }
+
+    func testP8KeyIDComesOnlyFromApplesDownloadName() {
+        XCTAssertEqual(P8Metadata.keyID(fromFileName: "AuthKey_DUMMYKEY01.p8"), "DUMMYKEY01")
+        for name in ["authkey_DUMMYKEY01.p8", "AuthKey_dummykey01.p8", "AuthKey_DUMMYKEY01 (1).p8", "AuthKey_DUMMYKEY0.p8", "key.p8"] {
+            XCTAssertNil(P8Metadata.keyID(fromFileName: name), name)
+        }
+    }
+
+    @MainActor
+    func testP8StoresMultiplePurposesCanonicallyAndKeepsSinglePurposeCompatibility() throws {
+        XCTAssertThrowsError(try P8Metadata(purposes: [], keyID: "DUMMYKEY01", issuerID: nil).validated())
+        XCTAssertThrowsError(try P8Metadata(purposes: [.appStoreConnect, .maps], keyID: "DUMMYKEY01", issuerID: UUID().uuidString).validated())
+        let (vault, app, _, _) = try makeVault()
+        defer { try? FileManager.default.removeItem(at: vault.blobs.directory) }
+        let key = SymmetricKey(size: .bits256)
+        let file = p8File()
+        let id = try vault.importFile(file, parsed: CredentialParser.parse(file.data, extension: "p8"), app: app, password: nil,
+                                      confirmUnknownTeam: true, key: key, p8: P8Metadata(purposes: [.maps, .apns, .maps], keyID: "DUMMYKEY01", issuerID: nil))
+        let record = try XCTUnwrap(vault.records().first { $0.id == id })
+        XCTAssertEqual(record.keyPurpose, "apns,maps")
+        XCTAssertEqual(record.name, "APNs・Maps（DUMMYKEY01）")
+        XCTAssertEqual(CredentialPurposeFilter.allCases.filter { $0 != .all && $0.matches(record) }, [.key(.apns), .key(.maps)])
+        XCTAssertTrue(CredentialSearch.matches(record, query: "maps"))
+        XCTAssertEqual(try vault.read(record, key: key).original, file.data)
+        _ = try BackupArchive.decode(BackupArchive.encode(BackupSnapshot.capture(vault: vault, key: key), password: nil), password: nil)
+        let snapshot = try BackupSnapshot.capture(vault: vault, key: key)
+        let stored = try XCTUnwrap(snapshot.credentials.first)
+        // Non-canonical order, unknown values and the old single-value form must be validated as before.
+        for (value, valid) in [("maps,apns", false), ("apns,unknown", false), ("", false), ("apns,,maps", false), ("apns", true), ("sign-in", true)] {
+            let changed = try JSONDecoder().decode(BackupSnapshot.self, from: JSONEncoder().encode(snapshot)
+                .replacing(Data(#""keyPurpose":"apns,maps""#.utf8), with: Data(#""keyPurpose":"\#(value)""#.utf8)))
+            XCTAssertEqual(changed.credentials.first?.keyPurpose, value)
+            XCTAssertEqual((try? changed.validate()) != nil, valid, value)
+        }
+        XCTAssertEqual(stored.keyPurpose, "apns,maps")
     }
 
     @MainActor
@@ -2107,7 +2138,7 @@ final class AppMateTests: XCTestCase {
         let key = SymmetricKey(size: .bits256)
         XCTAssertThrowsError(try vault.importFile(file, parsed: parsed, app: first, password: nil, confirmUnknownTeam: true, key: key))
         try vault.importFile(file, parsed: parsed, app: first, password: nil, confirmUnknownTeam: true, key: key,
-                             p8: P8Metadata(purpose: .apns, keyID: "DUMMYKEY01", issuerID: "ignored"))
+                             p8: P8Metadata(purposes: [.apns], keyID: "DUMMYKEY01", issuerID: "ignored"))
         let record = try XCTUnwrap(vault.records().first)
         XCTAssertEqual(record.keyID, "DUMMYKEY01")
         XCTAssertNil(record.issuerID)
@@ -2127,7 +2158,7 @@ final class AppMateTests: XCTestCase {
         let oldFile = p8File()
         let newFile = p8File()
         let key = SymmetricKey(size: .bits256)
-        let metadata = P8Metadata(purpose: .apns, keyID: "DUMMYKEY01", issuerID: nil)
+        let metadata = P8Metadata(purposes: [.apns], keyID: "DUMMYKEY01", issuerID: nil)
         let oldID = try vault.importFile(oldFile, parsed: CredentialParser.parse(oldFile.data, extension: "p8"), app: first,
                                          password: nil, confirmUnknownTeam: true, key: key, p8: metadata)
         let parsed = try CredentialParser.parse(newFile.data, extension: "p8")
@@ -2160,14 +2191,14 @@ final class AppMateTests: XCTestCase {
         let oldFile = p8File()
         let newFile = p8File()
         let key = SymmetricKey(size: .bits256)
-        let metadata = P8Metadata(purpose: .apns, keyID: "DUMMYKEY01", issuerID: nil)
+        let metadata = P8Metadata(purposes: [.apns], keyID: "DUMMYKEY01", issuerID: nil)
         let oldID = try vault.importFile(oldFile, parsed: CredentialParser.parse(oldFile.data, extension: "p8"), app: first,
                                          password: nil, confirmUnknownTeam: true, key: key, p8: metadata)
         let parsed = try CredentialParser.parse(newFile.data, extension: "p8")
         XCTAssertThrowsError(try vault.importFile(newFile, parsed: parsed, app: other, password: nil, confirmUnknownTeam: true,
                                                 key: key, p8: metadata, replacingID: oldID, confirmReplacement: true))
         XCTAssertThrowsError(try vault.importFile(newFile, parsed: parsed, app: first, password: nil, confirmUnknownTeam: true,
-                                                key: key, p8: P8Metadata(purpose: .signInWithApple, keyID: "DUMMYKEY01", issuerID: nil), replacingID: oldID, confirmReplacement: true))
+                                                key: key, p8: P8Metadata(purposes: [.signInWithApple], keyID: "DUMMYKEY01", issuerID: nil), replacingID: oldID, confirmReplacement: true))
         struct CommitFailure: Error {}
         XCTAssertThrowsError(try vault.importFile(newFile, parsed: parsed, app: first, password: nil, confirmUnknownTeam: true,
                                                 key: key, p8: metadata, replacingID: oldID, confirmReplacement: true) { throw CommitFailure() })
