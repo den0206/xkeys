@@ -61,6 +61,7 @@ enum CredentialSearch {
         case .all: return true
         case .expired: return record.displayState(at: now) == .expired
         case .expiring: return record.displayState(at: now).needsRenewal
+        case .attention: return record.displayState(at: now) == .expired || record.displayState(at: now).needsRenewal
         case .app: return !record.isTeamShared && (app.map { app in
             app.parentAppID == nil ? app.targets.contains { record.isVisible(in: $0) } : record.isVisible(in: app)
         } ?? false)

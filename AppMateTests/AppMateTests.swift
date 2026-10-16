@@ -2600,6 +2600,53 @@ final class AppMateTests: XCTestCase {
         XCTAssertEqual(try vault.read(record, key: key).original, file.data)
     }
 
+    @MainActor
+    func testProfileLinksToTeamCertificateAndReportsExpiredSigning() throws {
+        let (vault, app, _, _) = try makeVault()
+        let key = SymmetricKey(size: .bits256)
+        let certificate = CredentialFile(data: try fixture("cer"), name: "sample.cer")
+        _ = try vault.importFile(certificate, parsed: CredentialParser.parse(certificate.data, extension: "cer"), app: app, password: nil, confirmUnknownTeam: true, key: key)
+        let profile = CredentialFile(data: try fixture("mobileprovision", name: "certs"), name: "certs.mobileprovision")
+        _ = try vault.importFile(profile, parsed: CredentialParser.parse(profile.data, extension: "mobileprovision"), app: app, password: nil, confirmUnknownTeam: true, key: key)
+        let records = try vault.records()
+        let cer = try XCTUnwrap(records.first { $0.fileExtension == "cer" })
+        let prov = try XCTUnwrap(records.first { $0.fileExtension == "mobileprovision" })
+
+        XCTAssertEqual(prov.signingCertificates(in: records).map(\.id), [cer.id])
+        XCTAssertEqual(cer.profilesUsing(in: records).map(\.id), [prov.id])
+        let now = Date.now
+        cer.expiresAt = now.addingTimeInterval(86400 * 365)
+        XCTAssertFalse(prov.signingCertificatesExpired(in: records, at: now))
+        cer.expiresAt = now.addingTimeInterval(-60)
+        XCTAssertTrue(prov.signingCertificatesExpired(in: records, at: now))
+        XCTAssertTrue(prov.needsAttention(in: records, at: now))
+        // A deleted certificate or an unread profile shows no link instead of a false "unusable".
+        cer.deletedAt = now
+        XCTAssertFalse(prov.signingCertificatesExpired(in: records, at: now))
+        cer.deletedAt = nil
+        prov.signingCertificateDigests = nil
+        XCTAssertTrue(prov.signingCertificates(in: records).isEmpty)
+    }
+
+    @MainActor
+    func testAttentionScopeIncludesExpiredAndExpiringAcrossTeams() throws {
+        let (vault, app, _, _) = try makeVault()
+        let key = SymmetricKey(size: .bits256)
+        let file = CredentialFile(data: try fixture("mobileprovision"), name: "sample.mobileprovision")
+        _ = try vault.importFile(file, parsed: CredentialParser.parse(file.data, extension: "mobileprovision"), app: app, password: nil, confirmUnknownTeam: true, key: key)
+        let record = try XCTUnwrap(vault.records().first)
+        let now = Date.now
+        let includes = { CredentialSearch.includes(record, scope: .attention, app: nil, query: "", type: .all, at: now) }
+        record.expiresAt = now.addingTimeInterval(86400 * 90)
+        XCTAssertFalse(includes())
+        record.expiresAt = now.addingTimeInterval(86400 * 10)
+        XCTAssertTrue(includes())
+        record.expiresAt = now.addingTimeInterval(-1)
+        XCTAssertTrue(includes())
+        record.expiresAt = nil
+        XCTAssertFalse(includes())
+    }
+
     func testProfileTamperAndUnsignedPlistRejected() throws {
         let data = try fixture("mobileprovision")
         var bytes = data

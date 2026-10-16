@@ -1,0 +1,202 @@
+import SwiftUI
+
+/// The three kinds the lists are split into. Profiles live on app pages, certificates and keys on the team page.
+enum CredentialGroup: CaseIterable {
+    case profile, certificate, key
+
+    init(_ record: StoredCredential) {
+        switch record.fileExtension {
+        case "p8": self = .key
+        case "cer", "p12": self = .certificate
+        default: self = .profile
+        }
+    }
+
+    var title: String {
+        switch self {
+        case .profile: "プロファイル"
+        case .certificate: "証明書"
+        case .key: "鍵（.p8）"
+        }
+    }
+}
+
+extension StoredCredential {
+    var signingDigestList: [String] {
+        signingCertificateDigests?.split(separator: ",").map(String.init) ?? []
+    }
+
+    /// Certificates (.cer / .p12 of the same team) embedded in this profile. Empty until the profile was read.
+    func signingCertificates(in records: [StoredCredential]) -> [StoredCredential] {
+        let digests = Set(signingDigestList)
+        guard !digests.isEmpty else { return [] }
+        return records.filter { other in
+            other.deletedAt == nil && other.team?.id == team?.id && CredentialGroup(other) == .certificate
+                && other.fingerprint.map(digests.contains) == true
+        }
+    }
+
+    /// Profiles that embed this certificate.
+    func profilesUsing(in records: [StoredCredential]) -> [StoredCredential] {
+        guard CredentialGroup(self) == .certificate, let fingerprint else { return [] }
+        return records.filter { $0.deletedAt == nil && $0.app?.deletedAt == nil && $0.team?.id == team?.id && $0.signingDigestList.contains(fingerprint) }
+    }
+
+    /// True when every known signing certificate of this profile has expired.
+    func signingCertificatesExpired(in records: [StoredCredential], at now: Date) -> Bool {
+        let certificates = signingCertificates(in: records)
+        return !certificates.isEmpty && certificates.allSatisfy { $0.displayState(at: now) == .expired }
+    }
+
+    func needsAttention(in records: [StoredCredential], at now: Date) -> Bool {
+        let state = displayState(at: now)
+        return state == .expired || state.needsRenewal || signingCertificatesExpired(in: records, at: now)
+    }
+}
+
+extension P8Purpose {
+    var shortTitle: String {
+        switch self {
+        case .appStoreConnect: "App Store Connect"
+        case .apns: "通知"
+        case .signInWithApple: "Appleでサインイン"
+        case .deviceCheck: "DeviceCheck"
+        case .maps: "マップ"
+        case .weatherKit: "天気"
+        case .mediaServices: "メディア"
+        case .other: "その他"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .appStoreConnect: "a.square"
+        case .apns: "bell"
+        case .signInWithApple: "person.crop.circle"
+        case .deviceCheck: "checkmark.shield"
+        case .maps: "mappin.and.ellipse"
+        case .weatherKit: "cloud.sun"
+        case .mediaServices: "music.note"
+        case .other: "ellipsis.circle"
+        }
+    }
+
+    var tint: Color {
+        switch self {
+        case .appStoreConnect: Color(red: 0.11, green: 0.31, blue: 0.85)
+        case .apns: Color(red: 0.76, green: 0.25, blue: 0.05)
+        case .signInWithApple: AppMateStyle.text
+        case .deviceCheck: AppMateStyle.successText
+        case .maps: Color(red: 0.05, green: 0.45, blue: 0.56)
+        case .weatherKit: Color(red: 0.63, green: 0.38, blue: 0.03)
+        case .mediaServices: Color(red: 0.53, green: 0.10, blue: 0.56)
+        case .other: AppMateStyle.secondary
+        }
+    }
+}
+
+struct PurposeLabels: View {
+    let record: StoredCredential
+
+    var body: some View {
+        let purposes = record.keyPurpose.flatMap(P8Purpose.purposes(stored:)) ?? []
+        HStack(spacing: 10) {
+            if purposes.isEmpty { Text("用途未設定").foregroundStyle(AppMateStyle.secondary) }
+            ForEach(purposes, id: \.self) { purpose in
+                Label { Text(purpose.shortTitle) } icon: { Image(systemName: purpose.symbol).foregroundStyle(purpose.tint) }
+                    .labelStyle(.titleAndIcon)
+            }
+        }.font(.system(size: 12)).foregroundStyle(AppMateStyle.text.opacity(0.8))
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("用途：" + (purposes.isEmpty ? "未設定" : purposes.map(\.shortTitle).joined(separator: "、")))
+    }
+}
+
+/// A section that opens and closes. Its state is not remembered: each page opens expanded.
+struct CollapsibleSection<Content: View>: View {
+    let title: String
+    let detail: String
+    let attention: Int
+    @ViewBuilder let content: Content
+    @State private var expanded = true
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Button { expanded.toggle() } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "chevron.down").font(.system(size: 10, weight: .bold))
+                        .rotationEffect(.degrees(expanded ? 0 : -90)).foregroundStyle(AppMateStyle.secondary)
+                    Text(title).fontWeight(.bold).foregroundStyle(AppMateStyle.text.opacity(0.75))
+                    Text(detail).foregroundStyle(AppMateStyle.tertiary)
+                    if !expanded && attention > 0 {
+                        Label("要対応 \(attention)", systemImage: "circle.fill").labelStyle(AttentionBadgeStyle())
+                    }
+                }.font(.system(size: 13)).padding(.vertical, 4).contentShape(Rectangle())
+            }.buttonStyle(.plain)
+                .accessibilityLabel("\(title)、\(detail)" + (attention > 0 ? "、要対応\(attention)件" : ""))
+                .accessibilityValue(expanded ? "開いています" : "閉じています")
+                .padding(.bottom, 6)
+            if expanded {
+                VStack(alignment: .leading, spacing: 0) { content }
+                    .overlay(alignment: .bottom) { Rectangle().fill(AppMateStyle.rowBorder).frame(height: 1) }
+            }
+        }
+    }
+}
+
+private struct AttentionBadgeStyle: LabelStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: 5) {
+            configuration.icon.font(.system(size: 6))
+            configuration.title
+        }.font(.system(size: 11, weight: .bold)).foregroundStyle(AppMateStyle.dangerText)
+            .padding(.horizontal, 8).padding(.vertical, 2)
+            .background(Color(red: 0.996, green: 0.886, blue: 0.886), in: Capsule())
+    }
+}
+
+/// Empty pages: drop files here, or choose them.
+struct CredentialDropZone: View {
+    let title: String
+    let formats: [String]
+    let choose: () -> Void
+
+    var body: some View {
+        VStack(spacing: 10) {
+            Image(systemName: "square.and.arrow.down").font(.system(size: 26)).foregroundStyle(AppMateStyle.accent)
+            Text(title).font(.system(size: 15, weight: .bold))
+            Text("追加画面を開かずに、そのまま取り込みます").foregroundStyle(AppMateStyle.secondary)
+            HStack(spacing: 6) {
+                ForEach(formats, id: \.self) { format in
+                    Text(format).font(.system(size: 12)).padding(.horizontal, 9).padding(.vertical, 3)
+                        .background(AppMateStyle.canvas, in: Capsule()).overlay(Capsule().stroke(AppMateStyle.border))
+                }
+            }
+            Button("ファイルを選ぶ…", action: choose).buttonStyle(AppMateButtonStyle()).padding(.top, 4)
+        }.frame(maxWidth: .infinity).padding(.vertical, 28)
+            .background(AppMateStyle.selectedRow, in: RoundedRectangle(cornerRadius: 14))
+            .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(AppMateStyle.dropBorder, style: StrokeStyle(lineWidth: 1.5, dash: [6, 4])))
+    }
+}
+
+/// The separate card for Apple Developer import, the same as in the import sheet.
+struct AppleImportCard: View {
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                Image(systemName: "icloud.and.arrow.down").font(.system(size: 15)).foregroundStyle(AppMateStyle.text.opacity(0.75))
+                    .frame(width: 32, height: 32).background(AppMateStyle.search, in: RoundedRectangle(cornerRadius: 8))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Apple Developer から取り込む").fontWeight(.semibold)
+                    Text("ログイン中のアカウントから証明書とプロファイルを選んで取り込みます")
+                        .font(.system(size: 12)).foregroundStyle(AppMateStyle.secondary)
+                }
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.right").font(.system(size: 12, weight: .semibold)).foregroundStyle(AppMateStyle.tertiary)
+            }.padding(.horizontal, 14).padding(.vertical, 12).contentShape(Rectangle())
+                .overlay(RoundedRectangle(cornerRadius: 10).stroke(AppMateStyle.rowBorder))
+        }.buttonStyle(.plain)
+    }
+}

@@ -10,6 +10,7 @@
 		0222C866A7070CA9D77B371B /* Services/OwnerAuthentication.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D32500D0DC4CC98B7AC172B /* Services/OwnerAuthentication.swift */; };
 		0B9177794691F3018677DFFA /* Application/AppMateApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100C041E14DE33E0152765FE /* Application/AppMateApp.swift */; };
 		205FC0C6AD696D68E9D5AE01 /* Models/AppCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 735DACB0CD1890235097A8AF /* Models/AppCatalog.swift */; };
+		DE1000000000000000000001 /* Features/CredentialSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE2000000000000000000001 /* Features/CredentialSection.swift */; };
 		3490D0655DC60B16ADB47404 /* Features/CatalogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22CAFBB626C0E80C30E7D31D /* Features/CatalogView.swift */; };
 		587854A59EFBF8969CAFD37F /* AppMateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D37B9395C2BAF168F977CE9F /* AppMateTests.swift */; };
 		8AAD9CB9833BC16230BD9766 /* Services/CredentialParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E1814744B33849C5EC9325F /* Services/CredentialParser.swift */; };
@@ -50,6 +51,7 @@
 /* Begin PBXFileReference section */
 		100C041E14DE33E0152765FE /* Application/AppMateApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Application/AppMateApp.swift; sourceTree = "<group>"; };
 		1D0C25BD41FF872EF528DB22 /* Persistence/CredentialVault.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Persistence/CredentialVault.swift; sourceTree = "<group>"; };
+		DE2000000000000000000001 /* Features/CredentialSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/CredentialSection.swift; sourceTree = "<group>"; };
 		22CAFBB626C0E80C30E7D31D /* Features/CatalogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/CatalogView.swift; sourceTree = "<group>"; };
 		5B4818F81C7256E686BA2E05 /* Fixtures */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Fixtures; sourceTree = "<group>"; };
 		5D32500D0DC4CC98B7AC172B /* Services/OwnerAuthentication.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/OwnerAuthentication.swift; sourceTree = "<group>"; };
@@ -148,6 +150,7 @@
 				CF4E022172D3641297064FC2 /* Features/CredentialAppView.swift */,
 				1D0C25BD41FF872EF528DB22 /* Persistence/CredentialVault.swift */,
 				22CAFBB626C0E80C30E7D31D /* Features/CatalogView.swift */,
+				DE2000000000000000000001 /* Features/CredentialSection.swift */,
 				735DACB0CD1890235097A8AF /* Models/AppCatalog.swift */,
 				100C041E14DE33E0152765FE /* Application/AppMateApp.swift */,
 				7E1814744B33849C5EC9325F /* Services/CredentialParser.swift */,
@@ -278,6 +281,7 @@
 				D5AB3D6787FE83109935B0E3 /* Features/CredentialAppView.swift in Sources */,
 				8F70FEAAA107ADEF37464932 /* Persistence/CredentialVault.swift in Sources */,
 				3490D0655DC60B16ADB47404 /* Features/CatalogView.swift in Sources */,
+				DE1000000000000000000001 /* Features/CredentialSection.swift in Sources */,
 				205FC0C6AD696D68E9D5AE01 /* Models/AppCatalog.swift in Sources */,
 				0B9177794691F3018677DFFA /* Application/AppMateApp.swift in Sources */,
 				8AAD9CB9833BC16230BD9766 /* Services/CredentialParser.swift in Sources */,

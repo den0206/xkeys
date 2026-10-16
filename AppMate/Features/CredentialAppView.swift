@@ -93,7 +93,6 @@ struct CredentialAppView: View {
     @State private var editingPurposes = false
     @State private var editingApp = false
     @State private var addingTarget = false
-    @State private var purposeFilter: CredentialPurposeFilter = .all
     @State private var targetFilter: UUID?
     @State private var copyingCI = false
     @State private var deleting = false
@@ -103,16 +102,13 @@ struct CredentialAppView: View {
     @State private var deletingBatch = false
     @State private var deletingApp = false
     @State private var showingRenewalGuide = false
-    @State private var inlineInspector = true
-    @State private var showingInspector = false
-    @State private var listWidth: CGFloat = 600
     @State private var revealedAt = Date.distantPast
 
-    private var visible: [StoredCredential] {
-        records.filter { record in
-            purposeFilter.matches(record) && (targetFilter == nil || record.app?.id == targetFilter) && CredentialSearch.includes(record, scope: scope, app: app, query: search, type: typeFilter, at: clock) }
-            .sorted { ($0.fileExtension == "p8" ? 1 : 0) < ($1.fileExtension == "p8" ? 1 : 0) }
+    /// Everything on this page, before the target filter. Attention counts use this, so they stay app-wide.
+    private var scoped: [StoredCredential] {
+        records.filter { CredentialSearch.includes($0, scope: scope, app: app, query: search, type: typeFilter, at: clock) }
     }
+    private var visible: [StoredCredential] { scoped.filter { targetFilter == nil || $0.app?.id == targetFilter } }
     private var checkedRecords: [StoredCredential] { visible.filter { checkedIDs.contains($0.id) } }
     private var selectedRecord: StoredCredential? { visible.first { $0.id == selected } }
     private var vault: CredentialVault {
@@ -120,27 +116,8 @@ struct CredentialAppView: View {
     }
 
     var body: some View {
-        HStack(spacing: 0) {
-            if !inlineInspector && showingInspector {
-                VStack(spacing: 0) {
-                    HStack {
-                        Button("一覧に戻る", systemImage: "chevron.left") { showingInspector = false }.buttonStyle(.borderless)
-                        Spacer()
-                    }.padding(16)
-                    Divider()
-                    inspector
-                }.frame(maxWidth: .infinity, maxHeight: .infinity).background(AppMateStyle.inspector)
-            } else {
-                credentialList
-                    .frame(minWidth: 340, maxWidth: .infinity, maxHeight: .infinity)
-                    .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { listWidth = $0 }
-                if inlineInspector {
-                    Divider()
-                    inspector.frame(width: 300).frame(maxHeight: .infinity).background(AppMateStyle.inspector)
-                }
-            }
-        }
-        .onGeometryChange(for: Bool.self) { $0.size.width >= 900 } action: { inlineInspector = $0 }
+        credentialList
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         .font(.system(size: 13))
 
         .sheet(isPresented: $importing) {
@@ -192,7 +169,6 @@ struct CredentialAppView: View {
         .task {
             do {
                 try vault.recover()
-                if selected == nil { selected = visible.first(where: { $0.isTeamShared && $0.displayState(at: clock).needsRenewal })?.id ?? visible.first?.id }
             }
             catch { self.error = "保存状態を確認できません。\(error.localizedDescription)" }
         }
@@ -213,323 +189,351 @@ struct CredentialAppView: View {
     }
 
     private var credentialList: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 12) {
-                if let app {
-                    AppIcon(app: app, size: 40)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                header
+                if let app, app.parentAppID == nil, app.targets.count > 1, !CredentialSearch.hasQuery(search) { targetFilterBar(app) }
+                attentionBanner
+                if selectingForDeletion { deletionBar }
+                if visible.isEmpty {
+                    emptyState
                 } else {
-                    Image(systemName: "key.fill").font(.system(size: 24)).foregroundStyle(AppMateStyle.accent)
-                        .frame(width: 40, height: 40).background(AppMateStyle.selectedRow, in: RoundedRectangle(cornerRadius: 10))
-                }
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(CredentialSearch.hasQuery(search) ? "横断検索の結果" : app?.name ?? team.map { $0.name + " ／ " + scope.title } ?? scope.title)
-                        .font(.system(size: 20, weight: .bold)).lineLimit(2)
-                    Text("\(CredentialSearch.hasQuery(search) ? "すべてのTeam・App · " : app.map { $0.platform + "アプリ · " } ?? "")\(app == nil ? "鍵とファイル" : "専用ファイル") \(visible.count)件")
-                        .font(.system(size: 12)).foregroundStyle(AppMateStyle.secondary)
-                }
-                Spacer(minLength: 0)
-                Menu {
-                    Button("鍵・ファイルを一括削除…") {
-                        selectingForDeletion = true
-                        checkedIDs = []
-                    }.disabled(visible.isEmpty || access.busy)
-                    Divider()
-                    if app != nil {
-                        Button("ターゲットを追加…") { addingTarget = true }
-                        Button("App情報") { selected = nil; showingInspector = true }
-                        Button("アプリを編集…") { editingApp = true }
-                        Button("アプリを削除…", role: .destructive) { deletingApp = true }.disabled(access.busy)
-                    }
-                } label: { Image(systemName: "ellipsis") }
-                    .menuStyle(.borderlessButton).menuIndicator(.hidden)
-                    .frame(width: 28, height: 28).help("表示と管理").accessibilityLabel("表示と管理")
-            }.padding(.bottom, 16)
-            if app == nil, let team, !CredentialSearch.hasQuery(search) {
-                Button("Apple Developerから取り込む…", systemImage: "icloud.and.arrow.down") { onlineImporting = true }
-                    .buttonStyle(AppMateButtonStyle()).disabled(access.busy).padding(.bottom, 12)
-                Label("保管先：チーム「\(team.name)」。アプリでの利用状況は記録していません。", systemImage: "person.2")
-                    .font(.system(size: 12)).foregroundStyle(AppMateStyle.secondary).padding(.bottom, 12)
-            }
-            HStack {
-                Picker("種類", selection: $typeFilter) {
-                    ForEach(CredentialTypeFilter.allCases) { Text($0.title).tag($0) }
-                }.frame(maxWidth: 240)
-                Picker("用途", selection: $purposeFilter) {
-                    ForEach(CredentialPurposeFilter.allCases) { Text($0.title).tag($0) }
-                }.frame(maxWidth: 240)
-                    .onChange(of: purposeFilter) { _, _ in lock(dismissImport: false) }
-            }.font(.system(size: 12)).padding(.bottom, 8)
-            if let app, app.parentAppID == nil, app.targets.count > 1 {
-                Picker("ターゲット", selection: $targetFilter) {
-                    Text("すべてのターゲット").tag(nil as UUID?)
-                    ForEach(app.targets) { target in
-                        Text("\(target.id == app.id ? "本体" : target.name) · \(target.bundleID)").tag(Optional(target.id))
+                    ForEach(CredentialGroup.allCases.filter { group in visible.contains { CredentialGroup($0) == group } }, id: \.self) { group in
+                        let items = visible.filter { CredentialGroup($0) == group }
+                        CollapsibleSection(title: group.title, detail: sectionDetail(group, count: items.count),
+                                           attention: scoped.filter { CredentialGroup($0) == group && $0.needsAttention(in: records, at: clock) }.count) {
+                            ForEach(items) { row($0) }
+                        }
                     }
                 }
-                .onChange(of: targetFilter) { _, _ in lock(dismissImport: false) }
-                .padding(.bottom, 8)
-            }
-            let attention = visible.filter { $0.displayState(at: clock).needsRenewal || $0.displayState(at: clock) == .expired }
-            if !attention.isEmpty {
-                HStack(alignment: .top, spacing: 10) {
-                    Image(systemName: "clock").font(.system(size: 18)).foregroundStyle(AppMateStyle.warningText)
-                    Text(attentionMessage(attention))
-                        .font(.system(size: 13)).frame(maxWidth: .infinity, alignment: .leading)
-                    Button("手順を見る") { showingRenewalGuide = true }.buttonStyle(.borderless).foregroundStyle(AppMateStyle.accent)
-                        .popover(isPresented: $showingRenewalGuide) {
-                            VStack(alignment: .leading, spacing: 12) {
-                                Text("証明書とプロファイルを更新する").font(.headline)
-                                Text("1. Apple Developerで新しい証明書やプロファイルを用意します。")
-                                Text("2. 「ファイルを追加」で新しいファイルを選びます。")
-                                Text("3. 不要になった旧ファイルは削除します。")
-                            }.font(.system(size: 13)).padding(20).frame(width: 340)
-                        }
-                }.padding(.horizontal, 14).padding(.vertical, 10)
-                    .background(AppMateStyle.warningBanner, in: RoundedRectangle(cornerRadius: 10))
-                    .overlay(RoundedRectangle(cornerRadius: 10).stroke(AppMateStyle.warningBorder, lineWidth: 1))
-                    .padding(.bottom, 16)
-            }
-            if selectingForDeletion {
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack(spacing: 12) {
-                        Button(checkedRecords.count == visible.count ? "選択を解除" : "すべて選択") {
-                            checkedIDs = checkedRecords.count == visible.count ? [] : Set(visible.map(\.id))
-                        }
-                        Spacer()
-                        Button("キャンセル") { selectingForDeletion = false; checkedIDs = [] }
-                    }
-                    HStack {
-                        Text("\(checkedRecords.count)件選択").foregroundStyle(AppMateStyle.secondary)
-                        Spacer()
-                        Button("削除…", role: .destructive) {
-                            deletionTargets = checkedRecords
-                            deletingBatch = true
-                        }.disabled(checkedRecords.isEmpty)
-                    }
-                }.buttonStyle(AppMateButtonStyle(compact: true)).disabled(access.busy).padding(.vertical, 8)
-            }
-            HStack(spacing: 0) {
-                if selectingForDeletion { Spacer().frame(width: 28) }
-                Text("名前").frame(maxWidth: .infinity, alignment: .leading)
-                Text("種類").frame(width: typeWidth, alignment: .leading)
-                Text("期限").frame(width: expirationWidth, alignment: .leading)
-                Text("状態").frame(width: stateWidth, alignment: .trailing)
-            }.font(.system(size: 12)).foregroundStyle(AppMateStyle.secondary).padding(8)
-            Divider()
-            if visible.isEmpty {
-                ContentUnavailableView {
-                    Label(!CredentialSearch.hasQuery(search) && typeFilter == .all && purposeFilter == .all ? (app == nil ? "鍵やファイルがありません" : "このアプリ専用のファイルはありません") : "条件に一致する項目がありません", systemImage: "magnifyingglass")
-                } description: {
-                    Text(CredentialSearch.hasQuery(search) || typeFilter != .all || purposeFilter != .all ? "検索語・種類・用途を変えて確認してください。" : app == nil ? "チームで保管する鍵・証明書を追加できます。" : "このアプリ専用のプロファイルを追加できます。鍵・証明書はチームの一覧で保管します。")
-                } actions: {
-                    if team != nil && !CredentialSearch.hasQuery(search) { Button("ファイルを追加…") { importing = true } }
-                }.frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .contentShape(Rectangle())
-                    .dropDestination(for: URL.self) { urls, _ in
-                        guard team != nil, app?.deletedAt == nil, !CredentialSearch.hasQuery(search),
-                              !urls.isEmpty, !access.busy, !importing else { return false }
-                        droppedSources = urls
-                        importing = true
-                        return true
-                    }
-            } else {
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 0) {
-                        if visible.contains(where: { !$0.isTeamShared }) {
-                            groupHeading(app == nil ? "アプリ専用" : "このアプリ専用")
-                            ForEach(visible.filter { !$0.isTeamShared }) { record in row(record) }
-                        }
-                        if visible.contains(where: \.isTeamShared) {
-                            groupHeading("チームの鍵・証明書")
-                            ForEach(visible.filter(\.isTeamShared)) { record in row(record) }
-                        }
-                    }
-                }.frame(maxHeight: .infinity)
-                    .focusable().focusEffectDisabled()
-                    .onMoveCommand { direction in
-                        guard !visible.isEmpty, direction == .up || direction == .down else { return }
-                        let index = visible.firstIndex { $0.id == selected } ?? (direction == .down ? -1 : visible.count)
-                        selected = visible[min(max(index + (direction == .down ? 1 : -1), 0), visible.count - 1)].id
-                    }
-            }
-            if let app, let owner = app.team {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("チームの鍵・証明書").fontWeight(.semibold)
-                    Text("\(owner.name)で保管しています。このアプリでの利用状況は記録していません。")
-                        .foregroundStyle(AppMateStyle.secondary)
-                    Button("チームの鍵・証明書を開く", systemImage: "arrow.right") { openTeam(owner.id) }
-                        .buttonStyle(.borderless).foregroundStyle(AppMateStyle.accent)
-                }.font(.system(size: 12)).padding(14).frame(maxWidth: .infinity, alignment: .leading)
-                    .background(AppMateStyle.selectedRow, in: RoundedRectangle(cornerRadius: 10)).padding(.vertical, 12)
-            }
-            if access.busy { ProgressView("認証しています…").font(.caption).padding(.vertical, 10) }
-            if let error { Label(error, systemImage: "exclamationmark.triangle").foregroundStyle(.red).font(.caption).textSelection(.enabled).padding(.vertical, 10) }
-            if !status.isEmpty { Text(status).font(.caption).foregroundStyle(AppMateStyle.secondary).padding(.vertical, 10) }
-        }.padding(.horizontal, 24).padding(.top, 20).background(AppMateStyle.canvas)
+                if let app, let owner = app.team, !CredentialSearch.hasQuery(search) { teamLink(owner) }
+                if access.busy { ProgressView("認証しています…").font(.caption) }
+                if let error { Label(error, systemImage: "exclamationmark.triangle").foregroundStyle(AppMateStyle.dangerText).font(.caption).textSelection(.enabled) }
+                if !status.isEmpty { Text(status).font(.caption).foregroundStyle(AppMateStyle.secondary) }
+            }.padding(.horizontal, 32).padding(.vertical, 22).frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .background(AppMateStyle.canvas)
+        .focusable().focusEffectDisabled()
+        .onMoveCommand { direction in
+            guard !visible.isEmpty, direction == .up || direction == .down else { return }
+            let index = visible.firstIndex { $0.id == selected } ?? (direction == .down ? -1 : visible.count)
+            selected = visible[min(max(index + (direction == .down ? 1 : -1), 0), visible.count - 1)].id
+        }
+        .onChange(of: targetFilter) { _, _ in lock(dismissImport: false) }
+        .dropDestination(for: URL.self) { urls, _ in
+            guard team != nil, app?.deletedAt == nil, !CredentialSearch.hasQuery(search),
+                  !urls.isEmpty, !access.busy, !importing else { return false }
+            droppedSources = urls
+            importing = true
+            return true
+        }
     }
 
-    private var typeWidth: CGFloat { max(76, (listWidth - 48) * 0.22) }
-    private var expirationWidth: CGFloat { max(84, (listWidth - 48) * 0.21) }
-    private var stateWidth: CGFloat { max(82, (listWidth - 48) * 0.16) }
+    private var pageTitle: String {
+        if CredentialSearch.hasQuery(search) { return "検索の結果" }
+        if let app { return app.name }
+        if case .team = scope { return "鍵と証明書" }
+        return scope.title
+    }
+
+    private var pageSubtitle: String {
+        if CredentialSearch.hasQuery(search) { return "すべてのチームとアプリ · \(visible.count)件" }
+        if let app {
+            let targets = app.parentAppID == nil && app.targets.count > 1 ? " · \(app.targets.count)ターゲット" : ""
+            return "\(app.platform) · \(app.bundleID)\(targets)"
+        }
+        if case .team = scope, let team { return "\(team.name) のどのアプリでも使えるもの" }
+        return "\(visible.count)件"
+    }
+
+    private var header: some View {
+        HStack(spacing: 14) {
+            if let app {
+                AppIcon(app: app, size: 52)
+            } else {
+                Image(systemName: "key").font(.system(size: 24)).foregroundStyle(AppMateStyle.text.opacity(0.75))
+                    .frame(width: 52, height: 52).background(AppMateStyle.search, in: RoundedRectangle(cornerRadius: 13))
+            }
+            VStack(alignment: .leading, spacing: 4) {
+                Text(pageTitle).font(.system(size: 22, weight: .bold)).lineLimit(2)
+                Text(pageSubtitle).foregroundStyle(AppMateStyle.secondary).lineLimit(1).truncationMode(.middle)
+            }
+            Spacer(minLength: 0)
+            if app != nil {
+                Button("メモ") { selected = nil; editingNote = true }.buttonStyle(AppMateButtonStyle(compact: true)).disabled(access.busy)
+            } else if team != nil, case .team = scope, !CredentialSearch.hasQuery(search) {
+                Button("Apple Developer から取り込む", systemImage: "icloud.and.arrow.down") { onlineImporting = true }
+                    .buttonStyle(AppMateButtonStyle(compact: true)).disabled(access.busy)
+            }
+            Menu {
+                Button("鍵・ファイルを一括削除…") {
+                    selectingForDeletion = true
+                    checkedIDs = []
+                }.disabled(visible.isEmpty || access.busy)
+                if app != nil {
+                    Divider()
+                    Button("ターゲットを追加…") { addingTarget = true }
+                    Button("アプリを編集…") { editingApp = true }
+                    Button("アプリを削除…", role: .destructive) { deletingApp = true }.disabled(access.busy)
+                }
+            } label: { Image(systemName: "ellipsis") }
+                .menuStyle(.borderlessButton).menuIndicator(.hidden)
+                .frame(width: 30, height: 30).overlay(RoundedRectangle(cornerRadius: 8).stroke(AppMateStyle.border))
+                .help("表示と管理").accessibilityLabel("表示と管理")
+        }
+    }
+
+    private func targetFilterBar(_ app: ManagedApp) -> some View {
+        HStack(spacing: 6) {
+            targetChip("すべて", id: nil)
+            ForEach(app.targets) { target in targetChip(target.id == app.id ? "本体" : target.name, id: target.id) }
+        }.accessibilityElement(children: .contain).accessibilityLabel("ターゲットで絞り込む")
+    }
+
+    private func targetChip(_ title: String, id: UUID?) -> some View {
+        let on = targetFilter == id
+        return Button(title) { targetFilter = id }
+            .buttonStyle(.plain).font(.system(size: 12, weight: on ? .semibold : .regular))
+            .padding(.horizontal, 12).frame(height: 28)
+            .foregroundStyle(on ? Color.white : AppMateStyle.text.opacity(0.8))
+            .background(on ? AppMateStyle.text : AppMateStyle.canvas, in: Capsule())
+            .overlay(Capsule().stroke(on ? AppMateStyle.text : AppMateStyle.border))
+            .accessibilityAddTraits(on ? .isSelected : [])
+    }
+
+    @ViewBuilder private var attentionBanner: some View {
+        let attention = scoped.filter { $0.needsAttention(in: records, at: clock) }
+        if !attention.isEmpty {
+            let broken = attention.filter { $0.displayState(at: clock) == .expired || $0.signingCertificatesExpired(in: records, at: clock) }
+            let danger = !broken.isEmpty
+            HStack(spacing: 12) {
+                Image(systemName: danger ? "exclamationmark.circle" : "clock").font(.system(size: 17))
+                    .foregroundStyle(danger ? AppMateStyle.danger : AppMateStyle.warningText)
+                Text(attentionMessage(attention)).frame(maxWidth: .infinity, alignment: .leading)
+                Button("直し方を見る") { showingRenewalGuide = true }
+                    .buttonStyle(AppMateButtonStyle(compact: true))
+                    .popover(isPresented: $showingRenewalGuide) {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("証明書とプロファイルを更新する").font(.headline)
+                            Text("1. Apple Developerで新しい証明書やプロファイルを用意します。")
+                            Text("2. 「ファイルを追加」で新しいファイルを選びます。")
+                            Text("3. 不要になった旧ファイルは削除します。")
+                        }.font(.system(size: 13)).padding(20).frame(width: 340)
+                    }
+            }.padding(.horizontal, 14).padding(.vertical, 10)
+                .foregroundStyle(danger ? Color(red: 0.5, green: 0.11, blue: 0.11) : AppMateStyle.warningText)
+                .background(danger ? AppMateStyle.dangerBackground : AppMateStyle.warningBanner, in: RoundedRectangle(cornerRadius: 10))
+                .overlay(RoundedRectangle(cornerRadius: 10).stroke(danger ? AppMateStyle.dangerBorder : AppMateStyle.warningBorder))
+        }
+    }
 
     private func attentionMessage(_ records: [StoredCredential]) -> String {
+        let unusable = records.filter { CredentialGroup($0) == .profile && $0.signingCertificatesExpired(in: self.records, at: clock) }
+        if !unusable.isEmpty {
+            return "署名に使う証明書が期限切れのため、プロファイル \(unusable.count)件が使えません。"
+        }
         let dates = records.compactMap(\.expiresAt)
         if let first = dates.first, first > clock, dates.allSatisfy({ Calendar.current.isDate($0, inSameDayAs: first) }) {
-            return "\(records.count)件が\(first.formatted(.dateTime.month().day()))に期限切れ。新しい証明書とプロファイルを追加しましょう"
+            return "\(records.count)件が\(first.formatted(.dateTime.month().day()))に期限切れになります。新しいファイルを追加しましょう。"
         }
-        return "\(records.count)件の期限を確認してください。新しい証明書とプロファイルを追加しましょう"
+        return "\(records.count)件の期限を確認してください。新しいファイルを追加しましょう。"
     }
 
-    private func groupHeading(_ title: String) -> some View {
-        Text(title).font(.system(size: 12, weight: .bold)).padding(.horizontal, 8).padding(.top, 14).padding(.bottom, 6)
+    private var deletionBar: some View {
+        HStack(spacing: 12) {
+            Button(checkedRecords.count == visible.count ? "選択を解除" : "すべて選択") {
+                checkedIDs = checkedRecords.count == visible.count ? [] : Set(visible.map(\.id))
+            }
+            Text("\(checkedRecords.count)件選択").foregroundStyle(AppMateStyle.secondary)
+            Spacer()
+            Button("キャンセル") { selectingForDeletion = false; checkedIDs = [] }
+            Button("削除…", role: .destructive) {
+                deletionTargets = checkedRecords
+                deletingBatch = true
+            }.disabled(checkedRecords.isEmpty)
+        }.buttonStyle(AppMateButtonStyle(compact: true)).disabled(access.busy)
+    }
+
+    private func sectionDetail(_ group: CredentialGroup, count: Int) -> String {
+        switch group {
+        case .profile: app == nil || CredentialSearch.hasQuery(search) ? "\(count)" : "\(count) · このアプリ専用"
+        case .certificate: "\(count)"
+        case .key: "\(count) · 期限なし · どのアプリで使っているかは記録していません"
+        }
+    }
+
+    @ViewBuilder private var emptyState: some View {
+        if CredentialSearch.hasQuery(search) || typeFilter != .all {
+            ContentUnavailableView("条件に一致する項目がありません", systemImage: "magnifyingglass",
+                                   description: Text("検索語や種類を変えて確認してください。"))
+        } else if team != nil, app?.deletedAt == nil, app != nil || isTeamScope {
+            VStack(spacing: 12) {
+                CredentialDropZone(title: app != nil ? "このアプリのプロファイルをドロップ" : "証明書や鍵をドロップ",
+                                   formats: app != nil ? [".mobileprovision", ".provisionprofile"] : ["証明書 .p12 · .cer", "鍵 .p8"]) { importing = true }
+                AppleImportCard { onlineImporting = true }
+            }.disabled(access.busy)
+        } else {
+            ContentUnavailableView("該当する項目はありません", systemImage: "checkmark.circle")
+        }
+    }
+
+    private var isTeamScope: Bool { if case .team = scope { true } else { false } }
+
+    private func teamLink(_ owner: DeveloperTeam) -> some View {
+        Button { openTeam(owner.id) } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "key")
+                Text("署名用の証明書と、通知などに使う鍵は「鍵と証明書」にあります")
+                Image(systemName: "chevron.right").font(.system(size: 11, weight: .semibold)).foregroundStyle(AppMateStyle.tertiary)
+            }.padding(.horizontal, 12).padding(.vertical, 8)
+                .foregroundStyle(AppMateStyle.text.opacity(0.8))
+                .background(AppMateStyle.sidebar, in: RoundedRectangle(cornerRadius: 8))
+                .overlay(RoundedRectangle(cornerRadius: 8).stroke(AppMateStyle.rowBorder))
+        }.buttonStyle(.plain)
     }
 
     private func row(_ record: StoredCredential) -> some View {
-        HStack(spacing: 0) {
-            if selectingForDeletion {
-                Toggle("\(record.name)を選択", isOn: Binding(
-                    get: { checkedIDs.contains(record.id) },
-                    set: { if $0 { checkedIDs.insert(record.id) } else { checkedIDs.remove(record.id) } }
-                )).toggleStyle(.checkbox).labelsHidden().frame(width: 28).disabled(access.busy)
-            }
-            Button { selected = record.id; if !inlineInspector { showingInspector = true } } label: {
-                HStack(spacing: 0) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(record.name).fontWeight(.medium).lineLimit(2)
-                        if app == nil {
-                            Text([record.team.map { "チーム：" + $0.name }, record.app.map { "アプリ：" + $0.name }, record.app?.bundleID].compactMap { $0 }.joined(separator: " · "))
-                                .font(.system(size: 10)).foregroundStyle(AppMateStyle.secondary).lineLimit(2)
-                        }
-                    }.frame(maxWidth: .infinity, alignment: .leading)
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(record.fileTypeTitle).font(.system(size: 12)).fixedSize(horizontal: false, vertical: true)
-                        Text("." + record.fileExtension).font(.system(size: 10, design: .monospaced))
-                    }.foregroundStyle(AppMateStyle.secondary).frame(width: typeWidth, alignment: .leading)
-                    Text(record.expiresAt?.formatted(.dateTime.year().month(.twoDigits).day(.twoDigits)) ?? "なし")
-                        .font(.system(size: 12)).frame(width: expirationWidth, alignment: .leading)
-                    CredentialStatusBadge(state: record.displayState(at: clock)).frame(width: stateWidth, alignment: .trailing)
-                }.padding(.horizontal, 8).padding(.vertical, 8).frame(minHeight: 36)
-                    .background(selected == record.id ? AppMateStyle.selectedRow : .clear)
-                    .overlay(alignment: .bottom) { Rectangle().fill(AppMateStyle.rowBorder).frame(height: 1) }
-                    .contentShape(Rectangle())
-            }.buttonStyle(.plain).accessibilityElement(children: .combine)
-                .accessibilityAddTraits(selected == record.id ? .isSelected : [])
-                .contextMenu {
-                    Button("削除…", role: .destructive) {
-                        selected = record.id
-                        deleting = true
-                    }.disabled(access.busy)
+        let state = record.displayState(at: clock)
+        let certificatesExpired = CredentialGroup(record) == .profile && record.signingCertificatesExpired(in: records, at: clock)
+        let broken = state == .expired || certificatesExpired
+        let isSelected = selected == record.id
+        return VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 12) {
+                if selectingForDeletion {
+                    Toggle("\(record.name)を選択", isOn: Binding(
+                        get: { checkedIDs.contains(record.id) },
+                        set: { if $0 { checkedIDs.insert(record.id) } else { checkedIDs.remove(record.id) } }
+                    )).toggleStyle(.checkbox).labelsHidden().disabled(access.busy)
                 }
+                Circle().fill(broken ? AppMateStyle.danger : state.needsRenewal ? Color(red: 0.96, green: 0.62, blue: 0.04) : AppMateStyle.border)
+                    .frame(width: 8, height: 8).accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 8) {
+                        Text(CredentialGroup(record) == .key ? record.keyID ?? record.name : record.name)
+                            .font(.system(size: 13, weight: .semibold, design: CredentialGroup(record) == .key ? .monospaced : .default))
+                            .lineLimit(1)
+                        if let owner = record.app { targetTag(owner) }
+                    }
+                    subtitle(record)
+                }
+                Spacer(minLength: 8)
+                status(record, state: state, certificatesExpired: certificatesExpired)
+                if isSelected { actions(record) }
+            }.padding(.horizontal, 10).padding(.vertical, 8).frame(minHeight: 48)
+                .contentShape(Rectangle())
+                .onTapGesture { selected = isSelected ? nil : record.id }
+            if isSelected { detail(record).padding(.horizontal, 30).padding(.bottom, 14) }
+        }
+        .background(isSelected ? AppMateStyle.selectedRow : .clear, in: RoundedRectangle(cornerRadius: 8))
+        .overlay(alignment: .top) { if !isSelected { Rectangle().fill(AppMateStyle.rowBorder).frame(height: 1) } }
+        .accessibilityElement(children: .contain)
+        .accessibilityAddTraits(isSelected ? [.isSelected, .isButton] : .isButton)
+        .accessibilityAction { selected = isSelected ? nil : record.id }
+        .contextMenu {
+            Button("削除…", role: .destructive) {
+                selected = record.id
+                deleting = true
+            }.disabled(access.busy)
         }
     }
 
-    @ViewBuilder private var inspector: some View {
-        if let record = selectedRecord {
-            GeometryReader { geometry in
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("\(record.fileTypeTitle)（.\(record.fileExtension)） · \(record.isTeamShared ? "チームで保管" : "このアプリ専用")")
-                                .font(.system(size: 12)).foregroundStyle(AppMateStyle.secondary)
-                            Text(record.name).font(.system(size: 20, weight: .bold))
-                            Text(record.isIntermediateCA ? "署名用証明書の発行元となる中間CA証明書です。アプリへの署名に使う個人の証明書とは異なります。" : record.fileExtension == "p12" ? "アプリへの署名に使う証明書と秘密鍵です" : record.fileExtension == "p8" ? "Appleのサービスへの認証に使います" : record.isTeamShared ? "アプリへの署名に使う証明書です" : "このアプリの署名と配布に使います")
-                                .font(.system(size: 12)).foregroundStyle(AppMateStyle.secondary)
-                        }
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(record.displayState(at: clock).title).font(.system(size: 22, weight: .bold))
-                                .foregroundStyle(CredentialStatusBadge(state: record.displayState(at: clock)).foreground)
-                            Text(record.expiresAt.map { $0.formatted(date: .long, time: .omitted) + "に期限切れ" } ?? "期限はありません。失効状態はApple側で確認してください。")
-                                .font(.system(size: 12)).foregroundStyle(AppMateStyle.secondary)
-                        }.padding(.horizontal, 14).padding(.vertical, 12).frame(maxWidth: .infinity, alignment: .leading)
-                            .background(CredentialStatusBadge(state: record.displayState(at: clock)).background, in: RoundedRectangle(cornerRadius: 10))
-                        VStack(spacing: 8) {
-                            Button { export(record) } label: { Text("ファイルを書き出す").frame(maxWidth: .infinity) }
-                                .buttonStyle(AppMateButtonStyle(primary: true))
-                            Button { copyingCI = true } label: { Text("コピー").frame(maxWidth: .infinity) }
-                            Button { export(record, revealInFinder: true) } label: {
-                                Label("書き出してFinderで表示", systemImage: "folder").frame(maxWidth: .infinity)
-                            }
-                        }.buttonStyle(AppMateButtonStyle()).frame(maxWidth: .infinity).disabled(access.busy)
-                        VStack(alignment: .leading, spacing: 10) {
-                            metadata("ファイルの種類", "\(record.fileTypeTitle)（.\(record.fileExtension)）")
-                            if record.fileExtension == "p8" {
-                                HStack(alignment: .top, spacing: 12) {
-                                    Text("用途").foregroundStyle(AppMateStyle.secondary).frame(width: 96, alignment: .leading)
-                                    HStack(alignment: .top, spacing: 8) {
-                                        Text(record.purposeTitle).frame(maxWidth: .infinity, alignment: .leading)
-                                        let linked = record.replacesCredentialID != nil || record.replacedByID != nil
-                                        Button("変更…", systemImage: "pencil") { editingPurposes = true }
-                                            .buttonStyle(AppMateButtonStyle(compact: true)).font(.system(size: 12)).fixedSize()
-                                            .disabled(access.busy || linked)
-                                            .help(linked ? "置き換え履歴のある鍵は用途を変更できません。" : "用途を変更します。Apple Developer側の変更も取得できます")
-                                            .accessibilityLabel("用途を変更")
-                                    }
-                                }
-                            }
-                            if record.isIntermediateCA {
-                                metadata("Team ID", "対象外（中間CA証明書）")
-                                metadata("保管先チーム", record.team?.name ?? "未設定")
-                            } else {
-                                metadata("チームID", record.team?.teamID ?? "未取得", monospaced: true)
-                            }
-                            if let owner = record.app { metadata("アプリ", owner.name); metadata("Bundle ID", owner.bundleID, monospaced: true) }
-                            metadata("追加した日", record.createdAt.formatted(date: .long, time: .omitted))
-                            metadata("元のファイル名", record.originalName, monospaced: true)
-                            if let value = record.keyID { metadata("Key ID", value, monospaced: true) }
-                            if let value = record.issuerID { metadata("Issuer ID", value, monospaced: true) }
-                            if record.fileExtension == "p12" {
-                                HStack(alignment: .top, spacing: 12) {
-                                    Text("パスワード").foregroundStyle(AppMateStyle.secondary).frame(width: 96, alignment: .leading)
-                                    HStack(alignment: .top, spacing: 8) {
-                                        Text(revealedPassword.map { $0.isEmpty ? "空のパスワード" : $0 } ?? (record.hasSavedPassword ? "••••••••" : "未保存"))
-                                            .monospaced().privacySensitive().textSelection(.disabled).frame(maxWidth: .infinity, alignment: .leading)
-                                        if revealedPassword != nil { Button("パスワードを隠す") { revealedPassword = nil } }
-                                        else if record.hasSavedPassword { Button("認証して表示") { revealPassword(record) }.fixedSize().disabled(access.busy) }
-                                    }.font(.system(size: 12)).buttonStyle(AppMateButtonStyle(compact: true))
-                                }
-                            }
-                            HStack(alignment: .top, spacing: 12) {
-                                Text("メモ").foregroundStyle(AppMateStyle.secondary).frame(width: 96, alignment: .leading)
-                                Button("認証してメモを表示") { editingNote = true }.buttonStyle(AppMateButtonStyle(compact: true)).font(.system(size: 12))
-                            }
-                        }.buttonStyle(.borderless)
-                        Text("表示・書き出し・コピーにはTouch IDまたはMacのパスワードで認証します。コピーした値は60秒後、内容が変わっていない場合だけ消去します。")
-                            .font(.system(size: 11)).foregroundStyle(AppMateStyle.secondary)
-                        Spacer(minLength: 12)
-                        Divider()
-                        HStack {
-                            Button("削除…", role: .destructive) { deleting = true }.foregroundStyle(AppMateStyle.dangerText)
-                            Spacer()
-                        }.font(.system(size: 12)).buttonStyle(.borderless).disabled(access.busy)
-                    }.padding(22).frame(maxWidth: .infinity, minHeight: geometry.size.height, alignment: .topLeading)
+    private func targetTag(_ owner: ManagedApp) -> some View {
+        HStack(spacing: 4) {
+            AppIcon(app: owner.product, size: 14)
+            Text(app == nil || CredentialSearch.hasQuery(search) ? owner.product.name + (owner.parentAppID == nil ? "" : " · " + owner.name)
+                 : owner.parentAppID == nil ? "本体" : owner.name)
+        }.font(.system(size: 11)).foregroundStyle(AppMateStyle.text.opacity(0.75))
+            .padding(.leading, 3).padding(.trailing, 6).padding(.vertical, 1)
+            .background(AppMateStyle.search, in: RoundedRectangle(cornerRadius: 5))
+    }
+
+    @ViewBuilder private func subtitle(_ record: StoredCredential) -> some View {
+        switch CredentialGroup(record) {
+        case .key:
+            PurposeLabels(record: record)
+        case .certificate:
+            let users = record.profilesUsing(in: records)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("\(record.fileTypeTitle) · .\(record.fileExtension)").font(.system(size: 12)).foregroundStyle(AppMateStyle.tertiary)
+                if !users.isEmpty {
+                    HStack(spacing: 6) {
+                        Text("使っているプロファイル").font(.system(size: 11)).foregroundStyle(AppMateStyle.secondary)
+                        ForEach(users.compactMap(\.app).reduce(into: [ManagedApp]()) { if !$0.contains($1) { $0.append($1) } }) { targetTag($0) }
+                    }
                 }
             }
-        } else if let app {
-            VStack(alignment: .leading, spacing: 16) {
-                Text("App情報").font(.system(size: 18, weight: .semibold))
-                metadata(app.parentAppID == nil ? "本体のBundle ID" : "Bundle ID", app.bundleID, monospaced: true)
-                if app.parentAppID != nil { metadata("所属アプリ", app.product.name) }
-                if app.parentAppID == nil && app.targets.count > 1 {
-                    metadata("ターゲット", app.targets.map { $0.id == app.id ? "本体" : $0.name }.joined(separator: "・"))
-                }
-                metadata("プラットフォーム", app.platform)
-                metadata("チーム", app.team?.name ?? "未設定")
-                metadata("チームID", app.team?.teamID ?? "未設定", monospaced: true)
-                Divider()
-                Button("ターゲットを追加…") { addingTarget = true }
-                Button("App・ターゲットを編集…") { editingApp = true }
-                Button("暗号化メモを開く…") { editingNote = true }
-                Text("中央の鍵やファイルを選ぶと詳細を表示します。")
-                    .font(.system(size: 12)).foregroundStyle(.secondary)
-                Spacer()
-                Divider()
-                Button("アプリを削除…", role: .destructive) { deletingApp = true }
-                    .foregroundStyle(AppMateStyle.dangerText).disabled(access.busy)
-            }.padding(22).frame(maxWidth: .infinity, alignment: .leading)
-        } else {
-            ContentUnavailableView("鍵やファイルを選択", systemImage: "sidebar.right",
-                                   description: Text("中央の一覧から選ぶと詳細を表示します。"))
+        case .profile:
+            if let owner = record.app, app == nil || CredentialSearch.hasQuery(search) {
+                Text(owner.bundleID).font(.system(size: 11, design: .monospaced)).foregroundStyle(AppMateStyle.tertiary).lineLimit(1)
+            }
         }
+    }
+
+    @ViewBuilder private func status(_ record: StoredCredential, state: CredentialDisplayState, certificatesExpired: Bool) -> some View {
+        if certificatesExpired, let owner = record.team {
+            Button("証明書が期限切れ") { openTeam(owner.id) }.buttonStyle(.plain)
+                .font(.system(size: 13, weight: .semibold)).foregroundStyle(AppMateStyle.dangerText).underline()
+                .help("「鍵と証明書」で証明書を確認します")
+        } else if state == .expired || state.needsRenewal {
+            Text(state.title).font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(state == .expired ? AppMateStyle.dangerText : AppMateStyle.warningText)
+        } else {
+            Text(record.expiresAt.map { $0.formatted(.dateTime.year().month(.twoDigits).day(.twoDigits)) + " まで" } ?? "期限なし")
+                .foregroundStyle(AppMateStyle.secondary)
+        }
+    }
+
+    private func actions(_ record: StoredCredential) -> some View {
+        HStack(spacing: 6) {
+            Button("コピー") { copyingCI = true }.buttonStyle(AppMateButtonStyle(primary: true, compact: true))
+            Button("書き出す") { export(record) }.buttonStyle(AppMateButtonStyle(compact: true))
+            Menu {
+                Button("書き出して Finder で表示") { export(record, revealInFinder: true) }
+                if record.fileExtension == "p8" {
+                    let linked = record.replacesCredentialID != nil || record.replacedByID != nil
+                    Button("用途を変更…") { editingPurposes = true }.disabled(linked)
+                }
+                if record.fileExtension == "p12" && record.hasSavedPassword {
+                    if revealedPassword != nil { Button("パスワードを隠す") { revealedPassword = nil } }
+                    else { Button("パスワードを表示") { revealPassword(record) } }
+                }
+                Button("メモを表示…") { editingNote = true }
+                Divider()
+                Button("削除…", role: .destructive) { deleting = true }
+            } label: { Image(systemName: "ellipsis") }
+                .menuStyle(.borderlessButton).menuIndicator(.hidden).frame(width: 28, height: 24)
+                .accessibilityLabel("ほかの操作")
+        }.disabled(access.busy)
+    }
+
+    private func detail(_ record: StoredCredential) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            metadata("ファイルの種類", "\(record.fileTypeTitle)（.\(record.fileExtension)）")
+            if record.fileExtension == "p8" { metadata("用途", record.purposeTitle) }
+            if record.isIntermediateCA {
+                metadata("Team ID", "対象外（中間CA証明書）")
+            } else {
+                metadata("Team ID", record.team?.teamID ?? "未取得", monospaced: true)
+            }
+            if let owner = record.app { metadata("Bundle ID", owner.bundleID, monospaced: true) }
+            if CredentialGroup(record) == .profile {
+                let certificates = record.signingCertificates(in: records)
+                if !certificates.isEmpty { metadata("使う証明書", certificates.map(\.name).joined(separator: "、")) }
+            }
+            if let value = record.keyID { metadata("Key ID", value, monospaced: true) }
+            if let value = record.issuerID { metadata("Issuer ID", value, monospaced: true) }
+            if record.fileExtension == "p12" {
+                HStack(alignment: .top, spacing: 12) {
+                    Text("パスワード").foregroundStyle(AppMateStyle.secondary).frame(width: 96, alignment: .leading)
+                    Text(revealedPassword.map { $0.isEmpty ? "空のパスワード" : $0 } ?? (record.hasSavedPassword ? "••••••••" : "未保存"))
+                        .monospaced().privacySensitive().textSelection(.disabled)
+                }
+            }
+            metadata("追加した日", record.createdAt.formatted(date: .long, time: .omitted))
+            metadata("元のファイル名", record.originalName, monospaced: true)
+            Label("コピー・書き出しの前に Touch ID で確認します", systemImage: "lock")
+                .font(.system(size: 11)).foregroundStyle(AppMateStyle.secondary).padding(.top, 4)
+        }.font(.system(size: 12))
     }
 
     private func metadata(_ title: String, _ value: String, monospaced: Bool = false) -> some View {
@@ -551,7 +555,6 @@ struct CredentialAppView: View {
         deletingApp = false
         showingRenewalGuide = false
         editingPurposes = false
-        showingInspector = false
         if dismissImport { importing = false; onlineImporting = false }
         selected = nil
         revealedPassword = nil
