@@ -224,7 +224,8 @@ final class AppleDeveloperSession {
         throw error
     }
 
-    func listFiles(teamID: String, kind: RemoteDeveloperFile.Kind) async throws -> [RemoteDeveloperFile] {
+    // Revalidates the session and team membership before each online team operation.
+    private func withTeam<T>(_ teamID: String, _ operation: (any AppleDeveloperTransport, UUID) async throws -> T) async throws -> T {
         try await resume()
         guard teams.contains(where: { $0.teamID == teamID }), let transport else { throw AppleDeveloperError.teamAccessRequired }
         guard !busy else { throw AppleDeveloperError.busy }
@@ -232,23 +233,25 @@ final class AppleDeveloperSession {
         busy = true
         defer { if generation == self.generation { busy = false } }
         do {
-            let files = try await transport.listFiles(teamID: teamID, kind: kind)
+            let value = try await operation(transport, generation)
             try check(generation)
             try saveSession(transport, account: currentAccount)
-            return files
+            return value
         } catch { try handle(error, generation: generation); throw error }
+    }
+
+    func listFiles(teamID: String, kind: RemoteDeveloperFile.Kind) async throws -> [RemoteDeveloperFile] {
+        try await withTeam(teamID) { transport, _ in try await transport.listFiles(teamID: teamID, kind: kind) }
+    }
+
+    func key(keyID: String, teamID: String) async throws -> RemoteDeveloperKey? {
+        try await withTeam(teamID) { transport, _ in try await transport.key(keyID: keyID, teamID: teamID) }
     }
 
     func download(_ items: [RemoteDeveloperFile], teamID: String) async throws -> [CredentialFile] {
         guard !items.isEmpty, items.count <= 200, Set(items.map { $0.kind.rawValue + ":" + $0.id }).count == items.count else { throw AppleDeveloperError.importLimit }
         // Revalidate after time spent selecting files, and recover from a failed download.
-        try await resume()
-        guard teams.contains(where: { $0.teamID == teamID }), let transport else { throw AppleDeveloperError.teamAccessRequired }
-        guard !busy else { throw AppleDeveloperError.busy }
-        let generation = generation
-        busy = true
-        defer { if generation == self.generation { busy = false } }
-        do {
+        return try await withTeam(teamID) { transport, generation in
             var files: [CredentialFile] = []
             var totalBytes = 0
             for item in items {
@@ -265,9 +268,8 @@ final class AppleDeveloperSession {
                 if let sourceTeam = parsed.teamID, sourceTeam != teamID { throw VaultError.teamMismatch }
                 files.append(file)
             }
-            try saveSession(transport, account: currentAccount)
             return files
-        } catch { try handle(error, generation: generation); throw error }
+        }
     }
 
     func register(_ team: RemoteDeveloperTeam, catalog: AppCatalog) throws -> UUID {

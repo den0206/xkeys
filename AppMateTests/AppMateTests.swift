@@ -410,6 +410,63 @@ final class AppMateTests: XCTestCase {
         XCTAssertFalse(session.connected)
     }
 
+    func testDeveloperKeyParsingMapsEnabledServicesToPurposes() throws {
+        func data(_ object: Any) throws -> Data { try JSONSerialization.data(withJSONObject: object) }
+        let services: [[String: Any]] = [["id": "U27F4V844T", "name": "Apple Push Notifications service"], ["id": "NEWID00001", "name": "Maps"],
+                                         ["id": "NEWID00002", "name": "WeatherKit"], ["id": "NEWID00003", "name": "Future Service"]]
+        let body: [String: Any] = ["resultCode": 0, "keys": [["keyId": "OTHERKEY01", "keyName": "Other", "services": [["id": "DQ8HTZ7739", "name": "x"]]],
+                                                             ["keyId": "DUMMYKEY01", "keyName": " Fixture Maps ", "services": services]]]
+        XCTAssertEqual(try AppleDeveloperClient.parseKey(data(body), keyID: "DUMMYKEY01"),
+                       RemoteDeveloperKey(keyID: "DUMMYKEY01", name: "Fixture Maps", purposes: [.apns, .maps, .weatherKit, .other]))
+        XCTAssertEqual(try AppleDeveloperClient.parseKey(data(body), keyID: "OTHERKEY01")?.purposes, [.deviceCheck])
+        XCTAssertNil(try AppleDeveloperClient.parseKey(data(body), keyID: "MISSINGKEY"))
+        XCTAssertNil(try AppleDeveloperClient.parseKey(data(["resultCode": 35]), keyID: "DUMMYKEY01"))
+        XCTAssertThrowsError(try AppleDeveloperClient.parseKey(data(["resultCode": 1100]), keyID: "DUMMYKEY01")) { error in
+            guard case AppleDeveloperError.loginRequired = error else { return XCTFail("Unexpected error: \(error)") }
+        }
+        for invalid in [Data("<html>Login</html>".utf8), try data(["resultCode": 0, "keys": [["keyId": "DUMMYKEY01", "services": []]]])] {
+            XCTAssertThrowsError(try AppleDeveloperClient.parseKey(invalid, keyID: "DUMMYKEY01"))
+        }
+        XCTAssertEqual(AppleDeveloperClient.purpose(serviceID: "6A7HVUVQ3M", name: ""), .mediaServices)
+        XCTAssertEqual(AppleDeveloperClient.purpose(serviceID: "", name: "Sign in with Apple"), .signInWithApple)
+    }
+
+    @MainActor
+    func testDeveloperKeyLookupRequiresTeamMembership() async throws {
+        let transport = FakeAppleDeveloperTransport()
+        let expected = RemoteDeveloperKey(keyID: "DUMMYKEY01", name: "Fixture", purposes: [.maps])
+        transport.remoteKey = expected
+        let session = AppleDeveloperSession(store: MemoryAppleSessionStore(), makeTransport: { transport }, observeLock: false)
+        try await session.login(account: "fixture@example.invalid", password: "fixture-only")
+        let found = try await session.key(keyID: "DUMMYKEY01", teamID: "TESTTEAM01")
+        XCTAssertEqual(found, expected)
+        do { _ = try await session.key(keyID: "DUMMYKEY01", teamID: "OTHERTEAM1"); XCTFail("Membership must be required") }
+        catch AppleDeveloperError.teamAccessRequired { }
+    }
+
+    @MainActor
+    func testDeveloperKeyLookupSendsTeamAndKeyToPortal() async throws {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [DeveloperHTTPStub.self]
+        let client = AppleDeveloperClient(configuration: configuration)
+        defer { client.cancel(); DeveloperHTTPStub.handler = nil }
+        DeveloperHTTPStub.handler = { request in
+            if request.url?.path.hasSuffix("listTeams.action") == true {
+                return (200, Data(#"{"resultCode":0,"teams":[{"teamId":"TESTTEAM01","name":"Fixture"}]}"#.utf8))
+            }
+            XCTAssertEqual(request.url?.absoluteString, "https://developer.apple.com/services-account/QH65B2/account/auth/key/get")
+            XCTAssertEqual(request.httpMethod, "POST")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "csrf"), "fixture-csrf")
+            XCTAssertEqual(String(decoding: try DeveloperHTTPStub.body(request), as: UTF8.self), "teamId=TESTTEAM01&keyId=DUMMYKEY01")
+            return (200, Data(#"{"resultCode":0,"keys":[{"keyId":"DUMMYKEY01","keyName":"Fixture","services":[{"id":"x","name":"Maps"}]}]}"#.utf8))
+        }
+        _ = try await client.listTeams()
+        let key = try await client.key(keyID: "DUMMYKEY01", teamID: "TESTTEAM01")
+        XCTAssertEqual(key?.purposes, [.maps])
+        do { _ = try await client.key(keyID: "bad&id=1", teamID: "TESTTEAM01"); XCTFail("Key ID must be validated") }
+        catch AppleDeveloperError.invalidResponse { }
+    }
+
     @MainActor
     func testOnlineImportFromSavedCookiesDownloadsAndEncryptsCertificatesAndProfiles() async throws {
         let (vault, app, _, _) = try makeVault()
@@ -2762,6 +2819,8 @@ private final class FakeAppleDeveloperTransport: AppleDeveloperTransport {
         return teams
     }
     func listFiles(teamID: String, kind: RemoteDeveloperFile.Kind) async throws -> [RemoteDeveloperFile] { remoteFiles }
+    var remoteKey: RemoteDeveloperKey?
+    func key(keyID: String, teamID: String) async throws -> RemoteDeveloperKey? { remoteKey }
     func download(_ item: RemoteDeveloperFile, teamID: String) async throws -> CredentialFile {
         downloadCount += 1
         if let downloadFailure { throw downloadFailure }

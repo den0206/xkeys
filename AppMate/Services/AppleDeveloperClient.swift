@@ -9,6 +9,12 @@ struct RemoteDeveloperTeam: Identifiable, Equatable, Sendable {
     var id: String { teamID }
 }
 
+struct RemoteDeveloperKey: Equatable, Sendable {
+    let keyID: String
+    let name: String
+    let purposes: [P8Purpose]
+}
+
 enum AppleDeveloperError: LocalizedError {
     case invalidResponse, noTeams, loginRequired, permissionDenied, agreementRequired
     case unsupportedLogin, rateLimited, sessionStorage, membershipRequired, busy, teamAccessRequired, importLimit
@@ -80,6 +86,7 @@ protocol AppleDeveloperTransport: AnyObject {
     func submit(code: SecurityCode, session: AppleSessionData) async throws -> AuthenticationState
     func sms(phone: AuthOptionsResponse.TrustedPhoneNumber, options: AuthOptionsResponse, session: AppleSessionData) async throws -> AuthenticationState
     func listTeams() async throws -> [RemoteDeveloperTeam]
+    func key(keyID: String, teamID: String) async throws -> RemoteDeveloperKey?
     func listFiles(teamID: String, kind: RemoteDeveloperFile.Kind) async throws -> [RemoteDeveloperFile]
     func download(_ item: RemoteDeveloperFile, teamID: String) async throws -> CredentialFile
     func exportCookies() throws -> Data
@@ -154,14 +161,25 @@ final class AppleDeveloperClient: AppleDeveloperTransport {
     }
 
     func listTeams() async throws -> [RemoteDeveloperTeam] {
-        let url = URL(string: "https://developer.apple.com/services-account/QH65B2/account/listTeams.action")!
-        var request = URLRequest(url: url)
+        try Self.parseTeams(await portalRequest("account/listTeams.action", form: "clientId=XABBG36SBA"))
+    }
+
+    func key(keyID: String, teamID: String) async throws -> RemoteDeveloperKey? {
+        guard teamID.range(of: "^[A-Z0-9]{10}$", options: .regularExpression) != nil,
+              keyID.range(of: "^[A-Z0-9]{10}$", options: .regularExpression) != nil else { throw AppleDeveloperError.invalidResponse }
+        return try Self.parseKey(await portalRequest("account/auth/key/get", form: "teamId=\(teamID)&keyId=\(keyID)"), keyID: keyID)
+    }
+
+    // Callers pass only validated alphanumeric values, so the form needs no percent-encoding.
+    private func portalRequest(_ path: String, form: String) async throws -> Data {
+        var request = URLRequest(url: URL(string: "https://developer.apple.com/services-account/QH65B2/" + path)!)
         request.httpMethod = "POST"
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         request.setValue("application/json, application/x-plist", forHTTPHeaderField: "Accept")
         request.setValue("https://developer.apple.com", forHTTPHeaderField: "Origin")
         request.setValue("https://developer.apple.com/account/", forHTTPHeaderField: "Referer")
-        request.httpBody = Data("clientId=XABBG36SBA".utf8)
+        for (name, value) in csrfHeaders { request.setValue(value, forHTTPHeaderField: name) }
+        request.httpBody = Data(form.utf8)
         let (bytes, response) = try await urlSession.bytes(for: request)
         guard let response = response as? HTTPURLResponse else { throw AppleDeveloperError.invalidResponse }
         switch response.statusCode {
@@ -177,7 +195,48 @@ final class AppleDeveloperClient: AppleDeveloperTransport {
             data.append(byte)
         }
         updateCSRF(response)
-        return try Self.parseTeams(data)
+        return data
+    }
+
+    // Service IDs from fastlane's Spaceship::Portal::Key; other services are recognized by name.
+    nonisolated static func purpose(serviceID: String, name: String) -> P8Purpose {
+        switch serviceID {
+        case "U27F4V844T": return .apns
+        case "DQ8HTZ7739": return .deviceCheck
+        case "6A7HVUVQ3M": return .mediaServices
+        default: break
+        }
+        let name = name.lowercased()
+        if name.contains("push") || name.contains("apns") { return .apns }
+        if name.contains("sign in with apple") { return .signInWithApple }
+        if name.contains("devicecheck") || name.contains("device check") { return .deviceCheck }
+        if name.contains("map") { return .maps }
+        if name.contains("weather") { return .weatherKit }
+        if name.contains("music") || name.contains("media") || name.contains("shazam") { return .mediaServices }
+        return .other
+    }
+
+    /// Returns nil when the Developer key list has no such key, e.g. an App Store Connect API key.
+    nonisolated static func parseKey(_ data: Data, keyID: String) throws -> RemoteDeveloperKey? {
+        guard data.count <= 1_048_576, let body = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+              let code = body["resultCode"] as? Int else { throw AppleDeveloperError.invalidResponse }
+        if code == 1100 { throw AppleDeveloperError.loginRequired }
+        if code == 1041 { throw AppleDeveloperError.agreementRequired }
+        // shortcut: Apple's "not found" codes are undocumented, so any other failure reads as not found; split them if a code is confirmed.
+        guard code == 0 else { return nil }
+        let keys = body["keys"] as? [[String: Any]] ?? []
+        guard keys.count <= 1_000 else { throw AppleDeveloperError.invalidResponse }
+        guard let value = keys.first(where: { $0["keyId"] as? String == keyID }) else { return nil }
+        let name = (value["keyName"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard name.utf8.count <= 1_024, let services = value["services"] as? [[String: Any]],
+              !services.isEmpty, services.count <= 100 else { throw AppleDeveloperError.invalidResponse }
+        var purposes = Set<P8Purpose>()
+        for service in services {
+            let id = service["id"] as? String ?? "", title = service["name"] as? String ?? ""
+            guard id.utf8.count <= 128, title.utf8.count <= 256 else { throw AppleDeveloperError.invalidResponse }
+            purposes.insert(purpose(serviceID: id, name: title))
+        }
+        return RemoteDeveloperKey(keyID: keyID, name: name.isEmpty ? keyID : name, purposes: P8Purpose.allCases.filter(purposes.contains))
     }
 
     nonisolated static func parseTeams(_ data: Data) throws -> [RemoteDeveloperTeam] {

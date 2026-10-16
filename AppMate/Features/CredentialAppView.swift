@@ -671,6 +671,7 @@ struct CredentialImportView: View {
     let existing: [StoredCredential]
     var initialSources: [URL] = []
     var initialFiles: [CredentialFile] = []
+    var session: AppleDeveloperSession = .shared
     let onSaved: (UUID) -> Void
     @Environment(\.dismiss) private var dismiss
     @State private var addingTarget = false
@@ -692,6 +693,8 @@ struct CredentialImportView: View {
     @State private var purposes: Set<P8Purpose> = []
     @State private var keyID = ""
     @State private var issuerID = ""
+    @State private var fetchingPurposes = false
+    @State private var purposeSource: String?
     @State private var replacing = false
     @State private var targetID: UUID?
     @State private var confirmReplacement = false
@@ -852,6 +855,15 @@ struct CredentialImportView: View {
                                 }
                                 GridRow { Text("登録先チーム"); Text("\(team.name)（\(team.teamID)）") }
                                 GridRow { Text("Key ID"); TextField("英大文字・数字10文字", text: $keyID).labelsHidden() }
+                                GridRow {
+                                    Color.clear.frame(width: 120, height: 1)
+                                    VStack(alignment: .leading, spacing: 6) {
+                                        Button("Apple Developerから用途を取得", systemImage: "icloud.and.arrow.down", action: fetchPurposes)
+                                            .disabled(fetchingPurposes || keyID.trimmingCharacters(in: .whitespacesAndNewlines).range(of: "^[A-Z0-9]{10}$", options: .regularExpression) == nil)
+                                        if fetchingPurposes { ProgressView().controlSize(.small) }
+                                        if let purposeSource { Text(purposeSource).font(.caption).foregroundStyle(AppMateStyle.secondary).fixedSize(horizontal: false, vertical: true) }
+                                    }
+                                }
                                 if purposes.contains(.appStoreConnect) {
                                     GridRow { Text("Issuer ID"); TextField("App Store ConnectのIssuer ID", text: $issuerID).labelsHidden() }
                                 }
@@ -970,6 +982,7 @@ struct CredentialImportView: View {
         parsedPassword = ""
         confirmUnknownTeam = false
         purposes = []
+        purposeSource = nil
         keyID = ""
         issuerID = ""
         replacing = false
@@ -1046,6 +1059,30 @@ struct CredentialImportView: View {
             } catch {
                 if token == parseID, generation == access.generation { self.error = error.localizedDescription }
             }
+        }
+    }
+
+    // Online only on request: reads the key's enabled services, never the private key.
+    private func fetchPurposes() {
+        let value = keyID.trimmingCharacters(in: .whitespacesAndNewlines)
+        let token = parseID
+        fetchingPurposes = true
+        error = nil
+        purposeSource = nil
+        lastActivity = .now
+        Task { @MainActor in
+            defer { fetchingPurposes = false }
+            do {
+                let key = try await session.key(keyID: value, teamID: team.teamID)
+                guard token == parseID else { return }
+                if let key {
+                    purposes = Set(key.purposes)
+                    purposeSource = "Apple Developerの鍵「\(key.name)」の有効なサービスから用途を設定しました。"
+                } else {
+                    purposeSource = "Apple Developerの鍵一覧にこのKey IDは見つかりませんでした。App Store Connect APIの鍵の場合は手動で選んでください。"
+                }
+                lastActivity = .now
+            } catch { if token == parseID { self.error = AppleDeveloperError.message(for: error) } }
         }
     }
 
