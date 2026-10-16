@@ -114,6 +114,8 @@ Team ID手入力を削除し、未登録Teamを含むバックアップの復元
 
 APIの形式はfastlaneの公開実装を参照した（コードは複製していない）：[Webセッション用読み取り](https://github.com/fastlane/fastlane/blob/master/spaceship/lib/spaceship/connect_api/provisioning/client.rb)、[証明書・プロファイルAPI](https://github.com/fastlane/fastlane/blob/master/spaceship/lib/spaceship/connect_api/provisioning/provisioning.rb)。実アカウントを使った取得確認は未実施。Appleの非公開WebセッションAPIが変更された場合は追従が必要。
 
+上部の「ファイルを追加」にApple Developerからの取り込みメニューを追加し、全件表示中・検索中もチームを選択して開けるようにした。登録済みチーム管理にもログイン中チームの取り込みボタンを追加した。ダウンロード直前にもセッションと所属を再確認し、通信失敗後に再試行できるようにした。取得時のログイン期限切れ・所属不一致は再ログインへ案内し、取り込み画面とログイン画面で同じセッションを使用する。架空のHTTP応答を使い、保存Cookieの復元、証明書・プロファイルの一覧取得とダウンロード、解析、暗号化保存・復号までを通す回帰テストを追加した。通信失敗後の再試行、期限切れ、所属変更も確認対象とする。
+
 最終版で全96件のXCTestと通常の署名付きDebugビルドが成功した。追加4件はWebセッション用リクエストのTeam ID・読み取り指定・CSRF引き継ぎ・ページ送り・権限拒否、不正な一覧とページリンク、取得データのリソース一致・base64・プロファイル解析、所属確認とファイルのTeam ID不一致を確認する。通常幅と最小960×640、およびオンライン一覧・メモリ内ファイルの確認画面を架空データで描画した。結果画像は `/tmp/app-mate-online-screens`、ログは `/tmp/app-mate-online-tests.log` と `/tmp/app-mate-online-final-build.log` に分離した。実アカウントでの取得と、製品Keychainを使ったオンライン取り込みの通し操作は未確認。
 
 

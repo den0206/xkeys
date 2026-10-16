@@ -240,9 +240,11 @@ final class AppleDeveloperSession {
     }
 
     func download(_ items: [RemoteDeveloperFile], teamID: String) async throws -> [CredentialFile] {
-        guard !busy else { throw AppleDeveloperError.busy }
-        guard connected, teams.contains(where: { $0.teamID == teamID }), let transport else { throw AppleDeveloperError.teamAccessRequired }
         guard !items.isEmpty, items.count <= 200, Set(items.map { $0.kind.rawValue + ":" + $0.id }).count == items.count else { throw AppleDeveloperError.importLimit }
+        // Revalidate after time spent selecting files, and recover from a failed download.
+        try await resume()
+        guard teams.contains(where: { $0.teamID == teamID }), let transport else { throw AppleDeveloperError.teamAccessRequired }
+        guard !busy else { throw AppleDeveloperError.busy }
         let generation = generation
         busy = true
         defer { if generation == self.generation { busy = false } }

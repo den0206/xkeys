@@ -78,7 +78,7 @@ struct AppleDeveloperImportView: View {
             AppleDeveloperLoginView(onVerified: {
                 guard session.teams.contains(where: { $0.teamID == team.teamID }) else { throw AppleDeveloperError.teamAccessRequired }
                 load()
-            }, verificationTitle: "取り込み先チームへの所属を確認").modelContainer(vault.context.container)
+            }, session: session, verificationTitle: "取り込み先チームへの所属を確認").modelContainer(vault.context.container)
         }
         .sheet(isPresented: $showingImport, onDismiss: { files = []; lastActivity = .now }) {
             CredentialImportView(app: nil, team: team, vault: vault, existing: (try? vault.records()) ?? [], initialFiles: files, onSaved: onSaved)
@@ -139,7 +139,15 @@ struct AppleDeveloperImportView: View {
                 try Task.checkCancellation()
                 files = downloaded; showingImport = true; lastActivity = .now
             } catch {
-                if !Task.isCancelled { self.error = AppleDeveloperError.message(for: error) }
+                if !Task.isCancelled {
+                    self.error = AppleDeveloperError.message(for: error)
+                    if let failure = error as? AppleDeveloperError {
+                        switch failure {
+                        case .loginRequired, .teamAccessRequired: showingLogin = true
+                        default: break
+                        }
+                    }
+                }
             }
         }
     }

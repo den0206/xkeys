@@ -131,6 +131,7 @@ struct TeamManagementView: View {
     @State private var editing: DeveloperTeam?
     @State private var deleting: DeveloperTeam?
     @State private var loggingIn: DeveloperTeam?
+    @State private var importing: DeveloperTeam?
     @State private var error: String?
 
     private let appleSession: AppleDeveloperSession
@@ -163,6 +164,9 @@ struct TeamManagementView: View {
                             }
                             Spacer()
                             if loggedIn {
+                                Button("取り込む…") { importing = team }
+                                    .disabled(appleSession.busy)
+                                    .accessibilityLabel(team.name + "の証明書・プロファイルを取り込む")
                                 Button("ログアウト") {
                                     do { try appleSession.disconnect(); error = nil }
                                     catch { self.error = AppleDeveloperError.message(for: error) }
@@ -216,6 +220,10 @@ struct TeamManagementView: View {
                 }
         }
         .sheet(item: $editing) { team in CatalogEditor(vault: vault, team: team, app: nil) }
+        .sheet(item: $importing) { team in
+            AppleDeveloperImportView(team: team, vault: vault, session: appleSession, onSaved: { _ in })
+                .modelContainer(vault.context.container)
+        }
         .sheet(item: $deleting) { team in
             let id = team.id
             TeamDeletionView(vault: vault, team: team) { onDeleted(id) }

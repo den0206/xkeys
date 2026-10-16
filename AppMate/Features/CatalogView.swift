@@ -40,6 +40,7 @@ struct CatalogView: View {
     @State private var collapsedApps: Set<UUID> = []
     @State private var addingTarget: ManagedApp?
     @State private var addingFile = false
+    @State private var onlineImportTeam: DeveloperTeam?
     @State private var creatingBackup = false
     @State private var restoringBackup = false
     @State private var historyError: String?
@@ -121,7 +122,7 @@ struct CatalogView: View {
         }
         .onChange(of: addingFile) { _, shown in if !shown { onboardingSources = [] } }
         .sheet(isPresented: $managingTeams) {
-            TeamManagementView(vault: CredentialVault(context: container.mainContext, blobs: EncryptedBlobStore(directory: CredentialVault.directory))) { id in
+            TeamManagementView(vault: CredentialVault(context: container.mainContext, blobs: EncryptedBlobStore(directory: CredentialVault.directory)), appleSession: appleSession) { id in
                 if selection == .team(id) { selection = .all }
                 if selectedTeam == id { selectedTeam = nil }
             }.modelContainer(container)
@@ -140,6 +141,14 @@ struct CatalogView: View {
         }
         .sheet(isPresented: $creatingBackup) {
             BackupView(container: container)
+        }
+        .sheet(item: $onlineImportTeam) { team in
+            AppleDeveloperImportView(team: team,
+                                     vault: CredentialVault(context: container.mainContext, blobs: EncryptedBlobStore(directory: CredentialVault.directory)),
+                                     session: appleSession) { _ in
+                search = ""
+                selection = .team(team.id)
+            }.modelContainer(container)
         }
         .sheet(item: $addingTarget) { parent in
             RegistrationForm(container: container, teams: teams, initialTeam: parent.team?.id, isTeam: false, parentApp: parent) { id in
@@ -205,10 +214,18 @@ struct CatalogView: View {
                 }
                 .padding(.trailing, pendingBackupCount > 0 ? 8 : 0)
                 .accessibilityLabel(pendingBackupCount > 0 ? "バックアップ、未バックアップの変更が\(pendingBackupCount)件" : "バックアップ")
-            Button("ファイルを追加", systemImage: "plus") { addingFile = true }
-                .buttonStyle(AppMateButtonStyle(primary: true))
-                .disabled(credentialTeam == nil || CredentialSearch.hasQuery(search))
-                .help("左側で保管先のチームまたはアプリを選択してください")
+            Menu {
+                Button("Macからファイルを追加…", systemImage: "folder") { addingFile = true }
+                    .disabled(credentialTeam == nil || CredentialSearch.hasQuery(search))
+                Menu("Apple Developerから取り込む…", systemImage: "icloud.and.arrow.down") {
+                    ForEach(teams) { team in
+                        Button(team.name + "（" + team.teamID + "）") { onlineImportTeam = team }
+                    }
+                }.disabled(teams.isEmpty)
+            } label: {
+                Label("ファイルを追加", systemImage: "plus")
+            }.menuStyle(.borderlessButton).fixedSize()
+                .help("Mac上のファイル、またはApple Developerから取り込みます")
         }.padding(.horizontal, 16).frame(height: 52).background(AppMateStyle.sidebar)
     }
 
