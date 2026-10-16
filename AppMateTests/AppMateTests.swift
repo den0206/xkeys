@@ -976,6 +976,22 @@ final class AppMateTests: XCTestCase {
     }
 
     @MainActor
+    func testSVGAppIconRendersAndPersistsInBackup() throws {
+        let (vault, app, _, _) = try makeVault()
+        defer { try? FileManager.default.removeItem(at: vault.blobs.directory) }
+        let svg = Data(#"<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><rect width="64" height="64" fill="red"/></svg>"#.utf8)
+        let image = try XCTUnwrap(NSImage(data: svg))
+        XCTAssertEqual(image.size, NSSize(width: 64, height: 64))
+        XCTAssertNotNil(image.tiffRepresentation)
+        try AppCatalog(context: vault.context).updateApp(app, name: app.name, platform: app.platform,
+                                                       parentAppID: nil, iconColor: nil, iconImage: svg)
+        let snapshot = try BackupSnapshot.capture(vault: vault, key: SymmetricKey(size: .bits256))
+        let archive = try BackupArchive.encode(snapshot, password: nil)
+        let decoded = try BackupArchive.decode(archive, password: nil)
+        XCTAssertEqual(decoded.apps.first { $0.id == app.id }?.iconImage, svg)
+    }
+
+    @MainActor
     func testAppIconSurvivesProtectedBackupAndRestoreAndOlderBackups() async throws {
         let (vault, app, _, _) = try makeVault()
         let key = SymmetricKey(size: .bits256)

@@ -660,7 +660,7 @@ struct AppIconPicker: View {
 
     private func chooseIcon() {
         let panel = NSOpenPanel()
-        panel.allowedContentTypes = [.png, .jpeg]
+        panel.allowedContentTypes = [.png, .jpeg, .svg]
         guard panel.runModal() == .OK, let url = panel.url else { return }
         let scoped = url.startAccessingSecurityScopedResource()
         defer { if scoped { url.stopAccessingSecurityScopedResource() } }
@@ -669,7 +669,7 @@ struct AppIconPicker: View {
             guard NSImage(data: file.data) != nil else { throw ValidationError.invalidFile }
             iconImage = file.data
             error = nil
-        } catch { self.error = "1MB以下のPNG・JPEG画像を選んでください。" }
+        } catch { self.error = "1MB以下のPNG・JPEG・SVG画像を選んでください。" }
     }
 
 }
