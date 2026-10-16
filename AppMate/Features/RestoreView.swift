@@ -39,21 +39,17 @@ struct RestoreView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
-            HStack {
-                Text("バックアップ").font(.system(size: 18, weight: .bold))
-                Spacer()
-                HStack(spacing: 0) {
-                    Button("作る", action: onCreate).buttonStyle(.plain).padding(.horizontal, 14).frame(height: 28)
-                    Text("復元・移行").padding(.horizontal, 14).frame(height: 28).background(AppMateStyle.selection)
-                }.font(.system(size: 12)).clipShape(RoundedRectangle(cornerRadius: 8))
-                    .overlay(RoundedRectangle(cornerRadius: 8).stroke(AppMateStyle.border, lineWidth: 1))
-            }
+            BackupTabs(creating: false, switchTab: onCreate)
             if let result {
-                Label("復元が完了しました", systemImage: "checkmark.circle.fill").font(.headline).foregroundStyle(.green)
-                Text("追加 \(result.added)件 · 更新 \(result.updated)件 · スキップ \(result.skipped)件")
+                Label("バックアップから戻しました", systemImage: "checkmark.circle.fill").font(.headline).foregroundStyle(AppMateStyle.successText)
+                HStack(spacing: 8) {
+                    resultCount(result.added, "追加", AppMateStyle.successText)
+                    resultCount(result.updated, "更新", AppMateStyle.accent)
+                    resultCount(result.skipped, "そのまま", AppMateStyle.tertiary)
+                }
                 Text(replaceAll ? "バックアップの内容で全体を置き換えました。金庫鍵は維持しています。" : "既存のデータと金庫鍵を維持して、選んだ内容をまとめました。件数にはTeam・Appも含みます。")
                     .foregroundStyle(.secondary)
-                HStack { Spacer(); Button("メイン画面へ") { dismiss() }.keyboardShortcut(.defaultAction) }
+                HStack { Spacer(); Button("メイン画面へ") { dismiss() }.keyboardShortcut(.defaultAction).buttonStyle(AppMateButtonStyle(primary: true)) }
             } else {
                 HStack(alignment: .top) {
                     VStack(alignment: .leading, spacing: 6) {
@@ -181,6 +177,14 @@ struct RestoreView: View {
         }
     }
 
+
+    private func resultCount(_ count: Int, _ title: String, _ tint: Color) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text("\(count)").font(.system(size: 20, weight: .bold)).foregroundStyle(tint)
+            Text(title).font(.system(size: 12)).foregroundStyle(AppMateStyle.secondary)
+        }.padding(.horizontal, 12).padding(.vertical, 10).frame(maxWidth: .infinity, alignment: .leading)
+            .background(AppMateStyle.sidebar, in: RoundedRectangle(cornerRadius: 10))
+    }
     private func count(_ value: Int, title: String) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(value.formatted()).font(.title2.bold())

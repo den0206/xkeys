@@ -40,8 +40,18 @@ struct AppleDeveloperLoginView: View {
         return selectedTeamIsRegistered ? "このチームを開く" : "チームを追加"
     }
 
+    private var step: Int {
+        if session.connected { return 3 }
+        switch session.authentication {
+        case .authenticated: return 3
+        case .waitingForSecondFactor: return 2
+        default: return showPassword ? 1 : 0
+        }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
+            LoginSteps(current: step)
             if session.connected {
                 teams
             } else if case .authenticated = session.authentication {
@@ -301,5 +311,31 @@ struct AppleDeveloperLoginView: View {
             do { try await action() }
             catch { if !Task.isCancelled { self.error = AppleDeveloperError.message(for: error) } }
         }
+    }
+}
+
+/// Where the user is in the sign-in: account, password, code, team.
+struct LoginSteps: View {
+    let current: Int
+    private let titles = ["Apple Account", "パスワード", "確認コード", "チーム"]
+
+    var body: some View {
+        HStack(spacing: 6) {
+            ForEach(titles.indices, id: \.self) { index in
+                HStack(spacing: 5) {
+                    ZStack {
+                        Circle().fill(index <= current ? AppMateStyle.accent : AppMateStyle.canvas)
+                        Circle().stroke(index <= current ? AppMateStyle.accent : AppMateStyle.border)
+                        if index < current { Image(systemName: "checkmark").font(.system(size: 8, weight: .heavy)).foregroundStyle(.white) }
+                        else { Text("\(index + 1)").font(.system(size: 10, weight: .bold)).foregroundStyle(index == current ? .white : AppMateStyle.tertiary) }
+                    }.frame(width: 18, height: 18)
+                    Text(titles[index]).font(.system(size: 11, weight: index == current ? .bold : .regular))
+                        .foregroundStyle(index == current ? AppMateStyle.text : index < current ? AppMateStyle.secondary : AppMateStyle.tertiary)
+                        .fixedSize()
+                }
+                if index < titles.count - 1 { Rectangle().fill(AppMateStyle.border).frame(height: 1) }
+            }
+        }.accessibilityElement(children: .ignore)
+            .accessibilityLabel("手順 \(current + 1) / \(titles.count)：\(titles[current])")
     }
 }
