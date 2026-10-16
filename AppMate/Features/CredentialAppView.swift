@@ -465,9 +465,7 @@ struct CredentialAppView: View {
                         VStack(spacing: 8) {
                             Button { export(record) } label: { Text("ファイルを書き出す").frame(maxWidth: .infinity) }
                                 .buttonStyle(AppMateButtonStyle(primary: true))
-                            Button { copyingCI = true } label: { Text("CIに登録する値をコピー").frame(maxWidth: .infinity) }
-                            Button { copyingCI = true } label: { Text("コピー項目を選ぶ…").frame(maxWidth: .infinity, alignment: .leading) }
-                                .buttonStyle(.borderless).font(.system(size: 12)).foregroundStyle(AppMateStyle.accent)
+                            Button { copyingCI = true } label: { Text("コピー").frame(maxWidth: .infinity) }
                             Button { export(record, revealInFinder: true) } label: {
                                 Label("書き出してFinderで表示", systemImage: "folder").frame(maxWidth: .infinity)
                             }

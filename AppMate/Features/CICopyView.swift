@@ -29,21 +29,24 @@ struct CICopyView: View {
     @State private var access = VaultAccess()
     @State private var templates: [CITemplate] = []
     @State private var message: String?
-    @State private var repository = "owner/repo"
-    @State private var commandTemplateID: UUID?
     private var shownTemplates: [CITemplate] {
         templates.filter { template in
             switch template.value {
-            case .base64: return ["p8", "p12"].contains(record.fileExtension)
+            case .base64: return true
             case .password: return record.fileExtension == "p12"
             case .keyID: return record.keyID != nil
             case .issuerID: return record.issuerID != nil
-            case .teamID: return true
+            case .teamID: return false
             }
         }.map { template in
             var item = template
-            if record.fileExtension == "p12", item.id == AppPreferences().templates.first?.id, item.variable == "ASC_KEY_P8_BASE64" {
-                item.variable = "BUILD_CERTIFICATE_BASE64"
+            if item.id == AppPreferences().templates.first?.id, item.variable == "ASC_KEY_P8_BASE64" {
+                switch record.fileExtension {
+                case "p12": item.variable = "BUILD_CERTIFICATE_BASE64"
+                case "mobileprovision", "provisionprofile": item.variable = "BUILD_PROVISION_PROFILE_BASE64"
+                case "cer": item.variable = "CERTIFICATE_BASE64"
+                default: break
+                }
             }
             return item
         }
@@ -53,7 +56,7 @@ struct CICopyView: View {
         VStack(spacing: 16) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    Text("CIに登録する値をコピー").font(.system(size: 18, weight: .bold))
+                    Text("コピー").font(.system(size: 18, weight: .bold))
                     Text("\(record.app?.name ?? record.team?.name ?? "") · \(record.name)（.\(record.fileExtension)）")
                     Text("変数名と値を1項目ずつCIの設定画面へ貼り付けます。App MateからCIへは送信しません。")
                         .font(.system(size: 12)).foregroundStyle(AppMateStyle.secondary)
@@ -68,7 +71,7 @@ struct CICopyView: View {
                             HStack {
                                 Text(template.variable).font(.system(size: 12, design: .monospaced)).frame(maxWidth: .infinity, alignment: .leading).textSelection(.enabled)
                                 Text(available(template.value) ? "••••••••" : "未保存").font(.system(size: 12)).foregroundStyle(AppMateStyle.secondary).frame(width: 90, alignment: .leading)
-                                Button("認証してコピー") { commandTemplateID = template.id; copy(template.value) }
+                                Button("認証してコピー") { copy(template.value) }
                                     .buttonStyle(AppMateButtonStyle()).disabled(!available(template.value) || access.busy).frame(width: 120)
                             }.padding(.horizontal, 6).padding(.vertical, 10)
                                 .overlay(alignment: .bottom) { Rectangle().fill(AppMateStyle.rowBorder).frame(height: 1) }
@@ -77,15 +80,6 @@ struct CICopyView: View {
                     Text("Touch ID またはMacのパスワードで確認します。コピーした値は60秒後、内容が変わっていない場合だけ消去します。")
                         .font(.system(size: 13)).foregroundStyle(AppMateStyle.warningText).padding(14)
                         .frame(maxWidth: .infinity, alignment: .leading).background(AppMateStyle.warningBackground, in: RoundedRectangle(cornerRadius: 9))
-                    Text("値を含まないコマンド").font(.system(size: 14, weight: .bold))
-                    TextField("GitHubリポジトリ（owner/repo）", text: $repository).textFieldStyle(.roundedBorder)
-                    if repository.range(of: "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$", options: .regularExpression) != nil,
-                       let template = shownTemplates.first(where: { $0.id == commandTemplateID }) ?? shownTemplates.first(where: { available($0.value) }) {
-                        Text("pbpaste | gh secret set \(template.variable) --repo '\(repository)'")
-                            .font(.system(size: 12, design: .monospaced)).textSelection(.enabled)
-                            .padding(12).frame(maxWidth: .infinity, alignment: .leading)
-                            .background(AppMateStyle.sidebar, in: RoundedRectangle(cornerRadius: 8))
-                    }
                     DisclosureGroup("テンプレートについて") {
                         Text("追加・変数名の編集は「設定 → CIテンプレート」で行えます。Bitriseへは元形式の書き出しを使ってください。")
                             .font(.system(size: 12)).foregroundStyle(AppMateStyle.secondary)
@@ -105,7 +99,7 @@ struct CICopyView: View {
     }
     private func available(_ value: CIValue) -> Bool {
         switch value {
-        case .base64: ["p8", "p12"].contains(record.fileExtension)
+        case .base64: true
         case .keyID: record.keyID != nil
         case .issuerID: record.issuerID != nil
         case .teamID: record.team != nil
