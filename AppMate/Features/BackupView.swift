@@ -81,19 +81,18 @@ struct BackupView: View {
                 if trackingWarning {
                     Text("バックアップは保存しましたが、変更状態を更新できませんでした。未バックアップの表示を残しています。")
                         .foregroundStyle(AppMateStyle.warningText)
-                } else if history.pendingCount > 0 {
-                    Text("未バックアップの変更が\(history.pendingCount)件あります。作成開始後の変更は今回の保存には含まれません。")
+                } else if history.needsBackup {
+                    Text("バックアップが必要な変更があります。作成開始後の変更は今回の保存には含まれません。")
                         .foregroundStyle(AppMateStyle.secondary)
                 }
                 Text("このファイルには秘密鍵と保存済みのパスワードが含まれます。外付けドライブなど、安全な場所に保管してください。")
                     .foregroundStyle(AppMateStyle.secondary)
                 HStack { Spacer(); Button("閉じる") { dismiss() }.keyboardShortcut(.defaultAction).buttonStyle(AppMateButtonStyle(primary: true)) }
             } else {
-                if history.pendingCount > 0 {
+                if history.needsBackup {
                     HStack(spacing: 10) {
                         Circle().fill(Color(red: 0.96, green: 0.62, blue: 0.04)).frame(width: 8, height: 8)
-                        Text(history.lastCompletedAt.map { "前回 \($0.formatted(.dateTime.month().day())) から \(history.pendingCount)件の変更がまだ保存されていません" }
-                             ?? "まだ一度もバックアップしていません · 変更 \(history.pendingCount)件")
+                        Text("バックアップが必要です")
                     }.padding(.horizontal, 14).padding(.vertical, 10).frame(maxWidth: .infinity, alignment: .leading)
                         .foregroundStyle(AppMateStyle.warningText)
                         .background(AppMateStyle.warningBanner, in: RoundedRectangle(cornerRadius: 10))
@@ -136,7 +135,7 @@ struct BackupView: View {
                                         }
                                     }
                                 }.frame(maxHeight: 100)
-                                Text("配下の全ターゲット・必要なチームと共通の鍵・証明書も含めます。全体の未バックアップ件数は解除しません。").font(.caption)
+                                Text("配下の全ターゲット・必要なチームと共通の鍵・証明書も含めます。全体の「バックアップが必要」の表示は解除しません。").font(.caption)
                             }
                         }
                         VStack(alignment: .leading, spacing: 6) {

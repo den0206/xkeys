@@ -66,10 +66,10 @@ struct CatalogView: View {
         return teams.first { $0.id == id }
     }
     private var rootApps: [ManagedApp] { apps.filter { $0.deletedAt == nil && $0.parentAppID == nil } }
-    private var pendingBackupCount: Int {
-        guard historyError == nil, let checkpoint = checkpoints.first else { return 0 }
+    private var needsBackup: Bool {
+        guard historyError == nil, let checkpoint = checkpoints.first else { return false }
         return BackupHistorySummary(changes: changes, checkpoint: checkpoint,
-                                    hasStoredItems: !apps.isEmpty || !credentials.isEmpty).pendingCount
+                                    hasStoredItems: !apps.isEmpty || !credentials.isEmpty).needsBackup
     }
     private var active: [StoredCredential] { credentials.filter { $0.deletedAt == nil && $0.app?.deletedAt == nil } }
 
@@ -362,10 +362,10 @@ struct CatalogView: View {
     private var backupStatusLine: some View {
         Button { creatingBackup = true } label: {
             HStack(spacing: 8) {
-                Circle().fill(pendingBackupCount > 0 || historyError != nil ? Color(red: 0.96, green: 0.62, blue: 0.04) : AppMateStyle.successText)
+                Circle().fill(needsBackup || historyError != nil ? Color(red: 0.96, green: 0.62, blue: 0.04) : AppMateStyle.successText)
                     .frame(width: 7, height: 7)
                 if historyError != nil { Text("バックアップの状態を確認できません") }
-                else if pendingBackupCount > 0 { Text("未バックアップ \(pendingBackupCount)件") }
+                else if needsBackup { Text("バックアップが必要") }
                 else { Text("バックアップ済み") }
                 Spacer(minLength: 0)
                 if let date = checkpoints.first.flatMap({ BackupHistorySummary(changes: changes, checkpoint: $0, hasStoredItems: !apps.isEmpty || !credentials.isEmpty).lastCompletedAt }) {
@@ -374,7 +374,7 @@ struct CatalogView: View {
             }.font(.system(size: 12)).foregroundStyle(AppMateStyle.secondary).padding(.horizontal, 6).padding(.vertical, 6).contentShape(Rectangle())
         }.buttonStyle(.plain)
             .help("バックアップと復元を開きます")
-            .accessibilityLabel(pendingBackupCount > 0 ? "バックアップ、未バックアップの変更が\(pendingBackupCount)件" : "バックアップ")
+            .accessibilityLabel(needsBackup ? "バックアップ、バックアップが必要" : "バックアップ")
     }
 
     private func sidebarHeading(_ title: String) -> some View {

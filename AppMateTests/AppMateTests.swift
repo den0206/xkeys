@@ -1480,32 +1480,61 @@ final class AppMateTests: XCTestCase {
                                            configurations: ModelConfiguration(isStoredInMemoryOnly: true))
         let context = ModelContext(container)
         try BackupHistory.bootstrap(in: context)
-        context.insert(BackupChange(count: 4))
+        context.insert(BackupChange())
         try context.save()
-        XCTAssertEqual(try backupHistory(context).pendingCount, 0)
-        XCTAssertNil(try backupHistory(context).oldestChange)
+        XCTAssertFalse(try backupHistory(context).needsBackup)
         // Custom settings still need a backup even without catalog items.
         var prefs = AppPreferences()
         prefs.showDockBadge = false
         try PreferencesStore.save(prefs, in: context)
-        XCTAssertEqual(try backupHistory(context).pendingCount, 5)
-        XCTAssertNotNil(try backupHistory(context).oldestChange)
+        XCTAssertTrue(try backupHistory(context).needsBackup)
         try PreferencesStore.save(AppPreferences(), in: context)
-        XCTAssertEqual(try backupHistory(context).pendingCount, 0)
+        XCTAssertFalse(try backupHistory(context).needsBackup)
         // A leftover team alone does not prompt for backup; trashed apps still do.
         let team = DeveloperTeam(name: "Team", teamID: "TESTTEAM01")
         context.insert(team)
         try context.save()
-        XCTAssertEqual(try backupHistory(context).pendingCount, 0)
+        XCTAssertFalse(try backupHistory(context).needsBackup)
         let app = ManagedApp(name: "Deleted", bundleID: "com.example.deleted", platform: "macOS", team: team)
         app.deletedAt = .now
         context.insert(app)
         try context.save()
-        XCTAssertGreaterThan(try backupHistory(context).pendingCount, 0)
+        XCTAssertTrue(try backupHistory(context).needsBackup)
         context.delete(app)
         context.delete(team)
         try context.save()
-        XCTAssertEqual(try backupHistory(context).pendingCount, 0)
+        XCTAssertFalse(try backupHistory(context).needsBackup)
+    }
+
+    @MainActor
+    func testRemovingBackupCountPreservesCurrentDatabaseAndPendingChanges() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("AppMateTests/" + UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let configuration = ModelConfiguration(url: directory.appendingPathComponent("history.store"))
+        let markerID = UUID()
+        let savedAt = Date(timeIntervalSince1970: 1_900_000_000)
+        try autoreleasepool {
+            let container = try ModelContainer(for: DeveloperTeam.self, ManagedApp.self, StoredCredential.self,
+                                               BeforeBackupCountRemoval.BackupChange.self, BackupCheckpoint.self, configurations: configuration)
+            let context = ModelContext(container)
+            let team = DeveloperTeam(name: "Current team", teamID: "TESTTEAM01")
+            context.insert(ManagedApp(name: "Current app", bundleID: "com.example.current", platform: "macOS", team: team))
+            context.insert(BeforeBackupCountRemoval.BackupChange(id: markerID))
+            let checkpoint = BackupCheckpoint()
+            checkpoint.lastCompletedAt = savedAt
+            context.insert(checkpoint)
+            try context.save()
+        }
+        let container = try ModelContainer(for: DeveloperTeam.self, ManagedApp.self, StoredCredential.self,
+                                           BackupChange.self, BackupCheckpoint.self, configurations: configuration)
+        let context = ModelContext(container)
+        XCTAssertEqual(try context.fetch(FetchDescriptor<ManagedApp>()).first?.name, "Current app")
+        XCTAssertEqual(try context.fetch(FetchDescriptor<BackupChange>()).map(\.id), [markerID])
+        XCTAssertTrue(try backupHistory(context).needsBackup)
+        XCTAssertEqual(try backupHistory(context).lastCompletedAt, savedAt)
+        try BackupHistory.complete(BackupHistory.watermark(in: context, capturedAt: .now), in: context)
+        XCTAssertFalse(try backupHistory(context).needsBackup)
     }
 
     @MainActor
@@ -1514,13 +1543,13 @@ final class AppMateTests: XCTestCase {
                                            configurations: ModelConfiguration(isStoredInMemoryOnly: true))
         let context = ModelContext(container)
         try BackupHistory.bootstrap(in: context)
-        XCTAssertEqual(try backupHistory(context).pendingCount, 0)
+        XCTAssertFalse(try backupHistory(context).needsBackup)
         let catalog = AppCatalog(context: context)
         let team = try catalog.addTeam(name: "Team", teamID: "TESTTEAM01")
         let appID = try catalog.addApp(name: "App", bundleID: "com.example.fixture", platform: "macOS", teamID: team)
-        XCTAssertEqual(try backupHistory(context).pendingCount, 2)
+        XCTAssertTrue(try backupHistory(context).needsBackup)
         XCTAssertThrowsError(try catalog.addTeam(name: "Duplicate", teamID: "TESTTEAM01"))
-        XCTAssertEqual(try backupHistory(context).pendingCount, 2)
+        XCTAssertTrue(try backupHistory(context).needsBackup)
         let app = try XCTUnwrap(context.fetch(FetchDescriptor<ManagedApp>()).first { $0.id == appID })
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent("AppMateTests/" + UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: directory) }
@@ -1529,24 +1558,24 @@ final class AppMateTests: XCTestCase {
         let file = p8File(), next = p8File()
         let oldID = try vault.importFile(file, parsed: CredentialParser.parse(file.data, extension: "p8"), app: app,
                                          password: nil, confirmUnknownTeam: true, key: key, p8: metadata)
-        XCTAssertEqual(try backupHistory(context).pendingCount, 3)
+        XCTAssertTrue(try backupHistory(context).needsBackup)
         let old = try XCTUnwrap(vault.records().first { $0.id == oldID })
         try vault.export(old, to: directory.appendingPathComponent("exported.p8"), key: key)
         _ = try vault.read(old, key: key)
-        XCTAssertEqual(try backupHistory(context).pendingCount, 3)
+        XCTAssertTrue(try backupHistory(context).needsBackup)
         _ = try vault.importFile(next, parsed: CredentialParser.parse(next.data, extension: "p8"), app: app,
                                  password: nil, confirmUnknownTeam: true, key: key, p8: metadata)
-        XCTAssertEqual(try backupHistory(context).pendingCount, 4)
+        XCTAssertTrue(try backupHistory(context).needsBackup)
         let failed = p8File()
         XCTAssertThrowsError(try vault.importFile(failed, parsed: CredentialParser.parse(failed.data, extension: "p8"), app: app,
                                                   password: nil, confirmUnknownTeam: true, key: key, p8: metadata,
                                                   beforeCommit: { throw ValidationError.invalidFile }))
-        XCTAssertEqual(try backupHistory(context).pendingCount, 4)
+        XCTAssertTrue(try backupHistory(context).needsBackup)
         XCTAssertEqual(try vault.records().count, 2)
         let restore = BackupRestore(vault: vault)
         let snapshot = try BackupSnapshot.capture(vault: vault, key: key)
         _ = try restore.merge(restore.prepare(snapshot, key: key), choices: [:], key: key)
-        XCTAssertEqual(try backupHistory(context).pendingCount, 4)
+        XCTAssertTrue(try backupHistory(context).needsBackup)
         let changed = try editing(snapshot) { json in
             var teams = json["teams"] as! [[String: Any]]
             teams[0]["name"] = "Restored Team"
@@ -1556,10 +1585,10 @@ final class AppMateTests: XCTestCase {
         let choices = Dictionary(uniqueKeysWithValues: plan.conflicts.map { ($0.id, RestoreChoice.backup) })
         let approvalPlan1 = try await restoreAuthorization(for: plan)
         XCTAssertThrowsError(try restore.merge(plan, choices: choices, authorization: approvalPlan1, key: key, beforeCommit: { throw ValidationError.invalidFile }))
-        XCTAssertEqual(try backupHistory(context).pendingCount, 4)
+        XCTAssertTrue(try backupHistory(context).needsBackup)
         let approvalPlan2 = try await restoreAuthorization(for: plan)
         _ = try restore.merge(plan, choices: choices, authorization: approvalPlan2, key: key)
-        XCTAssertEqual(try backupHistory(context).pendingCount, 5)
+        XCTAssertTrue(try backupHistory(context).needsBackup)
     }
 
     @MainActor
@@ -1567,7 +1596,7 @@ final class AppMateTests: XCTestCase {
         let (vault, _, _, _) = try makeVault()
         let context = vault.context
         try BackupHistory.bootstrap(in: context)
-        XCTAssertEqual(try backupHistory(context).pendingCount, 5)
+        XCTAssertTrue(try backupHistory(context).needsBackup)
         let snapshot = try BackupSnapshot.capture(vault: vault, key: SymmetricKey(size: .bits256))
         let watermark = try BackupHistory.watermark(in: context, capturedAt: snapshot.createdAt)
         let archive = try BackupArchive.encode(snapshot, password: nil)
@@ -1581,8 +1610,7 @@ final class AppMateTests: XCTestCase {
         let url = directory.appendingPathComponent("snapshot.appmatebackup")
         XCTAssertTrue(try BackupHistory.export(archive, to: url, covering: watermark, in: context))
         let summary = try backupHistory(context)
-        XCTAssertEqual(summary.pendingCount, 1)
-        XCTAssertEqual(summary.oldestChange, snapshot.createdAt)
+        XCTAssertTrue(summary.needsBackup)
         XCTAssertNotNil(summary.lastCompletedAt)
         let saved = try BackupArchive.decode(CredentialFile(url: url, maximumBytes: BackupArchive.maximumFileBytes).data, password: nil)
         XCTAssertEqual(saved.teams.count, 2)
@@ -1599,10 +1627,10 @@ final class AppMateTests: XCTestCase {
         _ = try AppCatalog(context: context).addTeam(name: "Newer", teamID: "TESTTEAM03")
         let newer = try BackupHistory.watermark(in: context, capturedAt: Date(timeIntervalSince1970: 200))
         try BackupHistory.complete(newer, in: context, at: Date(timeIntervalSince1970: 300))
-        XCTAssertEqual(try backupHistory(context).pendingCount, 0)
+        XCTAssertFalse(try backupHistory(context).needsBackup)
         _ = try AppCatalog(context: context).addTeam(name: "After both snapshots", teamID: "TESTTEAM04")
         try BackupHistory.complete(older, in: context, at: Date(timeIntervalSince1970: 400))
-        XCTAssertEqual(try backupHistory(context).pendingCount, 1)
+        XCTAssertTrue(try backupHistory(context).needsBackup)
         XCTAssertEqual(try backupHistory(context).lastCompletedAt, Date(timeIntervalSince1970: 300))
     }
 
@@ -1622,9 +1650,9 @@ final class AppMateTests: XCTestCase {
         try sentinel.write(to: existing)
         XCTAssertThrowsError(try BackupHistory.export(archive, to: existing, covering: watermark, in: context))
         XCTAssertEqual(try Data(contentsOf: existing), sentinel)
-        XCTAssertEqual(try backupHistory(context).pendingCount, 5)
+        XCTAssertTrue(try backupHistory(context).needsBackup)
         XCTAssertThrowsError(try BackupHistory.complete(watermark, in: context, beforeCommit: { throw ValidationError.invalidFile }))
-        XCTAssertEqual(try backupHistory(context).pendingCount, 5)
+        XCTAssertTrue(try backupHistory(context).needsBackup)
         XCTAssertNil(try backupHistory(context).lastCompletedAt)
         app.name = "Another operation still pending"
         let saved = directory.appendingPathComponent("saved.appmatebackup")
@@ -1632,14 +1660,14 @@ final class AppMateTests: XCTestCase {
         XCTAssertEqual(try BackupArchive.decode(Data(contentsOf: saved), password: nil).apps.count, 3)
         XCTAssertTrue(context.hasChanges)
         XCTAssertEqual(app.name, "Another operation still pending")
-        XCTAssertEqual(try backupHistory(context).pendingCount, 5)
+        XCTAssertTrue(try backupHistory(context).needsBackup)
         context.rollback()
         XCTAssertTrue(try BackupHistory.export(archive, to: directory.appendingPathComponent("retry.appmatebackup"), covering: watermark, in: context))
-        XCTAssertEqual(try backupHistory(context).pendingCount, 0)
+        XCTAssertFalse(try backupHistory(context).needsBackup)
     }
 
     @MainActor
-    func testHistoryReopensWithoutRecountingExistingData() throws {
+    func testHistoryReopensWithoutMarkingExistingDataAgain() throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent("AppMateTests/" + UUID().uuidString)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let configuration = ModelConfiguration(url: directory.appendingPathComponent("history.store"))
@@ -1656,9 +1684,9 @@ final class AppMateTests: XCTestCase {
             let context = ModelContext(upgraded)
             let team = try XCTUnwrap(context.fetch(FetchDescriptor<DeveloperTeam>()).first)
             _ = try AppCatalog(context: context).addApp(name: "First tracked change", bundleID: "com.example.added", platform: "iOS", teamID: team.id)
-            XCTAssertEqual(try backupHistory(context).pendingCount, 3)
+            XCTAssertTrue(try backupHistory(context).needsBackup)
             try BackupHistory.bootstrap(in: context)
-            XCTAssertEqual(try backupHistory(context).pendingCount, 3)
+            XCTAssertTrue(try backupHistory(context).needsBackup)
             let watermark = try BackupHistory.watermark(in: context, capturedAt: savedAt)
             try BackupHistory.complete(watermark, in: context, at: savedAt)
             _ = try AppCatalog(context: context).addTeam(name: "After backup", teamID: "TESTTEAM02")
@@ -1666,7 +1694,7 @@ final class AppMateTests: XCTestCase {
         let reopened = try ModelContainer(for: DeveloperTeam.self, ManagedApp.self, StoredCredential.self, BackupChange.self, BackupCheckpoint.self, configurations: configuration)
         let context = ModelContext(reopened)
         try BackupHistory.bootstrap(in: context)
-        XCTAssertEqual(try backupHistory(context).pendingCount, 1)
+        XCTAssertTrue(try backupHistory(context).needsBackup)
         XCTAssertEqual(try backupHistory(context).lastCompletedAt, savedAt)
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<BackupCheckpoint>()), 1)
     }
@@ -2863,6 +2891,21 @@ final class AppMateTests: XCTestCase {
 }
 
 // Frozen pre-restore model: proves that adding the blob reference preserves existing encrypted files.
+private enum BeforeBackupCountRemoval {
+    @Model
+    final class BackupChange {
+        @Attribute(.unique) var id: UUID
+        var createdAt: Date
+        var count: Int
+
+        init(id: UUID) {
+            self.id = id
+            createdAt = .now
+            count = 42
+        }
+    }
+}
+
 private enum BeforeRestoreSchema {
     @Model
     final class StoredCredential {

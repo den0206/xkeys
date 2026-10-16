@@ -5,12 +5,10 @@ import SwiftData
 final class BackupChange {
     @Attribute(.unique) var id: UUID
     var createdAt: Date
-    var count: Int
 
-    init(count: Int = 1, at date: Date = .now) {
+    init(at date: Date = .now) {
         id = UUID()
         createdAt = date
-        self.count = count
     }
 }
 
@@ -30,17 +28,14 @@ struct BackupWatermark: Sendable {
 }
 
 struct BackupHistorySummary {
-    let pendingCount: Int
-    let oldestChange: Date?
+    let needsBackup: Bool
     let lastCompletedAt: Date?
 
     init(changes: [BackupChange], checkpoint: BackupCheckpoint?, hasStoredItems: Bool) {
         let hasCustomPreferences = checkpoint?.preferencesData.map {
             (try? JSONDecoder().decode(AppPreferences.self, from: $0)) != AppPreferences()
         } ?? false
-        let needsBackup = hasStoredItems || hasCustomPreferences
-        pendingCount = needsBackup ? changes.reduce(0) { $0 + $1.count } : 0
-        oldestChange = needsBackup ? changes.map(\.createdAt).min() : nil
+        needsBackup = (hasStoredItems || hasCustomPreferences) && !changes.isEmpty
         lastCompletedAt = checkpoint?.lastCompletedAt
     }
 }
@@ -55,11 +50,9 @@ enum BackupHistory {
     // Called before a mutation; its inserts are committed or rolled back with that mutation.
     static func prepare(in context: ModelContext, at date: Date = .now) throws {
         guard try context.fetch(FetchDescriptor<BackupCheckpoint>()).isEmpty else { return }
-        let existing = try context.fetchCount(FetchDescriptor<DeveloperTeam>())
-            + context.fetchCount(FetchDescriptor<ManagedApp>())
-            + context.fetchCount(FetchDescriptor<StoredCredential>())
+        let hasExistingData = try context.fetchCount(FetchDescriptor<DeveloperTeam>()) > 0 || hasStoredItems(in: context)
         context.insert(BackupCheckpoint())
-        if existing > 0 { context.insert(BackupChange(count: existing, at: date)) }
+        if hasExistingData { context.insert(BackupChange(at: date)) }
     }
 
     static func record(in context: ModelContext, at date: Date = .now) {
