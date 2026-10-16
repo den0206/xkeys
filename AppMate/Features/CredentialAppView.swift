@@ -85,6 +85,7 @@ struct CredentialAppView: View {
     @State private var selected: UUID?
     @State private var droppedSources: [URL] = []
     @State private var clock = Date.now
+    @State private var onlineImporting = false
     @State private var showReplaced = false
     @State private var error: String?
     @State private var status = ""
@@ -164,6 +165,14 @@ struct CredentialAppView: View {
                     selected = id
                     status = "暗号化して保存しました。鍵・証明書はチームの一覧、プロファイルは対象アプリの一覧で確認できます。"
                 }
+            }
+        }
+        .sheet(isPresented: $onlineImporting) {
+            if let team {
+                AppleDeveloperImportView(team: team, vault: vault) { id in
+                    selected = id
+                    status = "Apple Developerから取得したファイルを暗号化して保存しました。"
+                }.modelContainer(container)
             }
         }
         .sheet(isPresented: $editingNote) { NoteEditor(vault: vault, app: selectedRecord == nil ? app : nil, record: selectedRecord) }
@@ -255,6 +264,8 @@ struct CredentialAppView: View {
                     .frame(width: 28, height: 28).help("表示と管理").accessibilityLabel("表示と管理")
             }.padding(.bottom, 16)
             if app == nil, let team, !CredentialSearch.hasQuery(search) {
+                Button("Apple Developerから取り込む…", systemImage: "icloud.and.arrow.down") { onlineImporting = true }
+                    .buttonStyle(AppMateButtonStyle()).disabled(access.busy).padding(.bottom, 12)
                 Label("保管先：チーム「\(team.name)」。アプリでの利用状況は記録していません。", systemImage: "person.2")
                     .font(.system(size: 12)).foregroundStyle(AppMateStyle.secondary).padding(.bottom, 12)
             }
@@ -560,7 +571,7 @@ struct CredentialAppView: View {
         showingRenewalGuide = false
         showingIdentity = false
         showingInspector = false
-        if dismissImport { importing = false }
+        if dismissImport { importing = false; onlineImporting = false }
         selected = nil
         revealedPassword = nil
         error = nil
@@ -662,6 +673,7 @@ struct CredentialImportView: View {
     @State private var access = VaultAccess()
     let existing: [StoredCredential]
     var initialSources: [URL] = []
+    var initialFiles: [CredentialFile] = []
     let onSaved: (UUID) -> Void
     @Environment(\.dismiss) private var dismiss
     @State private var addingTarget = false
@@ -669,6 +681,7 @@ struct CredentialImportView: View {
     @State private var lastSavedID: UUID?
     @State private var sources: [URL] = []
     @State private var queue: [URL] = []
+    @State private var memoryQueue: [CredentialFile] = []
     @State private var completedItems: [String] = []
     @State private var currentName = ""
     @State private var file: CredentialFile?
@@ -690,7 +703,7 @@ struct CredentialImportView: View {
     @State private var lastActivity = Date.now
     @State private var error: String?
 
-    private var finished: Bool { currentName.isEmpty && queue.isEmpty && !completedItems.isEmpty }
+    private var finished: Bool { currentName.isEmpty && queue.isEmpty && memoryQueue.isEmpty && !completedItems.isEmpty }
     private var parsed: ParsedCredential? { candidates.indices.contains(selected) ? candidates[selected] : nil }
     private var isP8: Bool { file.map { ($0.name as NSString).pathExtension.lowercased() == "p8" } ?? false }
     private var p8: P8Metadata? {
@@ -718,9 +731,9 @@ struct CredentialImportView: View {
         app?.product.targets ?? team.apps.filter { $0.deletedAt == nil }.sorted { $0.name < $1.name }
     }
     private var unregisteredBundle: String? {
-        guard let app, let bundle = parsed?.bundleID, !bundle.contains("*"),
+        guard let bundle = parsed?.bundleID, !bundle.contains("*"),
               parsed?.teamID == team.teamID,
-              !app.product.targets.contains(where: { $0.bundleID == bundle }) else { return nil }
+              !profileTargets.contains(where: { $0.bundleID == bundle }) else { return nil }
         return bundle
     }
     private var validationIssue: String? {
@@ -767,7 +780,7 @@ struct CredentialImportView: View {
                         }
                     }
                     if !finished && !completedItems.isEmpty {
-                        DisclosureGroup("処理結果 \(completedItems.count)件・残り \(queue.count + (currentName.isEmpty ? 0 : 1))件") {
+                        DisclosureGroup("処理結果 \(completedItems.count)件・残り \(queue.count + memoryQueue.count + (currentName.isEmpty ? 0 : 1))件") {
                             ForEach(Array(completedItems.enumerated()), id: \.offset) { _, result in Text(result).font(.caption) }
                         }
                     }
@@ -823,7 +836,7 @@ struct CredentialImportView: View {
                             if let bundle = unregisteredBundle {
                                 Text("Bundle ID「\(bundle)」のターゲットは未登録です。")
                                     .font(.caption).foregroundStyle(AppMateStyle.secondary)
-                                Button("このアプリにターゲットを追加…") { addingTarget = true }
+                                Button(app == nil ? "このBundle IDのアプリを登録…" : "このアプリにターゲットを追加…") { addingTarget = true }
                             }
                         }
                         if isP8 {
@@ -911,15 +924,24 @@ struct CredentialImportView: View {
         .padding(.horizontal, 26).padding(.vertical, 24).frame(width: isP8 ? 600 : 720, height: 620)
         .font(.system(size: 13)).buttonStyle(AppMateButtonStyle()).background(AppMateStyle.canvas).tint(AppMateStyle.accent)
         .sheet(isPresented: $addingTarget) {
-            if let bundle = unregisteredBundle, let app {
-                let parent = app.product
-                RegistrationForm(container: vault.context.container, teams: parent.team.map { [$0] } ?? [], initialTeam: parent.team?.id, isTeam: false, parentApp: parent, initialBundleID: bundle, initialName: parsed?.name ?? "") { id in
+            if let bundle = unregisteredBundle {
+                let parent = app?.product
+                RegistrationForm(container: vault.context.container, teams: [team], initialTeam: team.id, isTeam: false, parentApp: parent, initialBundleID: bundle, initialName: parsed?.name ?? "") { id in
                     importTargetID = id
                     error = nil
                 }
             }
         }
-        .task { if !initialSources.isEmpty { start(initialSources) } }
+        .task {
+            if !initialFiles.isEmpty {
+                guard initialFiles.count <= 200, initialFiles.allSatisfy({ !$0.data.isEmpty && $0.data.count <= CredentialParser.maximumBytes }),
+                      initialFiles.reduce(0, { $0 + $1.data.count }) <= 32 * 1_048_576 else {
+                    error = AppleDeveloperError.importLimit.localizedDescription
+                    return
+                }
+                memoryQueue = initialFiles; next()
+            } else if !initialSources.isEmpty { start(initialSources) }
+        }
         .onChange(of: password) { _, _ in lastActivity = .now }
         .onChange(of: selected) { _, _ in lastActivity = .now; confirmUnknownTeam = false; targetID = nil; confirmReplacement = false }
         .onChange(of: purpose) { _, _ in lastActivity = .now; issuerID = ""; targetID = nil; confirmReplacement = false }
@@ -933,7 +955,7 @@ struct CredentialImportView: View {
         .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { _ in
             if Date.now.timeIntervalSince(lastActivity) >= 300 { access.lock(); dismiss() }
         }
-        .onDisappear { clear(); releaseSources(); access.lock() }
+        .onDisappear { memoryQueue = []; clear(); releaseSources(); access.lock() }
     }
 
     private func clear() {
@@ -969,6 +991,7 @@ struct CredentialImportView: View {
     }
 
     private func start(_ urls: [URL]) {
+        memoryQueue = []
         releaseSources()
         sources = urls.filter { $0.startAccessingSecurityScopedResource() }
         do { queue = try ImportSources.collect(urls); completedItems = []; next() }
@@ -978,6 +1001,12 @@ struct CredentialImportView: View {
     private func next() {
         clear()
         error = nil
+        if !memoryQueue.isEmpty {
+            let incoming = memoryQueue.removeFirst()
+            currentName = incoming.name
+            load(file: incoming)
+            return
+        }
         guard !queue.isEmpty else {
             currentName = ""; releaseSources()
             if let lastSavedID { onSaved(lastSavedID); self.lastSavedID = nil }
@@ -988,7 +1017,7 @@ struct CredentialImportView: View {
         load(url)
     }
 
-    private func load(_ url: URL) {
+    private func load(_ url: URL? = nil, file incoming: CredentialFile? = nil) {
         clear()
         error = nil
         let token = parseID
@@ -999,8 +1028,11 @@ struct CredentialImportView: View {
             defer { reading = false }
             do {
                 let (file, results) = try await Task.detached(priority: .userInitiated) {
-                    let file = try CredentialFile(url: url)
-                    let results = file.requiresPasswordEntry ? [] : try CredentialParser.parseAll(file.data, extension: url.pathExtension)
+                    let file: CredentialFile
+                    if let incoming { file = incoming }
+                    else if let url { file = try CredentialFile(url: url) }
+                    else { throw ValidationError.invalidFile }
+                    let results = file.requiresPasswordEntry ? [] : try CredentialParser.parseAll(file.data, extension: (file.name as NSString).pathExtension)
                     return (file, results)
                 }.value
                 guard token == parseID, generation == access.generation else { return }

@@ -93,7 +93,7 @@ xcodebuild -project AppMate.xcodeproj -scheme AppMate \
 
 ## Apple Developerログインの実装（2026-10-16）
 
-XcodesLoginKitのリビジョン `929f9aac3140caf7b64cbb5385f4f645c5f9913d` を採用し、Package.resolvedを保持する。Apple Account認証、信頼済み端末・SMSの確認コード、専用Keychainへのセッション保存、所属チーム選択、接続解除を実装した。フェデレーション認証・セキュリティキー・証明書等のオンライン取り込みは対象外。
+XcodesLoginKitのリビジョン `929f9aac3140caf7b64cbb5385f4f645c5f9913d` を採用し、Package.resolvedを保持する。Apple Account認証、信頼済み端末・SMSの確認コード、専用Keychainへのセッション保存、所属チーム選択、接続解除を実装した。初回はフェデレーション認証・セキュリティキー・証明書等のオンライン取り込みを対象外とした。オンライン取り込みは下記の追加実装で対応。
 
 Team ID手入力を削除し、未登録Teamを含むバックアップの復元に所属確認を追加した。所属確認は5分間で、復元計画とローカルrevisionに結び付ける。登録済みTeamのみの復元はAppleに接続しない。既存の保存モデル・AAD・バックアップversionは変更していない。
 
@@ -106,3 +106,13 @@ Team ID手入力を削除し、未登録Teamを含むバックアップの復元
 チーム管理の導線を追加した。サイドバーの「登録済みチームを管理…」で全チームの名前・Team IDを表示し、各行から編集・削除できる。チーム名横にも編集・削除メニューを常時表示する。削除画面は対象を明記し、所属データが残る場合は理由を表示して認証前に停止する。削除後は該当チームの選択状態を解除する。
 
 確認は空チームだけの削除・所属データと最近削除した資格情報の保護、通常幅と最小960×640のメイン画面、管理一覧と削除可能／不可の画面描画。製品データの削除や実際の所有者認証は実行していない。
+
+## Apple Developerからのオンライン取り込み（2026-10-16）
+
+チーム画面に証明書・プロファイルのオンライン一覧を追加した。Developer PortalのWebセッション用読み取りAPIを使用し、ページ送り・Team ID・リソースID・base64・ファイルサイズを検証する。認証は保存済みの接続を再利用し、対象Teamに所属しない場合はログインを案内する。API本文・Cookie・CSRF値をログへ出さない。
+
+取得した元ファイルをメモリ内でCredentialImportViewに渡す。既存の解析・所属選択・所有者認証・重複判定・暗号化保存を再利用し、平文の一時ファイルは作らない。チームからの取り込みでも、未登録の具体的なBundle IDをアプリとして登録できる。設計用モックHTMLは削除し、テスト用の架空データは製品通信・Keychainの代わりとして維持する。
+
+APIの形式はfastlaneの公開実装を参照した（コードは複製していない）：[Webセッション用読み取り](https://github.com/fastlane/fastlane/blob/master/spaceship/lib/spaceship/connect_api/provisioning/client.rb)、[証明書・プロファイルAPI](https://github.com/fastlane/fastlane/blob/master/spaceship/lib/spaceship/connect_api/provisioning/provisioning.rb)。実アカウントを使った取得確認は未実施。Appleの非公開WebセッションAPIが変更された場合は追従が必要。
+
+最終版で全96件のXCTestと通常の署名付きDebugビルドが成功した。追加4件はWebセッション用リクエストのTeam ID・読み取り指定・CSRF引き継ぎ・ページ送り・権限拒否、不正な一覧とページリンク、取得データのリソース一致・base64・プロファイル解析、所属確認とファイルのTeam ID不一致を確認する。通常幅と最小960×640、およびオンライン一覧・メモリ内ファイルの確認画面を架空データで描画した。結果画像は `/tmp/app-mate-online-screens`、ログは `/tmp/app-mate-online-tests.log` と `/tmp/app-mate-online-final-build.log` に分離した。実アカウントでの取得と、製品Keychainを使ったオンライン取り込みの通し操作は未確認。

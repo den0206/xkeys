@@ -11,7 +11,7 @@ struct RemoteDeveloperTeam: Identifiable, Equatable, Sendable {
 
 enum AppleDeveloperError: LocalizedError {
     case invalidResponse, noTeams, loginRequired, permissionDenied, agreementRequired
-    case unsupportedLogin, rateLimited, sessionStorage, membershipRequired, busy
+    case unsupportedLogin, rateLimited, sessionStorage, membershipRequired, busy, teamAccessRequired, importLimit
 
     var errorDescription: String? {
         switch self {
@@ -24,12 +24,14 @@ enum AppleDeveloperError: LocalizedError {
         case .rateLimited: "Appleへの接続が制限されています。しばらく待って再試行してください。"
         case .sessionStorage: "接続情報をKeychainで保存・取得・削除できませんでした。再試行してください。"
         case .membershipRequired: "未登録のすべてのTeam IDへの所属を確認してから復元してください。"
+        case .teamAccessRequired: "選択中のチームに所属するApple Accountでログインしてください。"
+        case .importLimit: "一度に200ファイル・合計32MBまで取り込めます。対象を分けてください。"
         case .busy: "別のApple Developerへの接続操作が進行中です。完了してから再試行してください。"
         }
     }
 
     static func message(for error: Error) -> String {
-        if error is RegistrationError || error is RestoreError { return error.localizedDescription }
+        if error is RegistrationError || error is RestoreError || error is ValidationError || error is VaultError { return error.localizedDescription }
         if let error = error as? AppleDeveloperError { return error.localizedDescription }
         if let error = error as? AuthenticationError {
             switch error {
@@ -49,13 +51,37 @@ enum AppleDeveloperError: LocalizedError {
     }
 }
 
+struct AppleDeveloperAccount: Codable, Equatable, Sendable {
+    let email: String?
+    let name: String?
+    var label: String { email ?? name ?? "アカウント情報を取得できませんでした" }
+
+    init(email: String?, name: String?) {
+        self.email = email?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+        self.name = name?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+    }
+
+    func validate() throws {
+        guard [email, name].allSatisfy({ $0.map { !$0.isEmpty && $0.utf8.count <= 1_024 } ?? true }) else {
+            throw AppleDeveloperError.invalidResponse
+        }
+    }
+}
+
+private extension String {
+    var nilIfEmpty: String? { isEmpty ? nil : self }
+}
+
 @MainActor
 protocol AppleDeveloperTransport: AnyObject {
+    var accountIdentity: AppleDeveloperAccount? { get }
     func login(account: String, password: String) async throws -> AuthenticationState
     func validate() async throws -> AuthenticationState
     func submit(code: SecurityCode, session: AppleSessionData) async throws -> AuthenticationState
     func sms(phone: AuthOptionsResponse.TrustedPhoneNumber, options: AuthOptionsResponse, session: AppleSessionData) async throws -> AuthenticationState
     func listTeams() async throws -> [RemoteDeveloperTeam]
+    func listFiles(teamID: String, kind: RemoteDeveloperFile.Kind) async throws -> [RemoteDeveloperFile]
+    func download(_ item: RemoteDeveloperFile, teamID: String) async throws -> CredentialFile
     func exportCookies() throws -> Data
     func importCookies(_ data: Data) throws
     func cancel()
@@ -73,9 +99,10 @@ final class AppleRedirectPolicy: NSObject, URLSessionTaskDelegate, Sendable {
 final class AppleDeveloperClient: AppleDeveloperTransport {
     private let urlSession: URLSession
     private let client: Client
+    private var csrfHeaders: [String: String] = [:]
+    private(set) var accountIdentity: AppleDeveloperAccount?
 
-    init() {
-        let configuration = URLSessionConfiguration.ephemeral
+    init(configuration: URLSessionConfiguration = .ephemeral) {
         configuration.urlCache = nil
         configuration.timeoutIntervalForRequest = 30
         configuration.timeoutIntervalForResource = 60
@@ -85,21 +112,42 @@ final class AppleDeveloperClient: AppleDeveloperTransport {
     }
 
     func login(account: String, password: String) async throws -> AuthenticationState {
-        try await client.authenticationState(accountName: account, password: password)
+        try await captureIdentity(try await client.authenticationState(accountName: account, password: password))
     }
     func validate() async throws -> AuthenticationState {
-        do { return try await client.validateSession() }
-        catch NetworkError.non200StatusCode(let status, _) {
-            switch status {
-            case 401: throw AppleDeveloperError.loginRequired
-            case 403: throw AppleDeveloperError.permissionDenied
-            case 429: throw AppleDeveloperError.rateLimited
-            default: throw AppleDeveloperError.invalidResponse
-            }
+        accountIdentity = nil
+        let (bytes, response) = try await urlSession.bytes(from: URL(string: "https://appstoreconnect.apple.com/olympus/v1/session")!)
+        guard let response = response as? HTTPURLResponse else { throw AppleDeveloperError.invalidResponse }
+        switch response.statusCode {
+        case 200: break
+        case 401: throw AppleDeveloperError.loginRequired
+        case 403: throw AppleDeveloperError.permissionDenied
+        case 429: throw AppleDeveloperError.rateLimited
+        default: throw AppleDeveloperError.invalidResponse
         }
+        var data = Data()
+        for try await byte in bytes {
+            guard data.count < 1_048_576 else { throw AppleDeveloperError.invalidResponse }
+            data.append(byte)
+        }
+        let session = try JSONDecoder().decode(AppleSession.self, from: data)
+        accountIdentity = try Self.parseAccount(data)
+        return .authenticated(session)
+    }
+    nonisolated static func parseAccount(_ data: Data) throws -> AppleDeveloperAccount {
+        guard data.count <= 1_048_576,
+              let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let user = root["user"] as? [String: Any] else { throw AppleDeveloperError.invalidResponse }
+        let account = AppleDeveloperAccount(email: user["emailAddress"] as? String, name: user["fullName"] as? String)
+        try account.validate()
+        return account
+    }
+    private func captureIdentity(_ state: AuthenticationState) async throws -> AuthenticationState {
+        if case .authenticated = state { return try await validate() }
+        return state
     }
     func submit(code: SecurityCode, session: AppleSessionData) async throws -> AuthenticationState {
-        try await client.submitSecurityCode(code, sessionData: session)
+        try await captureIdentity(try await client.submitSecurityCode(code, sessionData: session))
     }
     func sms(phone: AuthOptionsResponse.TrustedPhoneNumber, options: AuthOptionsResponse, session: AppleSessionData) async throws -> AuthenticationState {
         try await client.requestSMSSecurityCode(to: phone, authOptions: options, sessionData: session)
@@ -128,6 +176,7 @@ final class AppleDeveloperClient: AppleDeveloperTransport {
             guard data.count < 1_048_576 else { throw AppleDeveloperError.invalidResponse }
             data.append(byte)
         }
+        updateCSRF(response)
         return try Self.parseTeams(data)
     }
 
@@ -198,7 +247,15 @@ final class AppleDeveloperClient: AppleDeveloperTransport {
             urlSession.configuration.httpCookieStorage?.setCookie(cookie)
         }
     }
-    func cancel() { urlSession.invalidateAndCancel(); client.signout() }
+    func cancel() { accountIdentity = nil; csrfHeaders = [:]; urlSession.invalidateAndCancel(); client.signout() }
+
+    private func updateCSRF(_ response: HTTPURLResponse) {
+        for name in ["csrf", "csrf_ts"] {
+            if let value = response.value(forHTTPHeaderField: name), value.utf8.count <= 8_192 {
+                csrfHeaders[name] = value
+            }
+        }
+    }
 }
 
 @MainActor
@@ -224,11 +281,11 @@ struct AppleDeveloperSessionStore: AppleSessionStore {
         var result: CFTypeRef?
         let status = SecItemCopyMatching(request as CFDictionary, &result)
         if status == errSecItemNotFound { return nil }
-        guard status == errSecSuccess, let data = result as? Data else { throw AppleDeveloperError.sessionStorage }
+        guard status == errSecSuccess, let data = result as? Data, data.count <= SavedAppleDeveloperSession.maximumBytes else { throw AppleDeveloperError.sessionStorage }
         return data
     }
     func write(_ data: Data) throws {
-        guard data.count <= 262_144 else { throw AppleDeveloperError.sessionStorage }
+        guard data.count <= SavedAppleDeveloperSession.maximumBytes else { throw AppleDeveloperError.sessionStorage }
         let update = [kSecValueData as String: data, kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly] as [String: Any]
         var status = SecItemUpdate(query as CFDictionary, update as CFDictionary)
         if status == errSecItemNotFound {
@@ -251,4 +308,161 @@ final class MemoryAppleSessionStore: AppleSessionStore {
     func read() throws -> Data? { data }
     func write(_ data: Data) throws { self.data = data }
     func delete() throws { data = nil }
+}
+
+struct RemoteDeveloperFile: Identifiable, Equatable, Sendable {
+    enum Kind: String, CaseIterable, Identifiable, Sendable {
+        case certificates, profiles
+        var id: String { rawValue }
+        var title: String { self == .certificates ? "証明書" : "プロファイル" }
+        var contentKey: String { self == .certificates ? "certificateContent" : "profileContent" }
+    }
+    let id: String
+    let kind: Kind
+    let name: String
+    let detail: String
+    let expiresAt: Date?
+    let platform: String
+    var fileName: String {
+        let ext = kind == .certificates ? "cer" : platform == "MAC_OS" ? "provisionprofile" : "mobileprovision"
+        return "\(kind.rawValue)-\(id).\(ext)"
+    }
+}
+
+extension AppleDeveloperClient {
+    func listFiles(teamID: String, kind: RemoteDeveloperFile.Kind) async throws -> [RemoteDeveloperFile] {
+        let fields = kind == .certificates
+            ? "name,displayName,certificateType,expirationDate,platform"
+            : "name,profileType,profileState,expirationDate,platform"
+        var components = URLComponents(string: "https://developer.apple.com/services-account/v1/" + kind.rawValue)!
+        components.queryItems = [URLQueryItem(name: "limit", value: "200"), URLQueryItem(name: "fields[\(kind.rawValue)]", value: fields)]
+        var next = components.url
+        var visited = Set<URL>()
+        var ids = Set<String>()
+        var items: [RemoteDeveloperFile] = []
+        while let url = next {
+            guard visited.count < 100, visited.insert(url).inserted else { throw AppleDeveloperError.invalidResponse }
+            let data = try await provisioningRequest(url: url, teamID: teamID, maximumBytes: 4 * 1_048_576)
+            let page = try Self.parseFilePage(data, kind: kind)
+            for item in page.items {
+                guard ids.insert(item.id).inserted, items.count < 10_000 else { throw AppleDeveloperError.invalidResponse }
+                items.append(item)
+            }
+            next = try page.next.map { try Self.provisioningURL($0, kind: kind) }
+        }
+        return items.sorted { ($0.name, $0.id) < ($1.name, $1.id) }
+    }
+
+    func download(_ item: RemoteDeveloperFile, teamID: String) async throws -> CredentialFile {
+        guard Self.validResourceID(item.id) else { throw AppleDeveloperError.invalidResponse }
+        let url = URL(string: "https://developer.apple.com/services-account/v1/\(item.kind.rawValue)/\(item.id)")!
+        let data = try await provisioningRequest(url: url, teamID: teamID, maximumBytes: 23 * 1_048_576)
+        return try Self.parseDownload(data, item: item)
+    }
+
+    private func provisioningRequest(url: URL, teamID: String, maximumBytes: Int) async throws -> Data {
+        guard teamID.range(of: "^[A-Z0-9]{10}$", options: .regularExpression) != nil,
+              var components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+              components.scheme == "https", components.host == "developer.apple.com",
+              components.path.hasPrefix("/services-account/v1/"), components.user == nil, components.password == nil else {
+            throw AppleDeveloperError.invalidResponse
+        }
+        let query = components.percentEncodedQuery ?? ""
+        components.query = nil
+        var request = URLRequest(url: components.url!)
+        // The Developer web session API proxies read requests through POST.
+        request.httpMethod = "POST"
+        request.setValue("GET", forHTTPHeaderField: "X-HTTP-Method-Override")
+        request.setValue("XMLHttpRequest", forHTTPHeaderField: "X-Requested-With")
+        request.setValue("application/vnd.api+json", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/vnd.api+json", forHTTPHeaderField: "Accept")
+        request.setValue("https://developer.apple.com", forHTTPHeaderField: "Origin")
+        request.setValue("https://developer.apple.com/account/", forHTTPHeaderField: "Referer")
+        for (name, value) in csrfHeaders { request.setValue(value, forHTTPHeaderField: name) }
+        request.httpBody = try JSONSerialization.data(withJSONObject: ["teamId": teamID, "urlEncodedQueryParams": query])
+        let (bytes, response) = try await urlSession.bytes(for: request)
+        guard let http = response as? HTTPURLResponse else { throw AppleDeveloperError.invalidResponse }
+        guard response.expectedContentLength <= maximumBytes else { throw ValidationError.tooLarge }
+        var data = Data()
+        for try await byte in bytes {
+            guard data.count < maximumBytes else { throw ValidationError.tooLarge }
+            data.append(byte)
+            if data.count.isMultiple(of: 65_536) { try Task.checkCancellation(); await Task.yield() }
+        }
+        switch http.statusCode {
+        case 200: updateCSRF(http)
+        case 401: throw AppleDeveloperError.loginRequired
+        case 403:
+            let root = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+            let errors = root?["errors"] as? [[String: Any]] ?? []
+            if errors.contains(where: { $0["code"] as? String == "FORBIDDEN.REQUIRED_AGREEMENTS_MISSING_OR_EXPIRED" }) {
+                throw AppleDeveloperError.agreementRequired
+            }
+            throw AppleDeveloperError.permissionDenied
+        case 429: throw AppleDeveloperError.rateLimited
+        default: throw AppleDeveloperError.invalidResponse
+        }
+        return data
+    }
+
+    nonisolated static func provisioningURL(_ value: String, kind: RemoteDeveloperFile.Kind) throws -> URL {
+        guard var components = URLComponents(string: value), components.scheme == "https",
+              ["developer.apple.com", "api.appstoreconnect.apple.com"].contains(components.host ?? ""),
+              components.user == nil, components.password == nil, components.fragment == nil,
+              components.port == nil || components.port == 443,
+              ["/services-account/v1/" + kind.rawValue, "/v1/" + kind.rawValue].contains(components.path) else {
+            throw AppleDeveloperError.invalidResponse
+        }
+        // Normalize Apple's pagination links back to the cookie-authenticated portal.
+        components.host = "developer.apple.com"
+        components.path = "/services-account/v1/" + kind.rawValue
+        return components.url!
+    }
+
+    nonisolated private static func validResourceID(_ value: String) -> Bool {
+        value.range(of: "^[A-Za-z0-9_-]{1,128}$", options: .regularExpression) != nil
+    }
+
+    nonisolated static func parseFilePage(_ data: Data, kind: RemoteDeveloperFile.Kind) throws -> (items: [RemoteDeveloperFile], next: String?) {
+        guard data.count <= 4 * 1_048_576,
+              let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              root["errors"] == nil, let values = root["data"] as? [[String: Any]], values.count <= 1_000 else {
+            throw AppleDeveloperError.invalidResponse
+        }
+        var ids = Set<String>()
+        let items = try values.map { value -> RemoteDeveloperFile in
+            guard let id = value["id"] as? String, validResourceID(id), ids.insert(id).inserted,
+                  value["type"] as? String == kind.rawValue,
+                  let attributes = value["attributes"] as? [String: Any] else { throw AppleDeveloperError.invalidResponse }
+            let name = (attributes["displayName"] as? String ?? attributes["name"] as? String ?? "\(kind.title) \(id)").trimmingCharacters(in: .whitespacesAndNewlines)
+            let detail = attributes[kind == .certificates ? "certificateType" : "profileType"] as? String ?? ""
+            let platform = attributes["platform"] as? String ?? ""
+            guard !name.isEmpty, name.utf8.count <= 1_024, detail.utf8.count <= 128, platform.utf8.count <= 64 else { throw AppleDeveloperError.invalidResponse }
+            var expiresAt: Date?
+            if let date = attributes["expirationDate"] as? String {
+                let formatter = ISO8601DateFormatter()
+                expiresAt = formatter.date(from: date)
+                if expiresAt == nil { formatter.formatOptions.insert(.withFractionalSeconds); expiresAt = formatter.date(from: date) }
+                guard expiresAt != nil else { throw AppleDeveloperError.invalidResponse }
+            }
+            return RemoteDeveloperFile(id: id, kind: kind, name: name, detail: detail, expiresAt: expiresAt, platform: platform)
+        }
+        let links = root["links"] as? [String: Any]
+        if let next = links?["next"], !(next is NSNull), !(next is String) { throw AppleDeveloperError.invalidResponse }
+        return (items, links?["next"] as? String)
+    }
+
+    nonisolated static func parseDownload(_ data: Data, item: RemoteDeveloperFile) throws -> CredentialFile {
+        guard data.count <= 23 * 1_048_576,
+              let root = try JSONSerialization.jsonObject(with: data) as? [String: Any], root["errors"] == nil,
+              let value = root["data"] as? [String: Any], value["id"] as? String == item.id,
+              value["type"] as? String == item.kind.rawValue,
+              let attributes = value["attributes"] as? [String: Any],
+              let base64 = attributes[item.kind.contentKey] as? String,
+              base64.utf8.count <= ((CredentialParser.maximumBytes + 2) / 3) * 4,
+              let content = Data(base64Encoded: base64), !content.isEmpty, content.count <= CredentialParser.maximumBytes else {
+            throw AppleDeveloperError.invalidResponse
+        }
+        return CredentialFile(data: content, name: item.fileName)
+    }
 }

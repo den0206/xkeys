@@ -5,6 +5,7 @@ import XcodesLoginKit
 struct AppleDeveloperLoginView: View {
     var onTeam: ((RemoteDeveloperTeam) throws -> Void)? = nil
     var onVerified: (() throws -> Void)? = nil
+    var verificationTitle: String
     @Environment(\.dismiss) private var dismiss
     @Query private var registeredTeams: [DeveloperTeam]
     @State private var session: AppleDeveloperSession
@@ -17,9 +18,11 @@ struct AppleDeveloperLoginView: View {
 
     init(onTeam: ((RemoteDeveloperTeam) throws -> Void)? = nil,
          onVerified: (() throws -> Void)? = nil,
-         session: AppleDeveloperSession = .shared) {
+         session: AppleDeveloperSession = .shared,
+         verificationTitle: String = "復元するチームへの所属を確認") {
         self.onTeam = onTeam
         self.onVerified = onVerified
+        self.verificationTitle = verificationTitle
         _session = State(initialValue: session)
     }
 
@@ -29,7 +32,7 @@ struct AppleDeveloperLoginView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text(onTeam == nil ? "復元するチームへの所属を確認" : "チームを追加")
+            Text(onTeam == nil ? verificationTitle : "チームを追加")
                 .font(.system(size: 18, weight: .bold))
             if session.connected {
                 Text(onTeam == nil ? "Apple Developerの所属チーム" : "追加するチームを選択してください")
@@ -71,7 +74,7 @@ struct AppleDeveloperLoginView: View {
                 }
                 Button("ログインからやり直す") { session.useAnotherAccount(); code = ""; error = nil }
             } else {
-                Text("所属チームを取得して登録します。証明書やプロファイルの取り込みは行いません。")
+                Text(onTeam == nil ? "対象チームに所属するApple Accountでログインしてください。" : "所属チームを取得して登録します。証明書やプロファイルの取り込みは行いません。")
                     .foregroundStyle(AppMateStyle.secondary)
                 TextField("Apple Account", text: $account).textContentType(.username)
                 SecureField("パスワード", text: $password).textContentType(.password).onSubmit { login() }

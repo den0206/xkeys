@@ -215,6 +215,99 @@ final class AppMateTests: XCTestCase {
         XCTAssertEqual(try vault.read(record, key: key).original, file.data)
     }
 
+    func testDeveloperFilePagesRejectInvalidMetadataAndUnsafePaginationLinks() throws {
+        let object: [String: Any] = ["data": [["id": "CERT001", "type": "certificates", "attributes": ["name": "Fixture", "certificateType": "DISTRIBUTION", "expirationDate": "2027-01-01T00:00:00.000Z"]]],
+                                     "links": ["next": NSNull()]]
+        let page = try AppleDeveloperClient.parseFilePage(JSONSerialization.data(withJSONObject: object), kind: .certificates)
+        XCTAssertEqual(page.items.count, 1)
+        XCTAssertEqual(page.items[0].id, "CERT001")
+        XCTAssertNotNil(page.items[0].expiresAt)
+        XCTAssertNil(page.next)
+        XCTAssertThrowsError(try AppleDeveloperClient.parseFilePage(JSONSerialization.data(withJSONObject: object), kind: .profiles))
+        for id in ["../escape", "", String(repeating: "a", count: 129)] {
+            let invalid: [String: Any] = ["data": [["id": id, "type": "certificates", "attributes": ["name": "Fixture"]]]]
+            XCTAssertThrowsError(try AppleDeveloperClient.parseFilePage(JSONSerialization.data(withJSONObject: invalid), kind: .certificates))
+        }
+        for link in ["https://example.invalid/v1/certificates", "http://developer.apple.com/services-account/v1/certificates",
+                     "https://developer.apple.com/services-account/v1/profiles", "https://user@developer.apple.com/v1/certificates",
+                     "https://developer.apple.com:444/v1/certificates"] {
+            XCTAssertThrowsError(try AppleDeveloperClient.provisioningURL(link, kind: .certificates))
+        }
+        let normalized = try AppleDeveloperClient.provisioningURL("https://api.appstoreconnect.apple.com/v1/certificates?cursor=NEXT", kind: .certificates)
+        XCTAssertEqual(normalized.host, "developer.apple.com")
+        XCTAssertEqual(normalized.path, "/services-account/v1/certificates")
+        XCTAssertEqual(normalized.query, "cursor=NEXT")
+    }
+
+    @MainActor
+    func testDeveloperFileClientUsesTeamScopedReadProxyAndFollowsPages() async throws {
+        let certificate = try fixture("cer")
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [DeveloperHTTPStub.self]
+        let client = AppleDeveloperClient(configuration: configuration)
+        defer { client.cancel(); DeveloperHTTPStub.handler = nil }
+        DeveloperHTTPStub.handler = { request in
+            XCTAssertEqual(request.url?.host, "developer.apple.com")
+            XCTAssertEqual(request.httpMethod, "POST")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "X-HTTP-Method-Override"), "GET")
+            let body = try XCTUnwrap(JSONSerialization.jsonObject(with: DeveloperHTTPStub.body(request)) as? [String: String])
+            XCTAssertEqual(body["teamId"], "TESTTEAM01")
+            if request.url?.path.hasSuffix("/CERT001") == true {
+                let result: [String: Any] = ["data": ["id": "CERT001", "type": "certificates", "attributes": ["certificateContent": certificate.base64EncodedString()]]]
+                return (200, try JSONSerialization.data(withJSONObject: result))
+            }
+            let second = body["urlEncodedQueryParams"]?.contains("cursor=NEXT") == true
+            if second { XCTAssertEqual(request.value(forHTTPHeaderField: "csrf"), "fixture-csrf") }
+            let id = second ? "CERT002" : "CERT001"
+            let next: Any = second ? NSNull() : "https://developer.apple.com/services-account/v1/certificates?cursor=NEXT"
+            let result: [String: Any] = ["data": [["id": id, "type": "certificates", "attributes": ["name": id]]], "links": ["next": next]]
+            return (200, try JSONSerialization.data(withJSONObject: result))
+        }
+        let items = try await client.listFiles(teamID: "TESTTEAM01", kind: .certificates)
+        XCTAssertEqual(items.map(\.id), ["CERT001", "CERT002"])
+        let file = try await client.download(items[0], teamID: "TESTTEAM01")
+        XCTAssertEqual(file.data, certificate)
+        XCTAssertEqual(file.name, "certificates-CERT001.cer")
+        DeveloperHTTPStub.handler = { _ in (403, Data()) }
+        do { _ = try await client.listFiles(teamID: "TESTTEAM01", kind: .profiles); XCTFail("Access must fail") }
+        catch AppleDeveloperError.permissionDenied { }
+    }
+
+    func testDeveloperDownloadsRejectWrongResourceAndInvalidBase64() throws {
+        let item = RemoteDeveloperFile(id: "PROFILE001", kind: .profiles, name: "Fixture", detail: "IOS_APP_STORE", expiresAt: nil, platform: "IOS")
+        let original = try fixture("mobileprovision")
+        func response(id: String, content: String) throws -> Data {
+            try JSONSerialization.data(withJSONObject: ["data": ["id": id, "type": "profiles", "attributes": ["profileContent": content]]])
+        }
+        let file = try AppleDeveloperClient.parseDownload(response(id: item.id, content: original.base64EncodedString()), item: item)
+        XCTAssertEqual(file.data, original)
+        XCTAssertEqual(try CredentialParser.parse(file.data, extension: "mobileprovision").teamID, "TESTTEAM01")
+        XCTAssertThrowsError(try AppleDeveloperClient.parseDownload(response(id: "OTHER", content: original.base64EncodedString()), item: item))
+        XCTAssertThrowsError(try AppleDeveloperClient.parseDownload(response(id: item.id, content: "!invalid!"), item: item))
+        XCTAssertThrowsError(try AppleDeveloperClient.parseDownload(response(id: item.id, content: ""), item: item))
+    }
+
+    @MainActor
+    func testOnlineImportRequiresMembershipAndRejectsMismatchedCredentialTeam() async throws {
+        let transport = FakeAppleDeveloperTransport()
+        let item = RemoteDeveloperFile(id: "CERT001", kind: .certificates, name: "Fixture", detail: "DISTRIBUTION", expiresAt: nil, platform: "IOS")
+        transport.remoteFiles = [item]
+        transport.downloads[item.id] = CredentialFile(data: try fixture("cer"), name: "fixture.cer")
+        let session = AppleDeveloperSession(store: MemoryAppleSessionStore(), makeTransport: { transport }, observeLock: false)
+        try await session.login(account: "fixture@example.invalid", password: "fixture-only")
+        let files = try await session.listFiles(teamID: "TESTTEAM01", kind: .certificates)
+        XCTAssertEqual(files, [item])
+        let downloaded = try await session.download(files, teamID: "TESTTEAM01")
+        XCTAssertEqual(downloaded.count, 1)
+        do { _ = try await session.listFiles(teamID: "OTHERTEAM1", kind: .certificates); XCTFail("Membership must be required") }
+        catch AppleDeveloperError.teamAccessRequired { }
+        transport.teams = [RemoteDeveloperTeam(teamID: "OTHERTEAM1", name: "Other")]
+        _ = try await session.listFiles(teamID: "OTHERTEAM1", kind: .certificates)
+        do { _ = try await session.download(files, teamID: "OTHERTEAM1"); XCTFail("Team mismatch must fail") }
+        catch VaultError.teamMismatch { }
+        XCTAssertFalse(session.connected)
+    }
+
     @MainActor
     func testTargetsGroupExistingAppsAndRouteProfilesWithoutChangingCredentials() throws {
         let (vault, root, child, other) = try makeVault()
@@ -513,7 +606,11 @@ final class AppMateTests: XCTestCase {
                                 RemoteDeveloperTeam(teamID: "NEWTEAM001", name: "新しいチーム")]
         let loginSession = AppleDeveloperSession(store: MemoryAppleSessionStore(), makeTransport: { loginTransport }, observeLock: false)
         try await loginSession.login(account: "fixture@example.invalid", password: "fixture-only")
+        loginTransport.remoteFiles = [RemoteDeveloperFile(id: "CERT001", kind: .certificates, name: "Apple Distribution", detail: "DISTRIBUTION", expiresAt: .now.addingTimeInterval(86400), platform: "IOS")]
+        let onlineFile = CredentialFile(data: try fixture("cer"), name: "downloaded.cer")
         let screens: [(String, NSSize, AnyView)] = [
+            ("online-import", NSSize(width: 640, height: 520), AnyView(AppleDeveloperImportView(team: team, vault: vault, session: loginSession, onSaved: { _ in }))),
+            ("online-confirm", NSSize(width: 720, height: 620), AnyView(CredentialImportView(app: nil, team: team, vault: vault, existing: [], initialFiles: [onlineFile], onSaved: { _ in }))),
             ("main", NSSize(width: 1232, height: 752), AnyView(CatalogView(container: container, navigation: navigation).modelContainer(container))),
             ("main-narrow", NSSize(width: 960, height: 640), AnyView(CatalogView(container: container, navigation: navigation).modelContainer(container))),
             ("settings", NSSize(width: 852, height: 592), AnyView(AppSettingsView(container: container))),
@@ -2457,7 +2554,14 @@ private final class FakeAppleDeveloperTransport: AppleDeveloperTransport {
     }
     func submit(code: SecurityCode, session: AppleSessionData) async throws -> AuthenticationState { try state }
     func sms(phone: AuthOptionsResponse.TrustedPhoneNumber, options: AuthOptionsResponse, session: AppleSessionData) async throws -> AuthenticationState { try state }
+    var remoteFiles: [RemoteDeveloperFile] = []
+    var downloads: [String: CredentialFile] = [:]
     func listTeams() async throws -> [RemoteDeveloperTeam] { teams }
+    func listFiles(teamID: String, kind: RemoteDeveloperFile.Kind) async throws -> [RemoteDeveloperFile] { remoteFiles }
+    func download(_ item: RemoteDeveloperFile, teamID: String) async throws -> CredentialFile {
+        guard let file = downloads[item.id] else { throw ValidationError.invalidFile }
+        return file
+    }
     func exportCookies() throws -> Data { Data("fixture-cookie".utf8) }
     func importCookies(_ data: Data) throws { imported = true }
     func cancel() { cancelled = true }
@@ -2480,5 +2584,36 @@ private final class FailingAppleSessionStore: AppleSessionStore {
     func delete() throws {
         if failDelete { throw AppleDeveloperError.sessionStorage }
         data = nil
+    }
+}
+
+private final class DeveloperHTTPStub: URLProtocol, @unchecked Sendable {
+    nonisolated(unsafe) static var handler: (@Sendable (URLRequest) throws -> (Int, Data))?
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func startLoading() {
+        do {
+            guard let handler = Self.handler, let url = request.url else { throw URLError(.badURL) }
+            let (status, data) = try handler(request)
+            let response = HTTPURLResponse(url: url, statusCode: status, httpVersion: nil, headerFields: ["Content-Type": "application/json", "csrf": "fixture-csrf", "csrf_ts": "fixture-time"])!
+            client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+            client?.urlProtocol(self, didLoad: data)
+            client?.urlProtocolDidFinishLoading(self)
+        } catch { client?.urlProtocol(self, didFailWithError: error) }
+    }
+    override func stopLoading() { }
+    static func body(_ request: URLRequest) throws -> Data {
+        if let data = request.httpBody { return data }
+        guard let stream = request.httpBodyStream else { return Data() }
+        stream.open(); defer { stream.close() }
+        var data = Data()
+        var buffer = [UInt8](repeating: 0, count: 4096)
+        while stream.hasBytesAvailable {
+            let count = stream.read(&buffer, maxLength: buffer.count)
+            guard count >= 0 else { throw URLError(.cannotDecodeRawData) }
+            if count == 0 { break }
+            data.append(contentsOf: buffer.prefix(count))
+        }
+        return data
     }
 }

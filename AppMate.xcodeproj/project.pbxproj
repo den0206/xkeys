@@ -38,6 +38,7 @@
 		AD1000000000000000000001 /* Services/AppleDeveloperSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD2000000000000000000001; };
 		AD1000000000000000000002 /* Features/AppleDeveloperLoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD2000000000000000000002; };
 		AD3000000000000000000001 /* XcodesLoginKit in Frameworks */ = {isa = PBXBuildFile; productRef = AD3000000000000000000002; };
+		AD1000000000000000000003 /* Features/AppleDeveloperImportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD2000000000000000000003; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -84,6 +85,7 @@
 		AD2000000000000000000000 /* Services/AppleDeveloperClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/AppleDeveloperClient.swift; sourceTree = "<group>"; };
 		AD2000000000000000000001 /* Services/AppleDeveloperSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/AppleDeveloperSession.swift; sourceTree = "<group>"; };
 		AD2000000000000000000002 /* Features/AppleDeveloperLoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/AppleDeveloperLoginView.swift; sourceTree = "<group>"; };
+		AD2000000000000000000003 /* Features/AppleDeveloperImportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/AppleDeveloperImportView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -135,6 +137,7 @@
 		E17E80AD8E2103CF3FC3FD96 /* AppMate */ = {
 			isa = PBXGroup;
 			children = (
+				AD2000000000000000000003 /* Features/AppleDeveloperImportView.swift */,
 				AD2000000000000000000002 /* Features/AppleDeveloperLoginView.swift */,
 				AD2000000000000000000001 /* Services/AppleDeveloperSession.swift */,
 				AD2000000000000000000000 /* Services/AppleDeveloperClient.swift */,
@@ -269,6 +272,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				AD1000000000000000000003 /* Features/AppleDeveloperImportView.swift in Sources */,
 				AD1000000000000000000002 /* Features/AppleDeveloperLoginView.swift in Sources */,
 				AD1000000000000000000001 /* Services/AppleDeveloperSession.swift in Sources */,
 				AD1000000000000000000000 /* Services/AppleDeveloperClient.swift in Sources */,

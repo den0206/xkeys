@@ -3,6 +3,36 @@ import Foundation
 import Observation
 import XcodesLoginKit
 
+struct SavedAppleDeveloperSession: Codable {
+    static let maximumBytes = 266_240
+    let version: Int
+    let cookies: Data
+    let account: AppleDeveloperAccount?
+
+    static func read(_ data: Data) throws -> Self {
+        guard data.count <= maximumBytes else { throw AppleDeveloperError.sessionStorage }
+        if data.starts(with: Data("bplist00".utf8)) {
+            let saved = try PropertyListDecoder().decode(Self.self, from: data)
+            guard saved.version == 1, !saved.cookies.isEmpty, saved.cookies.count <= 262_144 else { throw AppleDeveloperError.sessionStorage }
+            try saved.account?.validate()
+            return saved
+        }
+        // Read the original cookie-only JSON without forcing another login.
+        guard (try? JSONSerialization.jsonObject(with: data)) is [[String: Any]] else { throw AppleDeveloperError.sessionStorage }
+        return Self(version: 1, cookies: data, account: nil)
+    }
+
+    func encoded() throws -> Data {
+        guard version == 1, !cookies.isEmpty, cookies.count <= 262_144 else { throw AppleDeveloperError.sessionStorage }
+        try account?.validate()
+        let encoder = PropertyListEncoder()
+        encoder.outputFormat = .binary
+        let data = try encoder.encode(self)
+        guard data.count <= Self.maximumBytes else { throw AppleDeveloperError.sessionStorage }
+        return data
+    }
+}
+
 @MainActor @Observable
 final class AppleDeveloperSession {
     static let shared = ProcessInfo.processInfo.environment["APP_MATE_TESTING"] == "1"
@@ -10,6 +40,10 @@ final class AppleDeveloperSession {
         : AppleDeveloperSession()
     private(set) var teams: [RemoteDeveloperTeam] = []
     private(set) var authentication: AuthenticationState = .unauthenticated
+    private(set) var currentAccount: AppleDeveloperAccount?
+    private(set) var savedAccount: AppleDeveloperAccount?
+    private(set) var hasSavedSession = false
+    private var pendingAccount: String?
     private(set) var connected = false
     private(set) var busy = false
     private(set) var epoch = UUID()
@@ -42,13 +76,27 @@ final class AppleDeveloperSession {
     private func resetMemory() {
         generation = UUID()
         transport?.cancel(); transport = nil
-        teams = []; authentication = .unauthenticated
+        teams = []; authentication = .unauthenticated; currentAccount = nil; pendingAccount = nil
         connected = false; validatedAt = nil; busy = false
     }
 
     func disconnect() throws {
         suspend()
+        savedAccount = nil; hasSavedSession = false
         try store.delete()
+    }
+
+    func loadSavedAccount() throws {
+        guard !busy, !connected else { return }
+        let saved = try store.read().map(SavedAppleDeveloperSession.read)
+        savedAccount = saved?.account
+        hasSavedSession = saved != nil
+    }
+
+    private func saveSession(_ transport: any AppleDeveloperTransport, account: AppleDeveloperAccount?) throws {
+        let saved = SavedAppleDeveloperSession(version: 1, cookies: try transport.exportCookies(), account: account)
+        try store.write(saved.encoded())
+        savedAccount = account; hasSavedSession = true
     }
 
     func cancelAttempt() {
@@ -64,6 +112,9 @@ final class AppleDeveloperSession {
     func login(account: String, password: String) async throws {
         guard !busy else { throw AppleDeveloperError.busy }
         resetMemory()
+        let name = account.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty, name.utf8.count <= 1_024 else { throw AppleDeveloperError.invalidResponse }
+        pendingAccount = name
         let transport = makeTransport()
         self.transport = transport
         let generation = generation
@@ -86,8 +137,10 @@ final class AppleDeveloperSession {
             if let transport { active = transport }
             else {
                 guard let data = try store.read() else { throw AppleDeveloperError.loginRequired }
+                let saved = try SavedAppleDeveloperSession.read(data)
+                savedAccount = saved.account; hasSavedSession = true
                 active = makeTransport()
-                try active.importCookies(data)
+                try active.importCookies(saved.cookies)
                 transport = active
             }
             let state = try await active.validate()
@@ -122,10 +175,15 @@ final class AppleDeveloperSession {
     private func accept(_ state: AuthenticationState, transport: any AppleDeveloperTransport, generation: UUID) async throws {
         try check(generation)
         switch state {
-        case .authenticated:
+        case .authenticated(let authenticated):
+            let identity = AppleDeveloperAccount(email: transport.accountIdentity?.email ?? pendingAccount ?? savedAccount?.email,
+                                                 name: transport.accountIdentity?.name ?? authenticated.user.fullName)
+            try identity.validate()
             let teams = try await transport.listTeams()
             try check(generation)
-            try store.write(transport.exportCookies())
+            try saveSession(transport, account: identity)
+            currentAccount = identity
+            pendingAccount = nil
             self.teams = teams
             self.authentication = state
             connected = true
@@ -157,12 +215,57 @@ final class AppleDeveloperSession {
         else { expired = false }
         if expired {
             suspend()
+            savedAccount = nil; hasSavedSession = false
             try store.delete()
             throw AppleDeveloperError.loginRequired
         }
         // Never display the library's raw errors; some include server bodies or account details.
-        connected = false; teams = []; validatedAt = nil
+        connected = false; teams = []; currentAccount = nil; validatedAt = nil
         throw error
+    }
+
+    func listFiles(teamID: String, kind: RemoteDeveloperFile.Kind) async throws -> [RemoteDeveloperFile] {
+        try await resume()
+        guard teams.contains(where: { $0.teamID == teamID }), let transport else { throw AppleDeveloperError.teamAccessRequired }
+        guard !busy else { throw AppleDeveloperError.busy }
+        let generation = generation
+        busy = true
+        defer { if generation == self.generation { busy = false } }
+        do {
+            let files = try await transport.listFiles(teamID: teamID, kind: kind)
+            try check(generation)
+            try saveSession(transport, account: currentAccount)
+            return files
+        } catch { try handle(error, generation: generation); throw error }
+    }
+
+    func download(_ items: [RemoteDeveloperFile], teamID: String) async throws -> [CredentialFile] {
+        guard !busy else { throw AppleDeveloperError.busy }
+        guard connected, teams.contains(where: { $0.teamID == teamID }), let transport else { throw AppleDeveloperError.teamAccessRequired }
+        guard !items.isEmpty, items.count <= 200, Set(items.map { $0.kind.rawValue + ":" + $0.id }).count == items.count else { throw AppleDeveloperError.importLimit }
+        let generation = generation
+        busy = true
+        defer { if generation == self.generation { busy = false } }
+        do {
+            var files: [CredentialFile] = []
+            var totalBytes = 0
+            for item in items {
+                try check(generation)
+                let file = try await transport.download(item, teamID: teamID)
+                try check(generation)
+                guard file.data.count <= CredentialParser.maximumBytes else { throw ValidationError.tooLarge }
+                totalBytes += file.data.count
+                guard totalBytes <= 32 * 1_048_576 else { throw AppleDeveloperError.importLimit }
+                let parsed = try await Task.detached(priority: .userInitiated) {
+                    try CredentialParser.parse(file.data, extension: (file.name as NSString).pathExtension)
+                }.value
+                try check(generation)
+                if let sourceTeam = parsed.teamID, sourceTeam != teamID { throw VaultError.teamMismatch }
+                files.append(file)
+            }
+            try saveSession(transport, account: currentAccount)
+            return files
+        } catch { try handle(error, generation: generation); throw error }
     }
 
     func register(_ team: RemoteDeveloperTeam, catalog: AppCatalog) throws -> UUID {
