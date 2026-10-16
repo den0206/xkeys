@@ -653,6 +653,8 @@ final class AppMateTests: XCTestCase {
         XCTAssertNil(root.deletedAt)
         XCTAssertNil(child.deletedAt)
         try management.trash(child, key: key)
+        XCTAssertEqual(root.targets.map(\.id), [root.id])
+        XCTAssertNil(root.target(forProfileBundleID: child.bundleID))
         let childDeletedAt = child.deletedAt
         try management.trash(root, key: key)
         try management.restore(root)
@@ -663,6 +665,49 @@ final class AppMateTests: XCTestCase {
         try management.restore(child)
         XCTAssertNil(child.deletedAt)
         _ = try BackupSnapshot.capture(vault: vault, key: key)
+    }
+
+    @MainActor
+    func testTargetDeletionValidatesProfilesAndRestoresRegistrationTogether() throws {
+        let (vault, target, parent, _) = try makeVault()
+        defer { try? FileManager.default.removeItem(at: vault.blobs.directory) }
+        try AppCatalog(context: vault.context).setParent(parent.id, for: target, name: target.name, platform: target.platform)
+        let key = SymmetricKey(size: .bits256)
+        for ext in ["mobileprovision", "cer"] {
+            let file = CredentialFile(data: try fixture(ext), name: "sample." + ext)
+            _ = try vault.importFile(file, parsed: CredentialParser.parse(file.data, extension: ext), app: target,
+                                     password: nil, confirmUnknownTeam: true, key: key)
+        }
+        let records = try vault.records()
+        let profile = try XCTUnwrap(records.first { !$0.isTeamShared })
+        let shared = try XCTUnwrap(records.first { $0.isTeamShared })
+        let aad = try profile.authenticatedData()
+        let original = try vault.read(profile, key: key).original
+        let blob = vault.blobs.file(profile.blobID ?? profile.id)
+        let bytes = try Data(contentsOf: blob)
+        let history = try vault.context.fetchCount(FetchDescriptor<BackupChange>())
+        let manager = VaultManagement(vault: vault)
+        try Data([0]).write(to: blob)
+        XCTAssertThrowsError(try manager.trash(target, key: key))
+        XCTAssertNil(target.deletedAt)
+        XCTAssertNil(profile.deletedAt)
+        XCTAssertEqual(try vault.context.fetchCount(FetchDescriptor<BackupChange>()), history)
+        try bytes.write(to: blob)
+        let now = Date.now
+        try manager.trash(target, key: key, at: now)
+        XCTAssertEqual(target.deletedAt, now)
+        XCTAssertEqual(profile.deletedAt, now)
+        XCTAssertNil(parent.deletedAt)
+        XCTAssertNil(shared.deletedAt)
+        XCTAssertEqual(parent.targets.map(\.id), [parent.id])
+        XCTAssertEqual(try vault.context.fetchCount(FetchDescriptor<BackupChange>()), history + 1)
+        XCTAssertThrowsError(try manager.restore(profile))
+        try manager.restore(target)
+        XCTAssertNil(target.deletedAt)
+        XCTAssertNil(profile.deletedAt)
+        XCTAssertTrue(parent.targets.contains { $0.id == target.id })
+        XCTAssertEqual(try profile.authenticatedData(), aad)
+        XCTAssertEqual(try vault.read(profile, key: key).original, original)
     }
 
     @MainActor
@@ -775,6 +820,9 @@ final class AppMateTests: XCTestCase {
         _ = try vault.importFile(file, parsed: CredentialParser.parse(file.data, extension: "cer"), app: app, password: nil, confirmUnknownTeam: true, key: key)
         let identity = CredentialFile(data: try fixture("p12"), name: "sample.p12")
         _ = try vault.importFile(identity, parsed: CredentialParser.parse(identity.data, extension: "p12", password: "fixture-only"), app: app, password: nil, confirmUnknownTeam: false, key: key)
+        let profile = CredentialFile(data: try fixture("mobileprovision"), name: "sample.mobileprovision")
+        _ = try vault.importFile(profile, parsed: CredentialParser.parse(profile.data, extension: "mobileprovision"), app: app,
+                                 password: nil, confirmUnknownTeam: false, key: key)
         let catalog = AppCatalog(context: vault.context)
         try catalog.setParent(nil, for: app, name: "Example App Store", platform: app.platform)
         try catalog.setParent(app.id, for: child, name: "Example Share App Store Extension", platform: child.platform)
@@ -875,6 +923,7 @@ final class AppMateTests: XCTestCase {
             ("ci-copy", NSSize(width: 560, height: 520), AnyView(CICopyView(vault: vault, record: try XCTUnwrap(sample)))),
             ("import", NSSize(width: 680, height: 640), AnyView(CredentialImportView(app: app, team: team, vault: vault, onSaved: { _ in }))),
             ("p8-metadata", NSSize(width: 860, height: 640), AnyView(CredentialImportView(app: app, team: team, vault: vault, initialSources: [importURL], onSaved: { _ in }))),
+            ("target-delete", NSSize(width: 548, height: 520), AnyView(TargetDeleteConfirmation(target: app, records: try vault.records(), onDelete: {}))),
             ("delete", NSSize(width: 460, height: 380), AnyView(CredentialDeleteConfirmation(record: try XCTUnwrap(sample), onDelete: {}))),
             ("trash", NSSize(width: 996, height: 700), AnyView(TrashView(vault: vault)))
         ]

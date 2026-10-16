@@ -68,6 +68,7 @@ struct CatalogEditor: View {
     @State private var iconImage: Data?
     @State private var error: String?
     @State private var deleting = false
+    @Query private var records: [StoredCredential]
     @State private var access = VaultAccess()
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
@@ -119,20 +120,22 @@ struct CatalogEditor: View {
                 iconColor = app?.iconColor
                 iconImage = app?.iconImage
             }
-            .confirmationDialog("Appと配下のターゲット・専用ファイルを最近削除した項目へ移しますか？", isPresented: $deleting, titleVisibility: .visible) {
-                Button("認証して削除", role: .destructive) {
-                    guard let app else { return }
-                    Task { @MainActor in
-                        do {
-                            let create = try vault.canCreateKey()
-                            try await access.withKey(reason: "登録を削除します", allowCreation: create, vault: vault) { key in
-                                try VaultManagement(vault: vault).trash(app, key: key)
-                            }
-                            dismiss()
-                        } catch { self.error = error.localizedDescription }
+            .sheet(isPresented: $deleting) {
+                if let app {
+                    TargetDeleteConfirmation(target: app, records: records) {
+                        deleting = false
+                        Task { @MainActor in
+                            do {
+                                let create = try vault.canCreateKey()
+                                try await access.withKey(reason: "登録と配下のプロファイルを削除します", allowCreation: create, vault: vault) { key in
+                                    try VaultManagement(vault: vault).trash(app, key: key)
+                                }
+                                dismiss()
+                            } catch { self.error = error.localizedDescription }
+                        }
                     }
                 }
-            } message: { Text("チームの鍵・証明書は残します。Appは30日間復元できます。") }
+            }
             .onDisappear { access.lock() }
     }
 }
@@ -340,8 +343,9 @@ struct TrashView: View {
                 ScrollView {
                     VStack(spacing: 0) {
                         ForEach(deletedApps) { app in
-                            let profiles = records.filter { record in record.deletedAt != nil && app.targets.contains { record.app?.id == $0.id } }.count
-                            let targets = app.targets.count - 1
+                            let includedApps = [app] + (app.parentAppID == nil ? deletedApps.filter { $0.parentAppID == app.id && $0.deletedAt == app.deletedAt } : [])
+                            let profiles = records.filter { record in record.deletedAt == app.deletedAt && includedApps.contains { record.app?.id == $0.id } }.count
+                            let targets = includedApps.count - 1
                             trashRow(app.name, detail: "アプリ" + (targets > 0 || profiles > 0 ? "（ターゲット \(targets)・プロファイル \(profiles) を含む）" : "") + " · " + (app.team?.name ?? ""),
                                      deletedAt: app.deletedAt!) {
                                 perform { _ in try VaultManagement(vault: vault).restore(app) }
@@ -394,6 +398,47 @@ struct TrashView: View {
 }
 
 
+struct TargetDeleteConfirmation: View {
+    let target: ManagedApp
+    let records: [StoredCredential]
+    let onDelete: () -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    private var targets: [ManagedApp] { target.parentAppID == nil ? target.targets : [target] }
+    private var profiles: [StoredCredential] {
+        records.filter { record in
+            record.deletedAt == nil && !record.isTeamShared && targets.contains { record.app?.id == $0.id }
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("「\(target.name)」と配下のプロファイルを削除しますか？").font(.headline)
+            Text(target.parentAppID == nil ? "本体と配下の全ターゲット \(targets.count)件、プロファイル \(profiles.count)件が対象です。" : "ターゲット登録とプロファイル \(profiles.count)件が対象です。")
+            ScrollView {
+                VStack(alignment: .leading, spacing: 10) {
+                    ForEach(targets) { item in
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(item.name).fontWeight(.semibold)
+                            Text(item.bundleID).font(.caption.monospaced()).foregroundStyle(.secondary)
+                            ForEach(profiles.filter { $0.app?.id == item.id }) { record in
+                                Text("・" + record.name).font(.caption)
+                            }
+                        }
+                    }
+                }.frame(maxWidth: .infinity, alignment: .leading)
+            }.frame(maxHeight: 240)
+            Text("「最近削除した項目」へまとめて移し、30日間はまとめて復元できます。チーム共有の鍵・証明書、元ファイル、Apple側の登録やCI設定は変更しません。")
+                .foregroundStyle(.secondary)
+            HStack {
+                Button("キャンセル") { dismiss() }.keyboardShortcut(.cancelAction)
+                Spacer()
+                Button("認証してまとめて削除", role: .destructive, action: onDelete)
+            }.buttonStyle(AppMateButtonStyle())
+        }.font(.system(size: 13)).padding(24).frame(width: 500).background(AppMateStyle.canvas)
+    }
+}
+
 struct CredentialDeleteConfirmation: View {
     let record: StoredCredential
     let onDelete: () -> Void
@@ -416,7 +461,7 @@ struct CredentialDeleteConfirmation: View {
                     .font(.system(size: 13)).padding(12).frame(maxWidth: .infinity, alignment: .leading)
                     .background(AppMateStyle.sidebar, in: RoundedRectangle(cornerRadius: 10))
             }
-            Text("\(record.isTeamShared ? "チームの鍵・証明書の一覧から外れます。" : "このアプリの専用ファイルを削除します。")Apple側の鍵やCIの設定は変更しません。30日間は元に戻せます。")
+            Text("\(record.isTeamShared ? "チームの鍵・証明書の一覧から外れます。" : "このプロファイルだけを削除し、アプリ・ターゲット登録は残します。")Apple側の鍵やCIの設定は変更しません。30日間は元に戻せます。")
                 .font(.system(size: 12)).foregroundStyle(AppMateStyle.secondary)
             HStack(spacing: 8) {
                 Spacer()
@@ -455,6 +500,9 @@ struct CredentialBatchDeleteConfirmation: View {
             if records.contains(where: { ["p8", "p12"].contains($0.fileExtension) }) {
                 Label("鍵を再取得できない場合があります。ほかに控えがあることを確認してください。", systemImage: "exclamationmark.triangle")
                     .foregroundStyle(AppMateStyle.dangerText)
+            }
+            if records.contains(where: { $0.app != nil }) {
+                Text("ファイルだけを削除し、アプリ・ターゲット登録は残します。")
             }
             Text("「最近削除した項目」へ移し、30日間は復元できます。元ファイル・Apple側の鍵・CIの設定は変更しません。")
                 .foregroundStyle(.secondary)

@@ -94,17 +94,22 @@ struct CredentialAppView: View {
     @State private var editingNote = false
     @State private var editingPurposes = false
     @State private var editingApp = false
+    @State private var editingTarget: ManagedApp?
     @State private var addingTarget = false
     @State private var targetFilter: UUID?
     @State private var copyingCI = false
-    @State private var deleting = false
+    @State private var deletingRecord: StoredCredential?
     @State private var selectingForDeletion = false
     @State private var checkedIDs: Set<UUID> = []
-    @State private var deletionTargets: [StoredCredential] = []
-    @State private var deletingBatch = false
-    @State private var deletingApp = false
+    @State private var batchDeletion: BatchDeletion?
+    @State private var deletingTarget: ManagedApp?
     @State private var showingRenewalGuide = false
     @State private var revealedAt = Date.distantPast
+
+    private struct BatchDeletion: Identifiable {
+        let id = UUID()
+        let records: [StoredCredential]
+    }
 
     /// Everything on this page, before the target filter. Attention counts use this, so they stay app-wide.
     private var scoped: [StoredCredential] {
@@ -146,28 +151,30 @@ struct CredentialAppView: View {
             }
         }
         .sheet(isPresented: $editingApp) { CatalogEditor(vault: vault, team: nil, app: app) }
+        .sheet(item: $editingTarget) { target in CatalogEditor(vault: vault, team: nil, app: target) }
         .sheet(isPresented: $copyingCI) { if let record = selectedRecord { CICopyView(vault: vault, record: record) } }
-        .sheet(isPresented: $deleting) {
-            if let record = selectedRecord {
-                CredentialDeleteConfirmation(record: record) {
-                    deleting = false
-                    trash(record)
-                }
+        .sheet(item: $deletingRecord) { record in
+            CredentialDeleteConfirmation(record: record) {
+                deletingRecord = nil
+                trash(record)
             }
         }
-        .sheet(isPresented: $deletingBatch) {
-            CredentialBatchDeleteConfirmation(records: deletionTargets) {
-                deletingBatch = false
-                deleteBatch(deletionTargets)
+        .sheet(item: $deletingTarget) { target in
+            TargetDeleteConfirmation(target: target, records: records) {
+                deletingTarget = nil
+                deleteTarget(target)
             }
+        }
+        .sheet(item: $batchDeletion) { deletion in
+            CredentialBatchDeleteConfirmation(records: deletion.records) {
+                batchDeletion = nil
+                deleteBatch(deletion.records)
+            }
+        }
+        .onChange(of: app?.targets.map(\.id)) { _, ids in
+            if let targetFilter, ids?.contains(targetFilter) != true { self.targetFilter = nil }
         }
         .onChange(of: visible.map(\.id)) { _, ids in checkedIDs.formIntersection(Set(ids)) }
-        .confirmationDialog(app.map { "「\($0.name)」を削除しますか？" } ?? "アプリを削除しますか？", isPresented: $deletingApp, titleVisibility: .visible) {
-            Button("認証してアプリを削除", role: .destructive) { deleteApp() }
-            Button("キャンセル", role: .cancel) {}
-        } message: {
-            Text("アプリと配下のターゲット・専用プロファイルを「最近削除した項目」へ移します。30日間は復元できます。チームで共有する鍵・証明書は残ります。")
-        }
         .task {
             do {
                 try vault.recover()
@@ -186,7 +193,7 @@ struct CredentialAppView: View {
         .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.willSleepNotification)) { _ in lock() }
         .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.sessionDidResignActiveNotification)) { _ in lock() }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didResignActiveNotification)) { _ in
-            if !access.busy && !access.presentingPanel && !editingNote && !editingPurposes && !copyingCI && !editingApp { lock(dismissImport: false) }
+            if !access.busy && !access.presentingPanel && !editingNote && !editingPurposes && !copyingCI && !editingApp && editingTarget == nil { lock(dismissImport: false) }
         }
     }
 
@@ -197,8 +204,12 @@ struct CredentialAppView: View {
                 if let app, app.parentAppID == nil, app.targets.count > 1, !CredentialSearch.hasQuery(search) { targetFilterBar(app) }
                 attentionBanner
                 if selectingForDeletion { deletionBar }
-                if visible.isEmpty {
-                    emptyState
+                if let app, !CredentialSearch.hasQuery(search), typeFilter == .all {
+                    ForEach((app.parentAppID == nil ? app.targets : [app]).filter { targetFilter == nil || $0.id == targetFilter }) { target in
+                        targetSection(target)
+                    }
+                } else if visible.isEmpty {
+                    emptyState.frame(maxWidth: .infinity)
                 } else {
                     ForEach(CredentialGroup.allCases.filter { group in visible.contains { CredentialGroup($0) == group } }, id: \.self) { group in
                         let items = visible.filter { CredentialGroup($0) == group }
@@ -291,7 +302,7 @@ struct CredentialAppView: View {
                     .buttonStyle(AppMateButtonStyle(compact: true)).disabled(access.busy)
             }
             Menu {
-                Button("鍵・ファイルを一括削除…") {
+                Button("ファイルだけを一括削除…") {
                     selectingForDeletion = true
                     checkedIDs = []
                 }.disabled(visible.isEmpty || access.busy)
@@ -299,7 +310,7 @@ struct CredentialAppView: View {
                     Divider()
                     Button("ターゲットを追加…") { addingTarget = true }
                     Button("アプリを編集…") { editingApp = true }
-                    Button("アプリを削除…", role: .destructive) { deletingApp = true }.disabled(access.busy)
+                    Button("アプリを削除…", role: .destructive) { deletingTarget = app }.disabled(access.busy)
                 }
             } label: { Image(systemName: "ellipsis") }
                 .menuStyle(.borderlessButton).menuIndicator(.hidden)
@@ -311,7 +322,14 @@ struct CredentialAppView: View {
     private func targetFilterBar(_ app: ManagedApp) -> some View {
         HStack(spacing: 6) {
             targetChip("すべて", id: nil)
-            ForEach(app.targets) { target in targetChip(target.id == app.id ? "本体" : target.name, id: target.id) }
+            ForEach(app.targets) { target in
+                targetChip(target.id == app.id ? "本体" : target.name, id: target.id)
+                    .contextMenu {
+                        if target.id != app.id {
+                            Button("ターゲットを編集…") { editingTarget = target }
+                        }
+                    }
+            }
         }.accessibilityElement(children: .contain).accessibilityLabel("ターゲットで絞り込む")
     }
 
@@ -373,8 +391,7 @@ struct CredentialAppView: View {
             Spacer()
             Button("キャンセル") { selectingForDeletion = false; checkedIDs = [] }
             Button("削除…", role: .destructive) {
-                deletionTargets = checkedRecords
-                deletingBatch = true
+                batchDeletion = BatchDeletion(records: checkedRecords)
             }.disabled(checkedRecords.isEmpty)
         }.buttonStyle(AppMateButtonStyle(compact: true)).disabled(access.busy)
     }
@@ -417,6 +434,34 @@ struct CredentialAppView: View {
         }.buttonStyle(.plain)
     }
 
+    private func targetSection(_ target: ManagedApp) -> some View {
+        let profiles = visible.filter { $0.app?.id == target.id }
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 10) {
+                AppIcon(app: target.product, size: 28)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(target.name + (target.parentAppID == nil ? "（本体）" : "")).fontWeight(.semibold)
+                    Text(target.bundleID).font(.caption.monospaced()).foregroundStyle(AppMateStyle.secondary)
+                }
+                Spacer()
+                Text("プロファイル \(profiles.count)件").foregroundStyle(AppMateStyle.secondary)
+                Menu {
+                    Button("編集…") { editingTarget = target }
+                    Button(target.parentAppID == nil ? "アプリと全ターゲットを削除…" : "ターゲットとプロファイルを削除…", role: .destructive) {
+                        deletingTarget = target
+                    }
+                } label: { Image(systemName: "ellipsis") }
+                    .menuStyle(.borderlessButton).menuIndicator(.hidden).frame(width: 28)
+                    .accessibilityLabel(target.name + "の操作").disabled(access.busy)
+            }.padding(.vertical, 8)
+            if profiles.isEmpty {
+                Text("プロファイルはまだありません").foregroundStyle(AppMateStyle.secondary).padding(.vertical, 8)
+            } else {
+                ForEach(profiles) { row($0) }
+            }
+        }
+    }
+
     private func row(_ record: StoredCredential) -> some View {
         let state = record.displayState(at: clock)
         let certificatesExpired = CredentialGroup(record) == .profile && record.signingCertificatesExpired(in: records, at: clock)
@@ -455,10 +500,13 @@ struct CredentialAppView: View {
         .accessibilityAddTraits(isSelected ? [.isSelected, .isButton] : .isButton)
         .accessibilityAction { selected = isSelected ? nil : record.id }
         .contextMenu {
-            Button("削除…", role: .destructive) {
-                selected = record.id
-                deleting = true
-            }.disabled(access.busy)
+            if let owner = record.app {
+                Button(owner.parentAppID == nil ? "アプリと全ターゲットを削除…" : "ターゲットとプロファイルを削除…", role: .destructive) {
+                    deletingTarget = owner
+                }.disabled(access.busy)
+            } else {
+                Button("削除…", role: .destructive) { deletingRecord = record }.disabled(access.busy)
+            }
         }
     }
 
@@ -524,7 +572,7 @@ struct CredentialAppView: View {
                 }
                 Button("メモを表示…") { editingNote = true }
                 Divider()
-                Button("削除…", role: .destructive) { deleting = true }
+                Button(record.app == nil ? "削除…" : "このプロファイルだけを削除…", role: .destructive) { deletingRecord = record }
             } label: { Image(systemName: "ellipsis") }
                 .menuStyle(.borderlessButton).menuIndicator(.hidden).frame(width: 28, height: 24)
                 .accessibilityLabel("ほかの操作")
@@ -572,12 +620,11 @@ struct CredentialAppView: View {
     // Discards selections and revealed values on sleep, screen lock and view changes; every secret operation authenticates anew.
     private func lock(dismissImport: Bool = true) {
         access.lock()
-        deleting = false
-        deletingBatch = false
+        deletingRecord = nil
+        batchDeletion = nil
         selectingForDeletion = false
         checkedIDs = []
-        deletionTargets = []
-        deletingApp = false
+        deletingTarget = nil
         showingRenewalGuide = false
         editingPurposes = false
         if dismissImport { importing = false; onlineImporting = false }
@@ -631,17 +678,15 @@ struct CredentialAppView: View {
                 if targets.contains(where: { $0.id == selected }) { selected = nil }
                 status = "\(targets.count)件を最近削除した項目へ移しました。30日間は復元できます。"
             } catch { self.error = error.localizedDescription }
-            deletionTargets = []
         }
     }
 
-    private func deleteApp() {
-        guard let app else { return }
+    private func deleteTarget(_ target: ManagedApp) {
         Task { @MainActor in
             do {
                 let create = try vault.canCreateKey()
-                try await access.withKey(reason: "登録済みアプリを削除します", allowCreation: create, vault: vault) { key in
-                    try VaultManagement(vault: vault).trash(app, key: key)
+                try await access.withKey(reason: "登録と配下のプロファイルを削除します", allowCreation: create, vault: vault) { key in
+                    try VaultManagement(vault: vault).trash(target, key: key)
                 }
             } catch { self.error = error.localizedDescription }
         }
