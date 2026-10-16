@@ -140,8 +140,8 @@ struct BackupSnapshot: Codable, Sendable, Equatable {
             iconBytes += bytes
             guard bytes <= 1_048_576, iconBytes <= BackupArchive.maximumPayloadBytes / 4, app.iconColor.map(AppCatalog.iconColors.contains) ?? true else { throw BackupError.tooLarge }
             guard teamIDs.contains(app.team), !app.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-                  app.bundleID.range(of: "^[A-Za-z0-9-]+(?:\\.[A-Za-z0-9-]+)*$", options: .regularExpression) != nil,
-                  ["iOS", "macOS", "iPadOS", "watchOS", "tvOS", "visionOS"].contains(app.platform),
+                  app.bundleID.range(of: AppCatalog.bundleIDPattern, options: .regularExpression) != nil,
+                  AppCatalog.platforms.contains(app.platform),
                   appKeys.insert(app.team.uuidString + ":" + app.bundleID.lowercased()).inserted else { throw BackupError.invalid }
         }
         for app in apps {

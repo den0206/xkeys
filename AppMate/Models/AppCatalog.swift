@@ -79,7 +79,8 @@ enum RegistrationError: LocalizedError {
 @MainActor
 struct AppCatalog {
     nonisolated static let iconColors = ["purple", "orange", "green", "blue"]
-    static let platforms = ["iOS", "macOS", "iPadOS", "watchOS", "tvOS", "visionOS"]
+    nonisolated static let platforms = ["iOS", "macOS", "iPadOS", "watchOS", "tvOS", "visionOS"]
+    nonisolated static let bundleIDPattern = "^[A-Za-z0-9-]+(?:\\.[A-Za-z0-9-]+)*$"
     let context: ModelContext
 
     func registerRemoteTeam(_ remote: RemoteDeveloperTeam) throws -> UUID {
@@ -117,7 +118,7 @@ struct AppCatalog {
         let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
         let bundleID = bundleID.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty else { throw RegistrationError.nameRequired }
-        guard bundleID.range(of: "^[A-Za-z0-9-]+(?:\\.[A-Za-z0-9-]+)*$", options: .regularExpression) != nil else {
+        guard bundleID.range(of: Self.bundleIDPattern, options: .regularExpression) != nil else {
             throw RegistrationError.invalidBundleID
         }
         guard Self.platforms.contains(platform) else { throw RegistrationError.invalidPlatform }

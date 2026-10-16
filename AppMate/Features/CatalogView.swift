@@ -88,7 +88,7 @@ struct CatalogView: View {
         .background(AppMateStyle.canvas)
         .foregroundStyle(AppMateStyle.text)
         .background(Button("横断検索へ移動") { searchFocused = true }.keyboardShortcut("f").hidden().accessibilityHidden(true))
-        .tint(Color(red: 10 / 255, green: 100 / 255, blue: 214 / 255))
+        .tint(AppMateStyle.accent)
         .task {
             loadHistory()
             do { try VaultManagement(vault: CredentialVault(context: container.mainContext, blobs: EncryptedBlobStore(directory: CredentialVault.directory))).pruneExpired() }
