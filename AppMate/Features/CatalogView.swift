@@ -59,6 +59,11 @@ struct CatalogView: View {
     private var sidebarApps: [ManagedApp] {
         rootApps.flatMap { collapsedApps.contains($0.id) ? [$0] : $0.targets }
     }
+    private var pendingBackupCount: Int {
+        guard historyError == nil, let checkpoint = checkpoints.first else { return 0 }
+        return BackupHistorySummary(changes: changes, checkpoint: checkpoint,
+                                    hasStoredItems: !apps.isEmpty || !credentials.isEmpty).pendingCount
+    }
     private var active: [StoredCredential] { credentials.filter { $0.replacedByID == nil && $0.deletedAt == nil && $0.app?.deletedAt == nil } }
 
     var body: some View {
@@ -154,9 +159,36 @@ struct CatalogView: View {
                 }
                 Divider()
                 Menu("チームを編集…") { ForEach(teams) { team in Button(team.name) { editingTeam = team } } }
-                Button("バックアップから復元…") { restoringBackup = true }
             } label: { Image(systemName: "line.3.horizontal.decrease") }
                 .menuStyle(.borderlessButton).frame(width: 24).help("種類で絞り込む・チームを管理")
+            Menu {
+                if let historyError {
+                    Text(historyError)
+                    Button("変更状態を再確認", action: loadHistory)
+                } else if let checkpoint = checkpoints.first {
+                    let history = BackupHistorySummary(changes: changes, checkpoint: checkpoint, hasStoredItems: !apps.isEmpty || !credentials.isEmpty)
+                    Text(history.pendingCount > 0 ? "未バックアップの変更：\(history.pendingCount)件" : "未バックアップの変更はありません")
+                    if let date = history.lastCompletedAt {
+                        Text("前回：" + date.formatted(date: .abbreviated, time: .shortened))
+                    }
+                } else { Text("バックアップ状態を確認中…") }
+                Divider()
+                Button("今すぐバックアップ…") { creatingBackup = true }
+                Button("バックアップから復元…") { restoringBackup = true }
+            } label: {
+                Label("バックアップ", systemImage: "externaldrive")
+            }.menuStyle(.borderlessButton).fixedSize()
+                .overlay(alignment: .topTrailing) {
+                    if pendingBackupCount > 0 {
+                        Text(pendingBackupCount.formatted())
+                            .font(.system(size: 10, weight: .bold)).monospacedDigit()
+                            .foregroundStyle(.white).padding(.horizontal, 5).frame(minWidth: 18, minHeight: 18)
+                            .background(AppMateStyle.danger, in: Capsule())
+                            .offset(x: 8, y: -10).allowsHitTesting(false).accessibilityHidden(true)
+                    }
+                }
+                .padding(.trailing, pendingBackupCount > 0 ? 8 : 0)
+                .accessibilityLabel(pendingBackupCount > 0 ? "バックアップ、未バックアップの変更が\(pendingBackupCount)件" : "バックアップ")
             Button("ファイルを追加", systemImage: "plus") { addingFile = true }
                 .buttonStyle(AppMateButtonStyle(primary: true))
                 .disabled(credentialTeam == nil || CredentialSearch.hasQuery(search))
@@ -208,23 +240,6 @@ struct CatalogView: View {
                 let index = scopes.firstIndex { $0 == selection } ?? (direction == .down ? -1 : scopes.count)
                 selection = scopes[min(max(index + (direction == .down ? 1 : -1), 0), scopes.count - 1)]
             }
-            VStack(alignment: .leading, spacing: 8) {
-                if let historyError {
-                    Text(historyError).foregroundStyle(AppMateStyle.dangerText)
-                    Button("変更状態を再確認", action: loadHistory)
-                } else if let checkpoint = checkpoints.first {
-                    let history = BackupHistorySummary(changes: changes, checkpoint: checkpoint, hasStoredItems: !apps.isEmpty || !credentials.isEmpty)
-                    Text(history.pendingCount > 0 ? "バックアップしていない変更が \(history.pendingCount)件 あります" : "未バックアップの変更はありません").fontWeight(.medium)
-                    if let date = history.lastCompletedAt {
-                        Text("前回：" + date.formatted(date: .abbreviated, time: .shortened)).font(.system(size: 11)).foregroundStyle(AppMateStyle.secondary)
-                    }
-                } else { Text("バックアップ状態を確認中…") }
-                Button { creatingBackup = true } label: { Text("今すぐバックアップ").frame(maxWidth: .infinity) }
-                    .buttonStyle(AppMateButtonStyle())
-            }.font(.system(size: 12)).padding(12)
-                .background(AppMateStyle.canvas, in: RoundedRectangle(cornerRadius: 10))
-                .overlay(RoundedRectangle(cornerRadius: 10).stroke(AppMateStyle.border, lineWidth: 1))
-                .padding(14)
             VStack(spacing: 8) {
                 Divider().padding(.bottom, 4)
                 Button { addingApp = true } label: {
