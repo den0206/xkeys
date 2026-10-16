@@ -470,14 +470,28 @@ struct P8PurposeToggles: View {
     @Binding var purposes: Set<P8Purpose>
 
     var body: some View {
-        LazyVGrid(columns: [GridItem(.flexible(), alignment: .leading), GridItem(.flexible(), alignment: .leading)], alignment: .leading, spacing: 6) {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 8)], alignment: .leading, spacing: 8) {
             ForEach(P8Purpose.allCases, id: \.self) { item in
-                Toggle(item.title, isOn: Binding(get: { purposes.contains(item) }, set: { on in
+                let on = purposes.contains(item)
+                Button {
                     // App Store Connect keys are issued separately and never carry Developer key services.
-                    if !on { purposes.remove(item) }
+                    if on { purposes.remove(item) }
                     else if item == .appStoreConnect { purposes = [item] }
                     else { purposes.remove(.appStoreConnect); purposes.insert(item) }
-                })).toggleStyle(.checkbox)
+                } label: {
+                    HStack(spacing: 10) {
+                        Image(systemName: item.symbol).font(.system(size: 17)).foregroundStyle(item.tint).frame(width: 22)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(item.shortTitle).fontWeight(.semibold)
+                            Text(item == .appStoreConnect ? "単独でのみ選べます" : item.title).font(.system(size: 11)).foregroundStyle(AppMateStyle.secondary)
+                        }
+                        Spacer(minLength: 0)
+                        if on { Image(systemName: "checkmark.circle.fill").foregroundStyle(AppMateStyle.accent) }
+                    }.padding(.horizontal, 12).frame(height: 56).contentShape(Rectangle())
+                        .background(on ? AppMateStyle.selectedRow : AppMateStyle.canvas, in: RoundedRectangle(cornerRadius: 10))
+                        .overlay(RoundedRectangle(cornerRadius: 10).stroke(on ? AppMateStyle.accent : AppMateStyle.border, lineWidth: on ? 1.5 : 1))
+                }.buttonStyle(.plain)
+                    .accessibilityLabel(item.title).accessibilityAddTraits(on ? .isSelected : [])
             }
         }
     }

@@ -670,8 +670,42 @@ struct CredentialImportView: View {
     @State private var parseID = UUID()
     @State private var lastActivity = Date.now
     @State private var error: String?
+    @State private var showingPassword = false
+    /// Files checked so far. They are saved together after one authentication at the end.
+    @State private var pending: [PendingImport] = []
 
-    private var finished: Bool { currentName.isEmpty && queue.isEmpty && memoryQueue.isEmpty && !completedItems.isEmpty }
+    private struct PendingImport {
+        let file: CredentialFile
+        let parsed: ParsedCredential
+        let app: ManagedApp?
+        let password: String?
+        let confirmed: Bool
+        let p8: P8Metadata?
+    }
+
+    private var finished: Bool { currentName.isEmpty && queue.isEmpty && memoryQueue.isEmpty && pending.isEmpty && !completedItems.isEmpty }
+    private var readyToCommit: Bool { currentName.isEmpty && queue.isEmpty && memoryQueue.isEmpty && !pending.isEmpty }
+    private var isLastItem: Bool { queue.isEmpty && memoryQueue.isEmpty }
+    private var needsPassword: Bool { file.map { $0.requiresPasswordEntry && candidates.isEmpty } ?? false }
+    private var showsQueue: Bool { !currentName.isEmpty || !pending.isEmpty || !completedItems.isEmpty }
+
+    private var headline: String {
+        if finished { return "ファイルの追加が終わりました" }
+        if readyToCommit { return "\(pending.count)件の確認が終わりました" }
+        if file == nil { return currentName.isEmpty ? "ファイルを追加" : "読み取っています…" }
+        if needsPassword { return ".p12 のパスワードを入力してください" }
+        if isP8 { return "この鍵の用途を選んでください" }
+        if unregisteredBundle != nil { return "どのアプリのプロファイルですか？" }
+        return "内容を確認してください"
+    }
+
+    private var subheadline: String {
+        if finished { return "元のファイルは変更していません。" }
+        if readyToCommit { return "Touch ID で確認すると、まとめて暗号化して保存します。" }
+        if needsPassword { return ".p12 を書き出したときに決めたパスワードです。設定していない場合は空欄のまま「読み取る」を押します。" }
+        if isP8 { return ".p8 のファイルには用途が書かれていません。Apple Developer の鍵のページにある「Enabled Services」と同じものを選びます。" }
+        return "追加先：\(team.name)"
+    }
     private var parsed: ParsedCredential? { candidates.indices.contains(selected) ? candidates[selected] : nil }
     private var isP8: Bool { file.map { ($0.name as NSString).pathExtension.lowercased() == "p8" } ?? false }
     private var p8: P8Metadata? {
@@ -710,10 +744,14 @@ struct CredentialImportView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text(finished ? "ファイルの処理が完了しました" : isP8 ? ".p8の情報を入力" : currentName.isEmpty ? "ファイルを追加" : "\(completedItems.count + queue.count + 1)件のファイルを追加します")
-                .font(.system(size: 18, weight: .bold))
-            Text(finished ? "処理結果を確認して閉じてください。元ファイルは変更していません。" : "内容と保管先を確認してください。チーム：\(team.name)").foregroundStyle(AppMateStyle.secondary)
+        VStack(alignment: .leading, spacing: 0) {
+          HStack(alignment: .top, spacing: 0) {
+            if showsQueue { queueList }
+            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(headline).font(.system(size: 18, weight: .bold))
+                Text(subheadline).foregroundStyle(AppMateStyle.secondary).fixedSize(horizontal: false, vertical: true)
+            }
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     if finished {
@@ -722,7 +760,7 @@ struct CredentialImportView: View {
                         ForEach(Array(completedItems.enumerated()), id: \.offset) { _, result in
                             Text(result).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading)
                         }
-                    } else if file == nil {
+                    } else if file == nil && !readyToCommit && currentName.isEmpty {
                     Button(action: chooseFile) {
                         VStack(spacing: 10) {
                             Image(systemName: "square.and.arrow.down").font(.system(size: 24))
@@ -734,50 +772,23 @@ struct CredentialImportView: View {
                     }.buttonStyle(.plain).foregroundStyle(AppMateStyle.accent)
                     Text(".cer・.p12・.p8・.mobileprovision・.provisionprofile、各16MB以下。複数ファイルやフォルダをドロップできます。1件ずつ解析と所属を確認して取り込みます。")
                         .font(.caption).foregroundStyle(.secondary)
-                    } else {
-                        HStack {
-                            Text(currentName).font(.system(size: 12, design: .monospaced))
-                            Spacer()
-                            Button("ファイルを選び直す…", action: chooseFile).buttonStyle(.borderless).foregroundStyle(AppMateStyle.accent)
-                        }
                     }
-                    if !finished && !completedItems.isEmpty {
-                        DisclosureGroup("処理結果 \(completedItems.count)件・残り \(queue.count + memoryQueue.count + (currentName.isEmpty ? 0 : 1))件") {
-                            ForEach(Array(completedItems.enumerated()), id: \.offset) { _, result in Text(result).font(.caption) }
+                    if needsPassword {
+                        HStack(spacing: 8) {
+                            HStack(spacing: 4) {
+                                Group {
+                                    if showingPassword { TextField(".p12 のパスワード", text: $password) }
+                                    else { SecureField(".p12 のパスワード", text: $password) }
+                                }.textFieldStyle(.plain).focused($passwordFocused).onSubmit(parsePKCS12)
+                                Button { showingPassword.toggle(); passwordFocused = true } label: {
+                                    Image(systemName: showingPassword ? "eye.slash" : "eye").frame(width: 24, height: 24)
+                                }.buttonStyle(.plain).foregroundStyle(AppMateStyle.secondary)
+                                    .help(showingPassword ? "パスワードを隠す" : "パスワードを表示")
+                                    .accessibilityLabel(showingPassword ? "パスワードを隠す" : "パスワードを表示")
+                            }.padding(.leading, 10).padding(.trailing, 4).frame(width: 320, height: 34)
+                                .overlay(RoundedRectangle(cornerRadius: 8).stroke(error == nil ? AppMateStyle.accent : AppMateStyle.danger, lineWidth: 1.5))
+                            Button("読み取る", action: parsePKCS12)
                         }
-                    }
-                    if let file, !isP8 {
-                        VStack(spacing: 0) {
-                            HStack {
-                                Text("ファイル").frame(maxWidth: .infinity, alignment: .leading)
-                                Text("種類").frame(width: 100, alignment: .leading)
-                                Text("期限").frame(width: 100, alignment: .leading)
-                                Text("追加先").frame(width: 100, alignment: .leading)
-                            }.font(.system(size: 12)).foregroundStyle(AppMateStyle.secondary).padding(.vertical, 8)
-                            Divider()
-                            HStack(alignment: .top) {
-                                Text(file.name).font(.system(size: 12, design: .monospaced)).frame(maxWidth: .infinity, alignment: .leading)
-                                Text(parsed?.kind ?? "確認中").frame(width: 100, alignment: .leading)
-                                Text(parsed?.expiresAt?.formatted(.dateTime.year().month(.twoDigits).day(.twoDigits)) ?? "なし・未確認").frame(width: 100, alignment: .leading)
-                                Text(parsed?.bundleID == nil ? "チーム：" + team.name : importApp?.name ?? "アプリを選択").foregroundStyle(AppMateStyle.accent).frame(width: 100, alignment: .leading)
-                            }.padding(.vertical, 10)
-                            Divider()
-                            ForEach(queue, id: \.self) { url in
-                                HStack {
-                                    Text(url.lastPathComponent).font(.system(size: 12, design: .monospaced)).frame(maxWidth: .infinity, alignment: .leading)
-                                    Text("次に確認").foregroundStyle(AppMateStyle.secondary)
-                                }.padding(.vertical, 10)
-                                Divider()
-                            }
-                        }
-                    }
-                    if let file, file.requiresPasswordEntry, candidates.isEmpty {
-                        SecureField("この.p12のパスワード", text: $password)
-                            .textFieldStyle(.roundedBorder).focused($passwordFocused)
-                            .onSubmit(parsePKCS12)
-                        Text("パスワードが設定されていない場合は空欄のまま解析してください。")
-                            .font(.caption).foregroundStyle(.secondary)
-                        Button("パスワードを使って解析", action: parsePKCS12)
                     }
                     if candidates.count > 1 {
                         Picker("証明書", selection: $selected) {
@@ -855,24 +866,34 @@ struct CredentialImportView: View {
                 return true
             }
             .disabled(reading || access.busy)
+            }.padding(.horizontal, 26).padding(.vertical, 22)
+          }.frame(maxHeight: .infinity, alignment: .top)
             Divider()
             HStack(spacing: 10) {
                 if !finished {
                     Button("キャンセル") { access.lock(); dismiss() }.keyboardShortcut(.cancelAction)
-                    if !currentName.isEmpty {
-                        Button("スキップ") { completedItems.append("スキップ：" + currentName + (error.map { " · " + $0 } ?? "")); next() }
-                    }
                     Spacer()
-                    Button("認証して取り込む", action: save).keyboardShortcut(.defaultAction).buttonStyle(AppMateButtonStyle(primary: true))
-                        .disabled(reading || access.busy || parsed == nil || validationIssue != nil)
+                    if !currentName.isEmpty {
+                        Button("このファイルを飛ばす") { completedItems.append("スキップ：" + currentName + (error.map { " · " + $0 } ?? "")); next() }
+                            .buttonStyle(.plain).foregroundStyle(AppMateStyle.secondary).disabled(access.busy)
+                    }
+                    if readyToCommit {
+                        Button { commit() } label: { Label("Touch ID で \(pending.count)件を追加", systemImage: "touchid") }
+                            .keyboardShortcut(.defaultAction).buttonStyle(AppMateButtonStyle(primary: true)).disabled(access.busy)
+                    } else {
+                        Button(action: confirmCurrent) {
+                            if isLastItem { Label("Touch ID で \(pending.count + 1)件を追加", systemImage: "touchid") } else { Text("次へ") }
+                        }.keyboardShortcut(.defaultAction).buttonStyle(AppMateButtonStyle(primary: true))
+                            .disabled(reading || access.busy || parsed == nil || validationIssue != nil)
+                    }
                 } else {
                     Spacer()
                     Button("閉じる") { access.lock(); dismiss() }
                         .keyboardShortcut(.defaultAction).buttonStyle(AppMateButtonStyle(primary: true))
                 }
-            }
+            }.padding(.horizontal, 26).padding(.top, 14)
         }
-        .padding(.horizontal, 26).padding(.vertical, 24).frame(width: isP8 ? 600 : 720, height: 620)
+        .padding(.bottom, 14).padding(.horizontal, 0).frame(width: showsQueue ? 860 : 680, height: 640)
         .font(.system(size: 13)).buttonStyle(AppMateButtonStyle()).background(AppMateStyle.canvas).tint(AppMateStyle.accent)
         .sheet(isPresented: $addingTarget) {
             if let bundle = unregisteredBundle {
@@ -900,11 +921,11 @@ struct CredentialImportView: View {
         .onChange(of: issuerID) { _, _ in lastActivity = .now }
         .onChange(of: confirmUnknownTeam) { _, _ in lastActivity = .now }
         .onChange(of: savePassword) { _, _ in lastActivity = .now }
-        .onChange(of: access.generation) { _, _ in clear() }
+        .onChange(of: access.generation) { _, _ in clear(); pending = [] }
         .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { _ in
             if Date.now.timeIntervalSince(lastActivity) >= 300 { access.lock(); dismiss() }
         }
-        .onDisappear { memoryQueue = []; clear(); releaseSources(); access.lock() }
+        .onDisappear { memoryQueue = []; pending = []; clear(); releaseSources(); access.lock() }
     }
 
     private func clear() {
@@ -919,6 +940,7 @@ struct CredentialImportView: View {
         purposes = []
         keyID = ""
         issuerID = ""
+        showingPassword = false
     }
 
     private func chooseFile() {
@@ -954,7 +976,10 @@ struct CredentialImportView: View {
             return
         }
         guard !queue.isEmpty else {
-            currentName = ""; releaseSources()
+            currentName = ""
+            // All files are checked: authenticate once and save them together.
+            if !pending.isEmpty { commit(); return }
+            releaseSources()
             if let lastSavedID { onSaved(lastSavedID); self.lastSavedID = nil }
             return
         }
@@ -1023,29 +1048,87 @@ struct CredentialImportView: View {
         }
     }
 
-    private func save() {
+    /// Validates the current file and keeps it for the final save. Nothing is written yet.
+    private func confirmCurrent() {
         guard let file, let parsed else { return }
         error = nil
         lastActivity = .now
-        let password = savePassword ? parsedPassword : nil
-        let destination = importApp
-        let confirmed = confirmUnknownTeam
-        let metadata = p8
+        let item = PendingImport(file: file, parsed: parsed, app: importApp, password: savePassword ? parsedPassword : nil,
+                                 confirmed: confirmUnknownTeam, p8: p8)
+        do {
+            try vault.validate(file: item.file, parsed: item.parsed, app: item.app, team: team, confirmUnknownTeam: item.confirmed, p8: item.p8)
+            pending.append(item)
+            next()
+        } catch { self.error = error.localizedDescription }
+    }
+
+    /// One authentication for every checked file. Each file is saved on its own, so one failure keeps the others.
+    private func commit() {
+        let items = pending
+        guard !items.isEmpty else { return }
+        error = nil
+        lastActivity = .now
         Task { @MainActor in
             do {
-                try vault.validate(file: file, parsed: parsed, app: destination, team: team, confirmUnknownTeam: confirmed, p8: metadata)
                 let canCreate = try vault.canCreateKey()
-                let id = try await access.withKey(reason: "資格情報を暗号化して保存します", allowCreation: canCreate, vault: vault) { key in
-                    try vault.importFile(file, parsed: parsed, app: destination, team: team, password: password, confirmUnknownTeam: confirmed, key: key, p8: metadata)
+                try await access.withKey(reason: "\(items.count)件の資格情報を暗号化して保存します", allowCreation: canCreate, vault: vault) { key in
+                    for item in items {
+                        do {
+                            lastSavedID = try vault.importFile(item.file, parsed: item.parsed, app: item.app, team: team, password: item.password,
+                                                               confirmUnknownTeam: item.confirmed, key: key, p8: item.p8)
+                            completedItems.append("保存済み：" + item.file.name)
+                        } catch {
+                            completedItems.append("保存できませんでした：" + item.file.name + " · " + error.localizedDescription)
+                        }
+                    }
                 }
-                lastSavedID = id
-                completedItems.append("保存済み：" + file.name)
-                next()
+                pending = []
+                releaseSources()
+                if let lastSavedID { onSaved(lastSavedID); self.lastSavedID = nil }
             } catch {
-                parsedPassword = ""
-                if file.requiresPasswordEntry { candidates = []; selected = -1; passwordFocused = true }
+                // Authentication was cancelled or failed: keep the checked files so the user can try again.
                 self.error = error.localizedDescription
             }
         }
+    }
+
+    private var queueList: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text("\(pending.count + completedItems.count + queue.count + memoryQueue.count + (currentName.isEmpty ? 0 : 1))件のファイル")
+                .font(.system(size: 12, weight: .semibold)).foregroundStyle(AppMateStyle.secondary).padding(.horizontal, 8).padding(.bottom, 8)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 2) {
+                    ForEach(Array(completedItems.enumerated()), id: \.offset) { _, item in
+                        let saved = item.hasPrefix("保存済み：")
+                        queueRow(item.split(separator: "：", maxSplits: 1).last.map(String.init) ?? item,
+                                 symbol: saved ? "checkmark.circle" : item.hasPrefix("スキップ：") ? "minus.circle" : "exclamationmark.circle",
+                                 tint: saved ? AppMateStyle.successText : item.hasPrefix("スキップ：") ? AppMateStyle.tertiary : AppMateStyle.dangerText, current: false)
+                    }
+                    ForEach(Array(pending.enumerated()), id: \.offset) { _, item in
+                        queueRow(item.file.name, symbol: "checkmark.circle", tint: AppMateStyle.accent, current: false)
+                    }
+                    if !currentName.isEmpty { queueRow(currentName, symbol: "smallcircle.filled.circle", tint: AppMateStyle.accent, current: true) }
+                    ForEach(Array(memoryQueue.enumerated()), id: \.offset) { _, item in queueRow(item.name, symbol: "circle", tint: AppMateStyle.tertiary, current: false) }
+                    ForEach(queue, id: \.self) { url in queueRow(url.lastPathComponent, symbol: "circle", tint: AppMateStyle.tertiary, current: false) }
+                }
+            }
+        }.padding(.horizontal, 12).padding(.vertical, 20).frame(width: 250).frame(maxHeight: .infinity, alignment: .top)
+            .background(AppMateStyle.sidebar)
+            .overlay(alignment: .trailing) { Rectangle().fill(AppMateStyle.rowBorder).frame(width: 1) }
+    }
+
+    private func queueRow(_ name: String, symbol: String, tint: Color, current: Bool) -> some View {
+        let ext = (name as NSString).pathExtension.lowercased()
+        let kind = ext == "p8" ? "鍵（.p8）" : ["cer", "p12"].contains(ext) ? "証明書" : "プロファイル"
+        return HStack(spacing: 10) {
+            Image(systemName: symbol).foregroundStyle(tint)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(kind).fontWeight(current ? .semibold : .regular)
+                Text(name).font(.system(size: 11)).foregroundStyle(AppMateStyle.secondary).lineLimit(1).truncationMode(.middle)
+            }
+        }.padding(8).frame(maxWidth: .infinity, alignment: .leading)
+            .background(current ? AppMateStyle.selection : .clear, in: RoundedRectangle(cornerRadius: 8))
+            .overlay(RoundedRectangle(cornerRadius: 8).stroke(current ? AppMateStyle.selectionBorder : .clear))
+            .accessibilityElement(children: .combine)
     }
 }
