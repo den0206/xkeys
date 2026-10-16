@@ -2554,6 +2554,52 @@ final class AppMateTests: XCTestCase {
         XCTAssertEqual(value.expiresAt, Date(timeIntervalSince1970: 1_893_456_000))
     }
 
+    func testProfileParsesEmbeddedCertificateDigestsInOrder() throws {
+        let sha = { (data: Data) in SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined() }
+        let value = try CredentialParser.parse(fixture("mobileprovision", name: "certs"), extension: "mobileprovision")
+        XCTAssertEqual(value.signingCertificateDigests, [sha(try fixture("cer")), sha(try fixture("cer", name: "renewed"))])
+        XCTAssertEqual(try CredentialParser.parse(fixture("mobileprovision"), extension: "mobileprovision").signingCertificateDigests, [])
+        XCTAssertNil(try CredentialParser.parse(fixture("cer"), extension: "cer").signingCertificateDigests)
+    }
+
+    @MainActor
+    func testBackfillReadsProfileCertificatesWithoutChangingAADOrBackupHistory() throws {
+        let (vault, app, _, _) = try makeVault()
+        let key = SymmetricKey(size: .bits256)
+        let file = CredentialFile(data: try fixture("mobileprovision", name: "certs"), name: "certs.mobileprovision")
+        _ = try vault.importFile(file, parsed: CredentialParser.parse(file.data, extension: "mobileprovision"), app: app, password: nil, confirmUnknownTeam: true, key: key)
+        let record = try XCTUnwrap(vault.records().first)
+        let expected = try XCTUnwrap(record.signingCertificateDigests)
+        XCTAssertEqual(expected.split(separator: ",").count, 2)
+        let aad = try record.authenticatedData()
+        // Simulate a profile stored before the field existed.
+        record.signingCertificateDigests = nil
+        try vault.context.save()
+        let history = try vault.context.fetchCount(FetchDescriptor<BackupChange>())
+
+        try VaultManagement(vault: vault).backfillSigningCertificates(key: key)
+        XCTAssertEqual(record.signingCertificateDigests, expected)
+        XCTAssertEqual(try record.authenticatedData(), aad)
+        XCTAssertEqual(try vault.read(record, key: key).original, file.data)
+        XCTAssertEqual(try vault.context.fetchCount(FetchDescriptor<BackupChange>()), history)
+        XCTAssertEqual(try BackupSnapshot.capture(vault: vault, key: key).credentials.count, 1)
+    }
+
+    @MainActor
+    func testBackfillMarksUnreadableProfileOnceAndKeepsOtherProfiles() throws {
+        let (vault, app, _, _) = try makeVault()
+        let key = SymmetricKey(size: .bits256)
+        let file = CredentialFile(data: try fixture("mobileprovision", name: "certs"), name: "certs.mobileprovision")
+        _ = try vault.importFile(file, parsed: CredentialParser.parse(file.data, extension: "mobileprovision"), app: app, password: nil, confirmUnknownTeam: true, key: key)
+        let record = try XCTUnwrap(vault.records().first)
+        record.signingCertificateDigests = nil
+        try vault.context.save()
+        // A different key cannot decrypt the blob: the profile is marked "" and is not retried.
+        try VaultManagement(vault: vault).backfillSigningCertificates(key: SymmetricKey(size: .bits256))
+        XCTAssertEqual(record.signingCertificateDigests, "")
+        XCTAssertEqual(try vault.read(record, key: key).original, file.data)
+    }
+
     func testProfileTamperAndUnsignedPlistRejected() throws {
         let data = try fixture("mobileprovision")
         var bytes = data

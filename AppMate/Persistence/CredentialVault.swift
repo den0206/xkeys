@@ -88,6 +88,8 @@ final class StoredCredential {
     var issuerID: String?
     var replacesCredentialID: UUID?
     var replacedByID: UUID?
+    // Derived from the profile file. Kept out of the AAD and backups; nil means "not read yet".
+    var signingCertificateDigests: String?
 
     init(file: CredentialFile, parsed: ParsedCredential, app: ManagedApp?, team: DeveloperTeam, savePassword: Bool, p8: P8Metadata? = nil) {
         let ext = (file.name as NSString).pathExtension.lowercased()
@@ -113,6 +115,7 @@ final class StoredCredential {
         keyPurpose = p8?.storedPurpose
         keyID = p8?.keyID
         issuerID = p8?.issuerID
+        signingCertificateDigests = parsed.signingCertificateDigests?.joined(separator: ",")
     }
 
     init(restoring value: BackupSnapshot.Credential, team: DeveloperTeam, app: ManagedApp?) {
@@ -345,7 +348,12 @@ final class VaultAccess {
             key = try EncryptionKeychain.vault.key(context: context, allowCreation: allowCreation)
         }
         guard self.generation == generation, !Task.isCancelled else { throw VaultError.cancelled }
-        if let vault { try VaultManagement(vault: vault).pruneExpired(key: key) }
+        if let vault {
+            let management = VaultManagement(vault: vault)
+            try management.pruneExpired(key: key)
+            // Display-only metadata: a failure here must not block the requested operation.
+            try? management.backfillSigningCertificates(key: key)
+        }
         return try operation(key)
     }
 }

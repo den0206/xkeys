@@ -211,6 +211,20 @@ struct VaultManagement {
     func pruneExpired(key: SymmetricKey? = nil) throws {
         try purge(records: vault.records(), apps: context.fetch(FetchDescriptor<ManagedApp>()), expiredOnly: true, key: key)
     }
+
+    /// Reads embedded certificates of profiles stored before this field existed (or restored from a backup).
+    /// Not a user change, so it is not recorded in the backup history.
+    func backfillSigningCertificates(key: SymmetricKey) throws {
+        guard !context.hasChanges else { return }
+        let pending = try vault.records().filter { $0.signingCertificateDigests == nil && ["mobileprovision", "provisionprofile"].contains($0.fileExtension) }
+        guard !pending.isEmpty else { return }
+        for record in pending {
+            // An unreadable file gets "" (no links shown) so it is not decrypted again on every authentication.
+            let parsed = try? CredentialParser.parse(vault.read(record, key: key).original, extension: record.fileExtension)
+            record.signingCertificateDigests = parsed?.signingCertificateDigests?.joined(separator: ",") ?? ""
+        }
+        do { try context.save() } catch { context.rollback(); throw error }
+    }
 }
 
 enum ManagementError: LocalizedError {

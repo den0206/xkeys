@@ -12,6 +12,8 @@ struct ParsedCredential: Equatable, Sendable {
     let teamID: String?
     let bundleID: String?
     let expiresAt: Date?
+    /// SHA-256 of each certificate embedded in a profile; nil for other kinds.
+    var signingCertificateDigests: [String]? = nil
 }
 
 enum ValidationError: LocalizedError {
@@ -103,8 +105,12 @@ struct CredentialParser {
         guard identifier.hasPrefix(prefix + "."), identifier.count > prefix.count + 1 else {
             throw ValidationError.invalidFile
         }
+        let certificates = plist["DeveloperCertificates"] as? [Data] ?? []
+        guard certificates.count <= 100 else { throw ValidationError.invalidFile }
+        let digests = certificates.map { SHA256.hash(data: $0).map { String(format: "%02x", $0) }.joined() }
         return ParsedCredential(name: name, kind: "プロファイル", teamID: team,
-                                bundleID: String(identifier.dropFirst(prefix.count + 1)), expiresAt: expiry)
+                                bundleID: String(identifier.dropFirst(prefix.count + 1)), expiresAt: expiry,
+                                signingCertificateDigests: digests)
     }
 
     private static func pkcs12(_ data: Data, password: String) throws -> [ParsedCredential] {
