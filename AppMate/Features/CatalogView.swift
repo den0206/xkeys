@@ -210,8 +210,8 @@ struct CatalogView: View {
                     Text(historyError).foregroundStyle(AppMateStyle.dangerText)
                     Button("変更状態を再確認", action: loadHistory)
                 } else if let checkpoint = checkpoints.first {
-                    let history = BackupHistorySummary(changes: changes, checkpoint: checkpoint)
-                    Text("バックアップしていない変更が \(history.pendingCount)件 あります").fontWeight(.medium)
+                    let history = BackupHistorySummary(changes: changes, checkpoint: checkpoint, hasStoredItems: !apps.isEmpty || !credentials.isEmpty)
+                    Text(history.pendingCount > 0 ? "バックアップしていない変更が \(history.pendingCount)件 あります" : "未バックアップの変更はありません").fontWeight(.medium)
                     if let date = history.lastCompletedAt {
                         Text("前回：" + date.formatted(date: .abbreviated, time: .shortened)).font(.system(size: 11)).foregroundStyle(AppMateStyle.secondary)
                     }

@@ -17,6 +17,7 @@ final class AppNavigation {
 struct AppMateMenu: View {
     let navigation: AppNavigation
     @Environment(\.openWindow) private var openWindow
+    @Query private var apps: [ManagedApp]
     @Query private var records: [StoredCredential]
     @Query private var changes: [BackupChange]
     @Query private var checkpoints: [BackupCheckpoint]
@@ -31,7 +32,7 @@ struct AppMateMenu: View {
                 Button("すべての鍵とファイル \(summary.total)件") { show(.all) }
                 Divider()
                 if let checkpoint = checkpoints.first {
-                    let history = BackupHistorySummary(changes: changes, checkpoint: checkpoint)
+                    let history = BackupHistorySummary(changes: changes, checkpoint: checkpoint, hasStoredItems: !apps.isEmpty || !records.isEmpty)
                     Text("未バックアップの変更 \(history.pendingCount)件").font(.caption).foregroundStyle(.secondary)
                 }
                 Text("アプリの実行中に表示します。終了中の常駐・自動起動は行いません。")

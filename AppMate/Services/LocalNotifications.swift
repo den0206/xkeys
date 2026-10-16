@@ -74,9 +74,10 @@ enum NotificationPlanner {
             let now = Date.now
             var plans = active.flatMap { record in record.expiresAt.map { NotificationPlanner.expiry(id: record.id, expiresAt: $0, days: prefs.expirationDays, now: now) } ?? [] }
             let checkpoint = try context.fetch(FetchDescriptor<BackupCheckpoint>()).first
+            let history = BackupHistorySummary(changes: changes, checkpoint: checkpoint, hasStoredItems: try BackupHistory.hasStoredItems(in: context))
             var reminder: UUID?
             var preserved: [UNNotificationRequest] = []
-            if let days = prefs.backupReminderDays, let oldest = changes.min(by: { $0.createdAt == $1.createdAt ? $0.id.uuidString < $1.id.uuidString : $0.createdAt < $1.createdAt }) {
+            if history.pendingCount > 0, let days = prefs.backupReminderDays, let oldest = changes.min(by: { $0.createdAt == $1.createdAt ? $0.id.uuidString < $1.id.uuidString : $0.createdAt < $1.createdAt }) {
                 let id = "AppMate.backup.\(oldest.id)"
                 if let plan = NotificationPlanner.reminder(period: oldest.id, oldest: oldest.createdAt, days: days, queuedPeriod: checkpoint?.reminderPeriod, queuedAt: checkpoint?.reminderScheduledAt, now: now) {
                     plans.append(plan)

@@ -768,7 +768,42 @@ final class AppMateTests: XCTestCase {
     @MainActor
     private func backupHistory(_ context: ModelContext) throws -> BackupHistorySummary {
         BackupHistorySummary(changes: try context.fetch(FetchDescriptor<BackupChange>()),
-                             checkpoint: try context.fetch(FetchDescriptor<BackupCheckpoint>()).first)
+                             checkpoint: try context.fetch(FetchDescriptor<BackupCheckpoint>()).first,
+                             hasStoredItems: try BackupHistory.hasStoredItems(in: context))
+    }
+
+    @MainActor
+    func testEmptyCatalogDoesNotShowHistoricalChangesAsPendingBackup() throws {
+        let container = try ModelContainer(for: DeveloperTeam.self, ManagedApp.self, StoredCredential.self, BackupChange.self, BackupCheckpoint.self,
+                                           configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let context = ModelContext(container)
+        try BackupHistory.bootstrap(in: context)
+        context.insert(BackupChange(count: 4))
+        try context.save()
+        XCTAssertEqual(try backupHistory(context).pendingCount, 0)
+        XCTAssertNil(try backupHistory(context).oldestChange)
+        // Custom settings still need a backup even without catalog items.
+        var prefs = AppPreferences()
+        prefs.showMenuBar = false
+        try PreferencesStore.save(prefs, in: context)
+        XCTAssertEqual(try backupHistory(context).pendingCount, 5)
+        XCTAssertNotNil(try backupHistory(context).oldestChange)
+        try PreferencesStore.save(AppPreferences(), in: context)
+        XCTAssertEqual(try backupHistory(context).pendingCount, 0)
+        // A leftover team alone does not prompt for backup; trashed apps still do.
+        let team = DeveloperTeam(name: "Team", teamID: "TESTTEAM01")
+        context.insert(team)
+        try context.save()
+        XCTAssertEqual(try backupHistory(context).pendingCount, 0)
+        let app = ManagedApp(name: "Deleted", bundleID: "com.example.deleted", platform: "macOS", team: team)
+        app.deletedAt = .now
+        context.insert(app)
+        try context.save()
+        XCTAssertGreaterThan(try backupHistory(context).pendingCount, 0)
+        context.delete(app)
+        context.delete(team)
+        try context.save()
+        XCTAssertEqual(try backupHistory(context).pendingCount, 0)
     }
 
     @MainActor

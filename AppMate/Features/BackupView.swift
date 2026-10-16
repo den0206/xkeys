@@ -34,7 +34,7 @@ struct BackupView: View {
     private var vault: CredentialVault {
         CredentialVault(context: container.mainContext, blobs: EncryptedBlobStore(directory: CredentialVault.directory))
     }
-    private var history: BackupHistorySummary { BackupHistorySummary(changes: changes, checkpoint: checkpoints.first) }
+    private var history: BackupHistorySummary { BackupHistorySummary(changes: changes, checkpoint: checkpoints.first, hasStoredItems: !apps.isEmpty || !credentials.isEmpty) }
     private var canSave: Bool {
         !working && (!selectedOnly || !selectedApps.isEmpty) && (!protected || (password.count >= 6 && password.utf8.count <= 1024 && password == confirmation))
     }

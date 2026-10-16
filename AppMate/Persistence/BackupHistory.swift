@@ -36,15 +36,24 @@ struct BackupHistorySummary {
     let oldestChange: Date?
     let lastCompletedAt: Date?
 
-    init(changes: [BackupChange], checkpoint: BackupCheckpoint?) {
-        pendingCount = changes.reduce(0) { $0 + $1.count }
-        oldestChange = changes.map(\.createdAt).min()
+    init(changes: [BackupChange], checkpoint: BackupCheckpoint?, hasStoredItems: Bool) {
+        let hasCustomPreferences = checkpoint?.preferencesData.map {
+            (try? JSONDecoder().decode(AppPreferences.self, from: $0)) != AppPreferences()
+        } ?? false
+        let needsBackup = hasStoredItems || hasCustomPreferences
+        pendingCount = needsBackup ? changes.reduce(0) { $0 + $1.count } : 0
+        oldestChange = needsBackup ? changes.map(\.createdAt).min() : nil
         lastCompletedAt = checkpoint?.lastCompletedAt
     }
 }
 
 @MainActor
 enum BackupHistory {
+    static func hasStoredItems(in context: ModelContext) throws -> Bool {
+        try context.fetchCount(FetchDescriptor<ManagedApp>()) > 0
+            || context.fetchCount(FetchDescriptor<StoredCredential>()) > 0
+    }
+
     // Called before a mutation; its inserts are committed or rolled back with that mutation.
     static func prepare(in context: ModelContext, at date: Date = .now) throws {
         guard try context.fetch(FetchDescriptor<BackupCheckpoint>()).isEmpty else { return }
