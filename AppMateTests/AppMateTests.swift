@@ -598,6 +598,41 @@ final class AppMateTests: XCTestCase {
     }
 
     @MainActor
+    func testWholeReplaceIntoEmptyVaultNeedsNoSafetyBackup() throws {
+        let (source, app, _, _) = try makeVault()
+        let key = SymmetricKey(size: .bits256)
+        let file = p8File()
+        _ = try source.importFile(file, parsed: CredentialParser.parse(file.data, extension: "p8"), app: app,
+                                  password: nil, confirmUnknownTeam: true, key: key,
+                                  p8: P8Metadata(purpose: .apns, keyID: "DUMMYKEY01", issuerID: nil))
+        let snapshot = try BackupSnapshot.capture(vault: source, key: key)
+        let container = try ModelContainer(for: DeveloperTeam.self, ManagedApp.self, StoredCredential.self, BackupChange.self, BackupCheckpoint.self,
+                                           configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("AppMateTests/" + UUID().uuidString)
+        defer {
+            try? FileManager.default.removeItem(at: source.blobs.directory)
+            try? FileManager.default.removeItem(at: directory)
+        }
+        let target = CredentialVault(context: ModelContext(container), blobs: EncryptedBlobStore(directory: directory))
+        let restore = BackupRestore(vault: target)
+        let plan = try restore.prepare(snapshot, key: key)
+        XCTAssertFalse(plan.requiresSafetyBackup)
+        var prefs = AppPreferences()
+        prefs.showMenuBar = false
+        try PreferencesStore.save(prefs, in: target.context)
+        XCTAssertThrowsError(try restore.merge(plan, choices: [:], key: key, replacingAll: true))
+        let changed = try restore.prepare(snapshot, key: key)
+        XCTAssertTrue(changed.requiresSafetyBackup)
+        XCTAssertThrowsError(try restore.merge(changed, choices: [:], key: key, replacingAll: true))
+        try PreferencesStore.save(AppPreferences(), in: target.context)
+        let refreshed = try restore.prepare(snapshot, key: key)
+        _ = try restore.merge(refreshed, choices: [:], key: key, replacingAll: true)
+        XCTAssertEqual(try target.context.fetchCount(FetchDescriptor<ManagedApp>()), snapshot.apps.count)
+        XCTAssertEqual(try target.read(XCTUnwrap(target.records().first), key: key).original, file.data)
+        XCTAssertTrue(try restore.prepare(snapshot, key: key).requiresSafetyBackup)
+    }
+
+    @MainActor
     func testWholeReplaceRequiresVerifiedCurrentSafetyBackupAndRejectsStaleProof() throws {
         let (vault, _, _, _) = try makeVault()
         let key = SymmetricKey(size: .bits256)
@@ -606,6 +641,8 @@ final class AppMateTests: XCTestCase {
         let empty = BackupSnapshot(version: 1, createdAt: .now, appVersion: "test", teams: [], apps: [], credentials: [])
         let restore = BackupRestore(vault: vault)
         let plan = try restore.prepare(empty, key: key)
+        XCTAssertTrue(plan.requiresSafetyBackup)
+        XCTAssertThrowsError(try restore.merge(plan, choices: [:], key: key, replacingAll: true))
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("AppMateTests/" + UUID().uuidString + ".appmatebackup")
         let archive = try BackupArchive.encode(current, password: nil)
         XCTAssertThrowsError(try SafetyBackup.export(Data([0]), password: nil, snapshot: current, to: url))

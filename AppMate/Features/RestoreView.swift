@@ -29,7 +29,7 @@ struct RestoreView: View {
     }
     private var ready: Bool {
         guard let plan else { return false }
-        if replaceAll { return !working && safetyBackup?.revision == plan.localRevision }
+        if replaceAll { return !working && (!plan.requiresSafetyBackup || safetyBackup?.revision == plan.localRevision) }
         return !working && plan.conflicts.allSatisfy { choices[$0.id] != nil } && (plan.addedCount > 0 || !plan.conflicts.isEmpty)
     }
 
@@ -47,7 +47,7 @@ struct RestoreView: View {
             if let result {
                 Label("復元が完了しました", systemImage: "checkmark.circle.fill").font(.headline).foregroundStyle(.green)
                 Text("追加 \(result.added)件 · 更新 \(result.updated)件 · スキップ \(result.skipped)件")
-                Text(replaceAll ? "事前退避を保存し、バックアップの内容で全体を置き換えました。金庫鍵は維持しています。" : "既存のデータと金庫鍵を維持して、選んだ内容をまとめました。件数にはTeam・Appも含みます。")
+                Text(replaceAll ? "バックアップの内容で全体を置き換えました。金庫鍵は維持しています。" : "既存のデータと金庫鍵を維持して、選んだ内容をまとめました。件数にはTeam・Appも含みます。")
                     .foregroundStyle(.secondary)
                 HStack { Spacer(); Button("メイン画面へ") { dismiss() }.keyboardShortcut(.defaultAction) }
             } else {
@@ -114,12 +114,15 @@ struct RestoreView: View {
                     }
                     VStack(alignment: .leading, spacing: 5) {
                         Toggle("全体をバックアップの内容で置き換える", isOn: $replaceAll)
-                        if replaceAll {
+                        if replaceAll && plan.requiresSafetyBackup {
                             Text("バックアップに含まれない現在の項目は削除されます。まず現在の全データを別ファイルに退避してください。").foregroundStyle(.orange)
                             Button(safetyBackup == nil ? "現在のデータを退避する…" : "退避を作り直す…") { makingSafetyBackup = true }
                             if safetyBackup?.revision == plan.localRevision { Label("事前退避済み", systemImage: "checkmark.shield") }
                         }
-                        Text("まとめる場合は現在の項目を残します。置き換える場合は事前退避の成功と、退避後に変更がないことを確認してから実行します。")
+                        if replaceAll && !plan.requiresSafetyBackup {
+                            Text("現在のデータは空で、設定も初期値のため、事前退避なしで復元できます。")
+                        }
+                        Text("まとめる場合は現在の項目を残します。置き換える場合は、現在のデータや変更済みの設定があれば事前退避が必要です。")
                             .font(.callout).foregroundStyle(.secondary)
                     }
                 }
@@ -260,7 +263,7 @@ struct RestoreView: View {
             do {
                 let canCreate = try restore.vault.canCreateKey()
                 let merged = try await access.withKey(reason: "バックアップの選択した内容を復元します", allowCreation: canCreate, vault: restore.vault) { key in
-                    try restore.merge(plan, choices: selected, key: key, safetyBackup: replaceAll ? safetyBackup : nil)
+                    try restore.merge(plan, choices: selected, key: key, safetyBackup: replaceAll ? safetyBackup : nil, replacingAll: replaceAll)
                 }
                 result = merged
                 self.snapshot = nil; self.plan = nil; file = nil; choices = [:]

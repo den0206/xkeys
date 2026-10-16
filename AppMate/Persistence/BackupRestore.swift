@@ -3,9 +3,10 @@ import Foundation
 import SwiftData
 
 enum RestoreError: LocalizedError {
-    case identity, stale, choices, relationships, pendingChanges
+    case identity, stale, choices, relationships, pendingChanges, safetyBackupRequired
     var errorDescription: String? {
         switch self {
+        case .safetyBackupRequired: "現在のデータを退避してから、全体を置き換えてください。"
         case .identity: "同じ識別子が異なるTeam・App・ファイルを指しています。既存データを保護するため、このバックアップはまとめられません。"
         case .stale: "確認後に現在のデータが変更されました。「差分を更新」で確認し直してください。"
         case .choices: "内容が異なる項目ごとに、どちらを使うか選択してください。"
@@ -34,6 +35,7 @@ struct RestorePlan: Sendable {
     let incoming: BackupSnapshot
     let localRevision: String
     let items: [Item]
+    let requiresSafetyBackup: Bool
     var conflicts: [Item] { items.filter { $0.state == .conflict } }
     var addedCount: Int { items.filter { $0.state == .added }.count }
     var duplicateCount: Int { items.filter { $0.state == .duplicate }.count }
@@ -135,7 +137,9 @@ struct RestorePlan: Sendable {
         if let prefs = source.preferences {
             items.append(Item(kind: .preferences, target: preferencesID, title: "アプリ設定", detail: "通知・表示・CIテンプレート", current: "このMacの設定（秘密値なし）", incoming: "バックアップの設定（秘密値なし）", state: prefs == (current.preferences ?? AppPreferences()) ? .duplicate : .conflict))
         }
-        return RestorePlan(incoming: normalized, localRevision: try current.revision(), items: items)
+        let requiresSafetyBackup = !current.teams.isEmpty || !current.apps.isEmpty || !current.credentials.isEmpty
+            || (current.preferences ?? AppPreferences()) != AppPreferences()
+        return RestorePlan(incoming: normalized, localRevision: try current.revision(), items: items, requiresSafetyBackup: requiresSafetyBackup)
     }
 
     func merged(with current: BackupSnapshot, choices: [String: RestoreChoice]) throws -> BackupSnapshot {
@@ -172,13 +176,16 @@ struct BackupRestore {
     }
 
     func merge(_ plan: RestorePlan, choices: [String: RestoreChoice], key: SymmetricKey,
-               beforeCommit: () throws -> Void = {}, safetyBackup: SafetyBackup? = nil) throws -> Result {
+               beforeCommit: () throws -> Void = {}, safetyBackup: SafetyBackup? = nil, replacingAll: Bool = false) throws -> Result {
         let context = vault.context
         guard !context.hasChanges else { throw RestoreError.pendingChanges }
         let current = try BackupSnapshot.capture(vault: vault, key: key)
         let final: BackupSnapshot
-        if let safetyBackup {
-            guard try current.revision() == plan.localRevision, safetyBackup.revision == plan.localRevision else { throw RestoreError.stale }
+        let replacing = replacingAll || safetyBackup != nil
+        if replacing {
+            guard try current.revision() == plan.localRevision else { throw RestoreError.stale }
+            if plan.requiresSafetyBackup && safetyBackup == nil { throw RestoreError.safetyBackupRequired }
+            if let safetyBackup, safetyBackup.revision != plan.localRevision { throw RestoreError.stale }
             var replacement = plan.incoming
             replacement.version = 3
             if replacement.preferences == nil { replacement.preferences = current.preferences }
@@ -258,7 +265,7 @@ struct BackupRestore {
                 staged.append(blobID)
                 _ = try vault.read(record, key: key)
             }
-            if safetyBackup != nil {
+            if replacing {
                 let keepRecords = Set(final.credentials.map(\.id))
                 let keepApps = Set(final.apps.map(\.id))
                 let keepTeams = Set(final.teams.map(\.id))
@@ -266,7 +273,7 @@ struct BackupRestore {
                 for app in apps.values where !keepApps.contains(app.id) { app.team = nil; context.delete(app) }
                 for team in teams.values where !keepTeams.contains(team.id) { context.delete(team) }
             }
-            if safetyBackup != nil || plan.addedCount > 0 || plan.conflicts.contains(where: { choices[$0.id] == .backup }) {
+            if replacing || plan.addedCount > 0 || plan.conflicts.contains(where: { choices[$0.id] == .backup }) {
                 BackupHistory.record(in: context)
             }
             try beforeCommit()
