@@ -29,7 +29,20 @@ xcodebuild -project AppMate.xcodeproj -scheme AppMate \
   -derivedDataPath /tmp/app-mate-tests test
 ```
 
+テストは `AppMateTests/AppMateTests.swift` の `AppMateTests` クラスにまとまっています。1件だけ実行する場合は `test` の前に `-only-testing:AppMateTests/AppMateTests/testName` を付けます。
+
 実行は Xcode の `My Mac`、または CodeLLDB を導入した VS Code / Cursor の F5 を使います。秘密情報の操作には Apple Development 署名が必要です。両ターゲットの Team を合わせ、署名設定は README に従ってください。
+
+## アーキテクチャの要点
+
+- 起動は `Application/AppMateApp.swift`。`APP_MATE_TESTING=1` ならメモリ内の `ModelContainer` を使います。SwiftData のモデルを追加したら、ここの型一覧にも追加してください。
+- メタデータ（`DeveloperTeam`・`ManagedApp`・`StoredCredential`）は SwiftData に保存します。元ファイル・メモ・.p12 パスワードは `CredentialPayload` として AES-GCM で暗号化し、`AppMateVault/blobs` に保存します。鍵は端末専用 Keychain（`EncryptionKeychain`）にあります。
+- 暗号化 blob の AAD は `StoredCredential.authenticatedData()`（metadataVersion 1 / 2）と `VaultManagement.noteAAD` で作ります。AAD に含まれる項目（kind、所属、`keyPurpose` など）は自動で書き換えないでください。変えるときは別 UUID の blob に暗号化し直し、読み戻して検証してから参照を切り替えます（`VaultManagement.updatePurposes` を参照）。
+- 取り込みは `CredentialVault`（`validate` → `importFile`）、編集・削除・復元・完全削除は `VaultManagement` が担当します。秘密情報の操作は `OwnerAuthentication` で毎回認証し、取得した `SymmetricKey` を渡します。
+- データを変更する処理は、変更の前に `BackupHistory.prepare` を、変更時に `BackupHistory.record` を同じ context で呼び、未バックアップ件数を記録します。バックアップ形式は `BackupArchive`（`BackupSnapshot`、旧 version 1 / 2 も読み込む）、復元は `BackupRestore` / `RestorePlan` です。
+- Apple Developer 連携は `AppleDeveloperSession`（XcodesLoginKit、Cookie を Keychain に保存）と `AppleDeveloperClient`（非公開の Web API、応答サイズ・件数を検証）が担当します。HTTP と Keychain はテストで架空のものに差し替えます。
+- `Application/VerificationView.swift` と `VerificationRecord` は技術検証用です。実装から参照しているため削除しないでください。製品バックアップの対象外です。
+- 仕様を変えたら `docs/DESIGN.md`、確認範囲を変えたら `docs/IMPLEMENTATION.md`、操作を変えたら `README.md` も更新します。
 
 ## コーディング規約
 
