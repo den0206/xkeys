@@ -919,6 +919,10 @@ struct CredentialImportView: View {
                             Text("証明書チェーンと秘密鍵を含む元の.p12全体を保存・書き出しします。証明書の選択は表示情報だけを変えます。")
                                 .font(.caption).foregroundStyle(.secondary)
                         }
+                        if (file?.name as NSString?)?.pathExtension.lowercased() == "cer" {
+                            Text(".cerはApple Developerからいつでも再ダウンロードできるため、保存は任意です。署名に使うには秘密鍵を含む.p12を保存してください。")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
                         Text("解析はローカルの内容の確認です。Apple発行元の信頼性・失効状態・秘密鍵との対応は検証していません。")
                             .font(.caption).foregroundStyle(.secondary)
                     }
