@@ -182,7 +182,7 @@ struct CatalogView: View {
             HStack(spacing: 8) {
                 Image(nsImage: NSApp.applicationIconImage).resizable().frame(width: 24, height: 24).accessibilityHidden(true)
                 Text("App Mate").font(.system(size: 14, weight: .bold)).fixedSize()
-            }.padding(.leading, 78)
+            }
             Spacer(minLength: 12)
             HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass").foregroundStyle(AppMateStyle.secondary)
