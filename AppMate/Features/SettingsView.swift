@@ -1,7 +1,5 @@
-import AppKit
 import SwiftData
 import SwiftUI
-import UserNotifications
 
 struct AppSettingsView: View {
     let container: ModelContainer
@@ -10,10 +8,10 @@ struct AppSettingsView: View {
     @State private var loaded = false
     @State private var selectedTemplate: UUID?
     @State private var apple = AppleDeveloperSession.shared
-    @State private var section = "通知"
+    @State private var section = "一般"
     @State private var creatingBackup = false
     @State private var restoringBackup = false
-    private let sections = ["一般", "通知", "セキュリティ", "CIテンプレート", "バックアップ"]
+    private let sections = ["一般", "セキュリティ", "CIテンプレート", "バックアップ"]
 
     var body: some View {
         HStack(spacing: 0) {
@@ -33,12 +31,9 @@ struct AppSettingsView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 22) {
                         switch section {
-                        case "通知": notifications
                         case "一般":
                             settingsGroup("表示") {
                                 settingsToggle("Dockアイコンに件数を表示", isOn: $preferences.showDockBadge)
-                                Divider()
-                                settingsToggle("メニューバーに表示", isOn: $preferences.showMenuBar)
                             }
                             Text("Apple Developerへの接続は利用者の操作時に行います。同期・自動起動は行いません。元ファイルは変更しません。")
                                 .foregroundStyle(AppMateStyle.secondary)
@@ -90,47 +85,6 @@ struct AppSettingsView: View {
             catch { self.error = error.localizedDescription }
         }
     }
-    private var notifications: some View {
-        VStack(alignment: .leading, spacing: 22) {
-            settingsGroup("期限のお知らせ") {
-                ForEach([30, 7, 1, 0], id: \.self) { day in
-                    settingsToggle(day == 0 ? "当日" : day == 1 ? "前日" : "\(day)日前", isOn: Binding(get: { preferences.expirationDays.contains(day) }, set: { on in
-                        preferences.expirationDays.removeAll { $0 == day }
-                        if on { preferences.expirationDays.append(day) }
-                    }))
-                    if day != 0 { Divider() }
-                }
-            }
-            Text("通知はこのMac内で予約します。Macの通知許可が必要です。")
-                .font(.system(size: 12)).foregroundStyle(AppMateStyle.secondary).padding(.top, -12)
-            settingsGroup("バックアップのお知らせ") {
-                settingsToggle("バックアップしていない変更があるとき知らせる", isOn: Binding(get: { preferences.backupReminderDays != nil }, set: { preferences.backupReminderDays = $0 ? 7 : nil }))
-                if preferences.backupReminderDays != nil {
-                    Divider()
-                    Stepper("変更してから \(preferences.backupReminderDays ?? 7)日後", value: Binding(get: { preferences.backupReminderDays ?? 7 }, set: { preferences.backupReminderDays = $0 }), in: 1...365).padding(.horizontal, 14).padding(.vertical, 9)
-                }
-            }
-            settingsGroup("表示") {
-                settingsToggle("Dockアイコンに件数を表示", isOn: $preferences.showDockBadge)
-                Divider()
-                settingsToggle("メニューバーに表示", isOn: $preferences.showMenuBar)
-            }
-            settingsGroup("通知の許可") {
-                settingsToggle("ローカル通知を有効にする", isOn: $preferences.notificationsEnabled)
-                Divider()
-                VStack(alignment: .leading, spacing: 10) {
-                    Text(NotificationService.shared.message).font(.caption)
-                    HStack {
-                        Button("Macで通知を許可する", action: requestNotifications)
-                        Button("システム設定を開く") { NSWorkspace.shared.open(URL(fileURLWithPath: "/System/Applications/System Settings.app")) }
-                    }.buttonStyle(AppMateButtonStyle())
-                    Text("通知 → App Mateで許可を確認してください。終了中の通知補充・配送は保証されません。")
-                        .font(.caption).foregroundStyle(AppMateStyle.secondary)
-                }.padding(14)
-            }
-        }
-    }
-
     private var templates: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("CIコピーの変数名と値の種類を設定します。秘密値は保存しません。")
@@ -165,16 +119,6 @@ struct AppSettingsView: View {
             Spacer(minLength: 10)
             Toggle(title, isOn: isOn).labelsHidden().toggleStyle(.checkbox)
         }.padding(.horizontal, 14).padding(.vertical, 11)
-    }
-
-    private func requestNotifications() {
-        Task { @MainActor in
-            do {
-                guard ProcessInfo.processInfo.environment["APP_MATE_TESTING"] != "1" else { return }
-                _ = try await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge])
-                await NotificationService.shared.refresh(context: container.mainContext, records: try container.mainContext.fetch(FetchDescriptor<StoredCredential>()), changes: try container.mainContext.fetch(FetchDescriptor<BackupChange>()))
-            } catch { self.error = error.localizedDescription }
-        }
     }
 
 }

@@ -24,10 +24,8 @@
 		BA0000000000000000000007 /* Features/RestoreView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA0000000000000000000008 /* Features/RestoreView.swift */; };
 		BA0000000000000000000009 /* Persistence/BackupHistory.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA000000000000000000000A /* Persistence/BackupHistory.swift */; };
 		BA000000000000000000000B /* Services/CredentialSearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA000000000000000000000C /* Services/CredentialSearch.swift */; };
-		BA000000000000000000000D /* Features/MenuBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA000000000000000000000E /* Features/MenuBarView.swift */; };
 		BB0000000000000000000000 /* Persistence/VaultManagement.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC0000000000000000000000 /* Persistence/VaultManagement.swift */; };
 		BB0000000000000000000001 /* Services/AppPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC0000000000000000000001 /* Services/AppPreferences.swift */; };
-		BB0000000000000000000002 /* Services/LocalNotifications.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC0000000000000000000002 /* Services/LocalNotifications.swift */; };
 		BB0000000000000000000003 /* Features/SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC0000000000000000000003 /* Features/SettingsView.swift */; };
 		BB0000000000000000000004 /* Features/ManagementViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC0000000000000000000004 /* Features/ManagementViews.swift */; };
 		BB0000000000000000000005 /* Features/CICopyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC0000000000000000000005 /* Features/CICopyView.swift */; };
@@ -67,10 +65,8 @@
 		BA0000000000000000000008 /* Features/RestoreView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/RestoreView.swift; sourceTree = "<group>"; };
 		BA000000000000000000000A /* Persistence/BackupHistory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Persistence/BackupHistory.swift; sourceTree = "<group>"; };
 		BA000000000000000000000C /* Services/CredentialSearch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/CredentialSearch.swift; sourceTree = "<group>"; };
-		BA000000000000000000000E /* Features/MenuBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/MenuBarView.swift; sourceTree = "<group>"; };
 		BC0000000000000000000000 /* Persistence/VaultManagement.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Persistence/VaultManagement.swift; sourceTree = "<group>"; };
 		BC0000000000000000000001 /* Services/AppPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/AppPreferences.swift; sourceTree = "<group>"; };
-		BC0000000000000000000002 /* Services/LocalNotifications.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/LocalNotifications.swift; sourceTree = "<group>"; };
 		BC0000000000000000000003 /* Features/SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/SettingsView.swift; sourceTree = "<group>"; };
 		BC0000000000000000000004 /* Features/ManagementViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/ManagementViews.swift; sourceTree = "<group>"; };
 		BC0000000000000000000005 /* Features/CICopyView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/CICopyView.swift; sourceTree = "<group>"; };
@@ -138,12 +134,10 @@
 				AD2000000000000000000002 /* Features/AppleDeveloperLoginView.swift */,
 				AD2000000000000000000001 /* Services/AppleDeveloperSession.swift */,
 				AD2000000000000000000000 /* Services/AppleDeveloperClient.swift */,
-				BA000000000000000000000E /* Features/MenuBarView.swift */,
 				BC0000000000000000000006 /* Services/ImportSources.swift */,
 				BC0000000000000000000005 /* Features/CICopyView.swift */,
 				BC0000000000000000000004 /* Features/ManagementViews.swift */,
 				BC0000000000000000000003 /* Features/SettingsView.swift */,
-				BC0000000000000000000002 /* Services/LocalNotifications.swift */,
 				BC0000000000000000000001 /* Services/AppPreferences.swift */,
 				BC0000000000000000000000 /* Persistence/VaultManagement.swift */,
 				BA000000000000000000000C /* Services/CredentialSearch.swift */,
@@ -272,12 +266,10 @@
 				AD1000000000000000000002 /* Features/AppleDeveloperLoginView.swift in Sources */,
 				AD1000000000000000000001 /* Services/AppleDeveloperSession.swift in Sources */,
 				AD1000000000000000000000 /* Services/AppleDeveloperClient.swift in Sources */,
-				BA000000000000000000000D /* Features/MenuBarView.swift in Sources */,
 				BB0000000000000000000006 /* Services/ImportSources.swift in Sources */,
 				BB0000000000000000000005 /* Features/CICopyView.swift in Sources */,
 				BB0000000000000000000004 /* Features/ManagementViews.swift in Sources */,
 				BB0000000000000000000003 /* Features/SettingsView.swift in Sources */,
-				BB0000000000000000000002 /* Services/LocalNotifications.swift in Sources */,
 				BB0000000000000000000001 /* Services/AppPreferences.swift in Sources */,
 				BB0000000000000000000000 /* Persistence/VaultManagement.swift in Sources */,
 				BA000000000000000000000B /* Services/CredentialSearch.swift in Sources */,

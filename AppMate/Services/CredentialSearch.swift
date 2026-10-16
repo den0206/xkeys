@@ -84,17 +84,3 @@ enum CredentialSearch {
         return words.allSatisfy { word in fields.contains { $0.localizedStandardContains(word) } }
     }
 }
-
-struct MenuBarSummary {
-    let expired: Int
-    let expiring: Int
-    let total: Int
-
-    init(records: [StoredCredential], at now: Date) {
-        let active = records.filter { $0.replacedByID == nil && $0.deletedAt == nil && $0.app?.deletedAt == nil }
-        expired = active.filter { $0.displayState(at: now) == .expired }.count
-        expiring = active.filter { $0.displayState(at: now).needsRenewal }.count
-        total = active.count
-    }
-    var attentionCount: Int { expired + expiring }
-}

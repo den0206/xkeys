@@ -4,7 +4,6 @@ import LocalAuthentication
 import SwiftData
 import SwiftUI
 import UniformTypeIdentifiers
-import UserNotifications
 
 struct VerificationView: View {
     let container: ModelContainer
@@ -36,7 +35,7 @@ struct VerificationView: View {
                 Section("検証する内容") {
                     Label("プロファイル・証明書解析", systemImage: "doc.text.magnifyingglass")
                     Label("暗号化と再読み込み", systemImage: "lock.doc")
-                    Label("認証と通知", systemImage: "person.badge.key")
+                    Label("認証", systemImage: "person.badge.key")
                 }
             }
             .navigationSplitViewColumnWidth(240)
@@ -103,13 +102,6 @@ struct VerificationView: View {
                             }
                             Text("Touch ID またはMacのパスワードで確認します。再起動後も読み込めるかを確認してください。")
                                 .font(.caption).foregroundStyle(.secondary)
-                        }.padding(8)
-                    }
-                    GroupBox("ローカル通知") {
-                        HStack {
-                            Text("許可後、5秒後のテスト通知を1件予約します。")
-                            Spacer()
-                            Button("通知をテスト") { testNotification() }
                         }.padding(8)
                     }
                     if busy { ProgressView("確認しています…") }
@@ -260,28 +252,6 @@ struct VerificationView: View {
                     status = "保存済みサンプルの復号と一致確認に成功しました。"
                 }
                 refreshAndRecover()
-            } catch { self.error = error.localizedDescription }
-        }
-    }
-
-    private func testNotification() {
-        busy = true
-        error = nil
-        Task { @MainActor in
-            defer { busy = false }
-            do {
-                let center = UNUserNotificationCenter.current()
-                guard try await center.requestAuthorization(options: [.alert, .sound]) else {
-                    status = "通知はオフです。Macのシステム設定でApp Mateの通知を許可してください。"
-                    return
-                }
-                let content = UNMutableNotificationContent()
-                content.title = "App Mate"
-                content.body = "ローカル通知のテストです。"
-                let request = UNNotificationRequest(identifier: "prototype-notification", content: content,
-                                                    trigger: UNTimeIntervalNotificationTrigger(timeInterval: 5, repeats: false))
-                try await center.add(request)
-                status = "5秒後の通知を予約しました。アプリを背面にして配送を確認してください。"
             } catch { self.error = error.localizedDescription }
         }
     }

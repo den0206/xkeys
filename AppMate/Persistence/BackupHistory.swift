@@ -20,8 +20,6 @@ final class BackupCheckpoint {
     var lastCompletedAt: Date?
     var lastSnapshotAt: Date?
     var preferencesData: Data?
-    var reminderPeriod: UUID?
-    var reminderScheduledAt: Date?
 
     init() { key = "full-backup" }
 }

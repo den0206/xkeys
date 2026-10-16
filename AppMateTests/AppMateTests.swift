@@ -595,19 +595,6 @@ final class AppMateTests: XCTestCase {
         XCTAssertThrowsError(try invalid.validate())
     }
 
-    func testBackupReminderOnlyQueuesOncePerPeriodAndCanRescheduleBeforeDelivery() throws {
-        let now = Date.now
-        let period = UUID()
-        let old = now.addingTimeInterval(-10 * 86400)
-        let first = try XCTUnwrap(NotificationPlanner.reminder(period: period, oldest: old, days: 7, queuedPeriod: nil, queuedAt: nil, now: now))
-        XCTAssertEqual(first.date, now.addingTimeInterval(2))
-        XCTAssertNil(NotificationPlanner.reminder(period: period, oldest: old, days: 7, queuedPeriod: period, queuedAt: now.addingTimeInterval(-1), now: now))
-        let future = try XCTUnwrap(NotificationPlanner.reminder(period: period, oldest: now, days: 14, queuedPeriod: period, queuedAt: now.addingTimeInterval(7 * 86400), now: now))
-        XCTAssertGreaterThan(future.date, now.addingTimeInterval(13 * 86400))
-        XCTAssertNotNil(NotificationPlanner.reminder(period: UUID(), oldest: old, days: 7, queuedPeriod: period, queuedAt: now.addingTimeInterval(-1), now: now))
-        XCTAssertNil(NotificationPlanner.reminder(period: period, oldest: old, days: 0, queuedPeriod: nil, queuedAt: nil, now: now))
-    }
-
     @MainActor
     func testAutomaticPruneRequiresDeletionAgeAndNeverRemovesActiveExpiredCredentials() throws {
         let (vault, app, _, _) = try makeVault()
@@ -780,7 +767,7 @@ final class AppMateTests: XCTestCase {
     }
 
     @MainActor
-    func testRevocationAndDeletionAreExcludedFromNotificationsAndSearch() throws {
+    func testRevocationAndDeletionAreExcludedFromSearch() throws {
         let (vault, app, _, _) = try makeVault()
         let key = SymmetricKey(size: .bits256)
         let file = CredentialFile(data: try fixture("cer"), name: "sample.cer")
@@ -788,7 +775,6 @@ final class AppMateTests: XCTestCase {
         let record = try XCTUnwrap(vault.records().first)
         try VaultManagement(vault: vault).setRevoked(record, key: key)
         XCTAssertEqual(record.displayState(at: .now), .revoked)
-        XCTAssertEqual(MenuBarSummary(records: [record], at: .now).expired, 0)
         try VaultManagement(vault: vault).trash(record, key: key)
         XCTAssertFalse(CredentialSearch.includes(record, scope: .all, app: nil, query: "sample", type: .all, showReplaced: true, at: .now))
         let snapshot = try BackupSnapshot.capture(vault: vault, key: key)
@@ -796,31 +782,12 @@ final class AppMateTests: XCTestCase {
         XCTAssertNotNil(snapshot.credentials.first?.revokedAt)
     }
 
-    func testNotificationDatesUseLocalCalendarAndNeverSchedulePastOrAfterExpiry() throws {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "Asia/Tokyo"))
-        let expiry = try XCTUnwrap(ISO8601DateFormatter().date(from: "2026-11-15T23:00:00+09:00"))
-        let now = expiry.addingTimeInterval(-40 * 86400)
-        let id = UUID()
-        let plans = NotificationPlanner.expiry(id: id, expiresAt: expiry, days: [30, 7, 1, 0], now: now, calendar: calendar)
-        XCTAssertEqual(plans.count, 4)
-        XCTAssertEqual(Set(plans.map(\.id)).count, 4)
-        XCTAssertTrue(plans.allSatisfy { calendar.component(.hour, from: $0.date) == 9 && $0.date <= expiry })
-        let early = calendar.startOfDay(for: expiry).addingTimeInterval(3600)
-        XCTAssertEqual(NotificationPlanner.expiry(id: id, expiresAt: early, days: [0], now: now, calendar: calendar).first?.date, early)
-        XCTAssertTrue(NotificationPlanner.expiry(id: id, expiresAt: expiry, days: [30, 7, 1, 0], now: expiry, calendar: calendar).isEmpty)
-        calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "America/Los_Angeles"))
-        let dst = try XCTUnwrap(ISO8601DateFormatter().date(from: "2026-11-02T23:00:00-08:00"))
-        XCTAssertTrue(NotificationPlanner.expiry(id: id, expiresAt: dst, days: [1, 0], now: now, calendar: calendar).allSatisfy { calendar.component(.hour, from: $0.date) == 9 })
-    }
-
     @MainActor
     func testPreferencesAreStableValidatedAndIncludedInRestoreConflicts() async throws {
         let (vault, _, _, _) = try makeVault()
         XCTAssertEqual(try PreferencesStore.read(in: vault.context), try PreferencesStore.read(in: vault.context))
         var prefs = AppPreferences()
-        prefs.showMenuBar = false
-        prefs.backupReminderDays = nil
+        prefs.showDockBadge = false
         try PreferencesStore.save(prefs, in: vault.context)
         let key = SymmetricKey(size: .bits256)
         let snapshot = try BackupSnapshot.capture(vault: vault, key: key)
@@ -838,7 +805,7 @@ final class AppMateTests: XCTestCase {
         XCTAssertEqual(try PreferencesStore.read(in: other.context), prefs)
         prefs.templates[0].variable = "SECRET; rm -rf"
         XCTAssertThrowsError(try PreferencesStore.save(prefs, in: other.context))
-        prefs = AppPreferences(); prefs.expirationDays = [-1]
+        prefs = AppPreferences(); prefs.templates[0].name = ""
         XCTAssertThrowsError(try prefs.validate())
     }
 
@@ -878,7 +845,7 @@ final class AppMateTests: XCTestCase {
         let plan = try restore.prepare(snapshot, key: key)
         XCTAssertFalse(plan.requiresSafetyBackup)
         var prefs = AppPreferences()
-        prefs.showMenuBar = false
+        prefs.showDockBadge = false
         try PreferencesStore.save(prefs, in: target.context)
         let approvalPlan1 = try await restoreAuthorization(for: plan)
         XCTAssertThrowsError(try restore.merge(plan, choices: [:], authorization: approvalPlan1, key: key, replacingAll: true))
@@ -1079,31 +1046,6 @@ final class AppMateTests: XCTestCase {
     }
 
     @MainActor
-    func testMenuSummaryCountsSharedCredentialsOnceAndExcludesReplacedItems() throws {
-        let (_, app, sibling, _) = try makeVault()
-        let now = Date(timeIntervalSince1970: 1_900_000_000)
-        func record(_ expiry: Date?) throws -> StoredCredential {
-            StoredCredential(file: CredentialFile(data: Data(UUID().uuidString.utf8), name: "fixture.cer"),
-                             parsed: ParsedCredential(name: "Fixture", kind: "証明書", teamID: nil, bundleID: nil, expiresAt: expiry),
-                             app: app, team: try XCTUnwrap(app.team), savePassword: false)
-        }
-        let expired = try record(now), soon = try record(now.addingTimeInterval(30 * 86400)), noExpiry = try record(nil)
-        let replaced = try record(now)
-        replaced.replacedByID = UUID()
-        XCTAssertTrue(expired.isVisible(in: app))
-        XCTAssertTrue(expired.isVisible(in: sibling))
-        let summary = MenuBarSummary(records: [expired, soon, noExpiry, replaced], at: now)
-        XCTAssertEqual(summary.total, 3)
-        XCTAssertEqual(summary.expired, 1)
-        XCTAssertEqual(summary.expiring, 1)
-        XCTAssertEqual(summary.attentionCount, 2)
-        let later = MenuBarSummary(records: [soon], at: now.addingTimeInterval(30 * 86400))
-        XCTAssertEqual(later.expired, 1)
-        XCTAssertEqual(later.expiring, 0)
-    }
-
-
-    @MainActor
     private func backupHistory(_ context: ModelContext) throws -> BackupHistorySummary {
         BackupHistorySummary(changes: try context.fetch(FetchDescriptor<BackupChange>()),
                              checkpoint: try context.fetch(FetchDescriptor<BackupCheckpoint>()).first,
@@ -1122,7 +1064,7 @@ final class AppMateTests: XCTestCase {
         XCTAssertNil(try backupHistory(context).oldestChange)
         // Custom settings still need a backup even without catalog items.
         var prefs = AppPreferences()
-        prefs.showMenuBar = false
+        prefs.showDockBadge = false
         try PreferencesStore.save(prefs, in: context)
         XCTAssertEqual(try backupHistory(context).pendingCount, 5)
         XCTAssertNotNil(try backupHistory(context).oldestChange)
