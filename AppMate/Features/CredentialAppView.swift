@@ -98,6 +98,7 @@ struct CredentialAppView: View {
     @State private var addingTarget = false
     @State private var targetFilter: UUID?
     @State private var copyingCI = false
+    @State private var creatingSecretFile = false
     @State private var deletingRecord: StoredCredential?
     @State private var selectingForDeletion = false
     @State private var checkedIDs: Set<UUID> = []
@@ -153,6 +154,7 @@ struct CredentialAppView: View {
         .sheet(isPresented: $editingApp) { CatalogEditor(vault: vault, team: nil, app: app) }
         .sheet(item: $editingTarget) { target in CatalogEditor(vault: vault, team: nil, app: target) }
         .sheet(isPresented: $copyingCI) { if let record = selectedRecord { CICopyView(vault: vault, record: record) } }
+        .sheet(isPresented: $creatingSecretFile) { if let app { CISecretFileView(vault: vault, app: app, records: records) } }
         .sheet(item: $deletingRecord) { record in
             CredentialDeleteConfirmation(record: record) {
                 deletingRecord = nil
@@ -193,7 +195,7 @@ struct CredentialAppView: View {
         .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.willSleepNotification)) { _ in lock() }
         .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.sessionDidResignActiveNotification)) { _ in lock() }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didResignActiveNotification)) { _ in
-            if !access.busy && !access.presentingPanel && !editingNote && !editingPurposes && !copyingCI && !editingApp && editingTarget == nil { lock(dismissImport: false) }
+            if !access.busy && !access.presentingPanel && !editingNote && !editingPurposes && !copyingCI && !creatingSecretFile && !editingApp && editingTarget == nil { lock(dismissImport: false) }
         }
     }
 
@@ -307,6 +309,7 @@ struct CredentialAppView: View {
                     checkedIDs = []
                 }.disabled(visible.isEmpty || access.busy)
                 if app != nil {
+                    Button("CI 用の Secret ファイルを作成…") { creatingSecretFile = true }.disabled(access.busy)
                     Divider()
                     Button("ターゲットを追加…") { addingTarget = true }
                     Button("アプリを編集…") { editingApp = true }

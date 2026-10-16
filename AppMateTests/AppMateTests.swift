@@ -921,6 +921,7 @@ final class AppMateTests: XCTestCase {
             ("backup", NSSize(width: 600, height: 620), AnyView(BackupView(container: container).modelContainer(container))),
             ("restore", NSSize(width: 640, height: 300), AnyView(BackupView(container: container, restoring: true))),
             ("ci-copy", NSSize(width: 560, height: 520), AnyView(CICopyView(vault: vault, record: try XCTUnwrap(sample)))),
+            ("ci-secret-file", NSSize(width: 640, height: 600), AnyView(CISecretFileView(vault: vault, app: app, records: try vault.records()))),
             ("import", NSSize(width: 680, height: 640), AnyView(CredentialImportView(app: app, team: team, vault: vault, onSaved: { _ in }))),
             ("p8-metadata", NSSize(width: 860, height: 640), AnyView(CredentialImportView(app: app, team: team, vault: vault, initialSources: [importURL], onSaved: { _ in }))),
             ("target-delete", NSSize(width: 548, height: 520), AnyView(TargetDeleteConfirmation(target: app, records: try vault.records(), onDelete: {}))),
@@ -2717,6 +2718,102 @@ final class AppMateTests: XCTestCase {
         cer.deletedAt = nil
         prov.signingCertificateDigests = nil
         XCTAssertTrue(prov.signingCertificates(in: records).isEmpty)
+    }
+
+    @MainActor
+    func testCISecretFileSelectsLinkedCredentialsAndWritesEditableDotenv() throws {
+        let (vault, app, _, _) = try makeVault()
+        defer { try? FileManager.default.removeItem(at: vault.blobs.directory) }
+        let team = try XCTUnwrap(app.team)
+        let key = SymmetricKey(size: .bits256)
+        let p12 = CredentialFile(data: try fixture("p12"), name: "sample.p12")
+        try vault.importFile(p12, parsed: CredentialParser.parse(p12.data, extension: "p12", password: "fixture-only"), app: app,
+                             password: "fixture-only", confirmUnknownTeam: true, key: key)
+        let profile = CredentialFile(data: try fixture("mobileprovision", name: "certs"), name: "certs.mobileprovision")
+        try vault.importFile(profile, parsed: CredentialParser.parse(profile.data, extension: "mobileprovision"), app: app,
+                             password: nil, confirmUnknownTeam: true, key: key)
+        let p8 = p8File()
+        try vault.importFile(p8, parsed: CredentialParser.parse(p8.data, extension: "p8"), app: nil, team: team, password: nil,
+                             confirmUnknownTeam: true, key: key,
+                             p8: P8Metadata(purposes: [.appStoreConnect], keyID: "DUMMYKEY01", issuerID: "69A6DE7E-0000-4000-8000-000000000001"))
+        let apns = p8File()
+        try vault.importFile(apns, parsed: CredentialParser.parse(apns.data, extension: "p8"), app: nil, team: team, password: nil,
+                             confirmUnknownTeam: true, key: key, p8: P8Metadata(purposes: [.apns, .weatherKit], keyID: "DUMMYKEY02", issuerID: nil))
+        let child = ManagedApp(name: "Share", bundleID: "com.example.AppMate.fixture.share-ext", platform: "iOS", team: team)
+        child.parentAppID = app.id
+        vault.context.insert(child)
+        let childProfile = StoredCredential(file: CredentialFile(data: Data("child-profile".utf8), name: "child.mobileprovision"),
+                                            parsed: ParsedCredential(name: "Share Profile", kind: "プロファイル", teamID: team.teamID,
+                                                                     bundleID: child.bundleID, expiresAt: .now.addingTimeInterval(86400 * 90)),
+                                            app: child, team: team, savePassword: false)
+        vault.context.insert(childProfile)
+        try vault.context.save()
+
+        var entries = CISecretFile.entries(for: app, records: try vault.records(), at: .now)
+        XCTAssertEqual(entries.filter(\.included).map(\.name), [
+            "APPLE_TEAM_ID", "BUILD_PROVISION_PROFILE_BASE64", "BUILD_PROVISION_PROFILE_SHARE_EXT_BASE64",
+            "BUILD_CERTIFICATE_BASE64", "P12_PASSWORD", "ASC_KEY_P8_BASE64", "ASC_KEY_ID", "ASC_ISSUER_ID"])
+        // Other keys are offered unchecked, named after their first purpose.
+        XCTAssertEqual(entries.filter { !$0.included && $0.section == .key }.map(\.name), ["APNS_KEY_P8_BASE64", "APNS_KEY_ID"])
+        // Checking a key or certificate brings its values along; unchecking clears them too.
+        var toggled = entries
+        let apnsID = try XCTUnwrap(toggled.first { $0.name == "APNS_KEY_P8_BASE64" }).id
+        CISecretFile.setIncluded(true, id: apnsID, in: &toggled)
+        XCTAssertEqual(toggled.filter { $0.included && $0.name.hasPrefix("APNS_") }.map(\.name), ["APNS_KEY_P8_BASE64", "APNS_KEY_ID"])
+        let p12ID = try XCTUnwrap(toggled.first { $0.name == "BUILD_CERTIFICATE_BASE64" }).id
+        CISecretFile.setIncluded(false, id: p12ID, in: &toggled)
+        XCTAssertFalse(toggled.contains { $0.included && ["BUILD_CERTIFICATE_BASE64", "P12_PASSWORD"].contains($0.name) })
+        CISecretFile.setIncluded(false, id: try XCTUnwrap(toggled.first { $0.name == "ASC_KEY_ID" }).id, in: &toggled)
+        XCTAssertTrue(try XCTUnwrap(toggled.first { $0.name == "ASC_KEY_P8_BASE64" }).included)
+        // The fixture child profile has no blob; leave it out and rename one entry like the sheet does.
+        entries[try XCTUnwrap(entries.firstIndex { $0.id == "profile-\(childProfile.id)" })].included = false
+        entries[0].name = "TEAM_ID"
+        let text = try XCTUnwrap(String(data: CISecretFile.render(entries, title: "First\nApp", at: .now) { try vault.read($0, key: key) },
+                                        encoding: .utf8))
+        let lines = text.split(separator: "\n").map(String.init)
+        XCTAssertEqual(lines[0], "# このファイルは App Mate が自動生成しました。編集しないでください。")
+        XCTAssertTrue(lines[2].hasPrefix("# 生成元: First App · "))
+        XCTAssertTrue(lines.contains("TEAM_ID='TESTTEAM01'"))
+        XCTAssertTrue(lines.contains("BUILD_PROVISION_PROFILE_BASE64='\(profile.data.base64EncodedString())'"))
+        XCTAssertTrue(lines.contains("BUILD_CERTIFICATE_BASE64='\(p12.data.base64EncodedString())'"))
+        XCTAssertTrue(lines.contains("P12_PASSWORD='fixture-only'"))
+        XCTAssertTrue(lines.contains("ASC_KEY_P8_BASE64='\(p8.data.base64EncodedString())'"))
+        XCTAssertTrue(lines.contains("ASC_ISSUER_ID='69a6de7e-0000-4000-8000-000000000001'"))
+        XCTAssertFalse(text.contains("APPLE_TEAM_ID"))
+
+        let output = vault.blobs.directory.appendingPathComponent("First.ci-secrets.env")
+        try CredentialFile(data: Data(text.utf8), name: output.lastPathComponent).export(to: output)
+        XCTAssertEqual(try FileManager.default.attributesOfItem(atPath: output.path)[.posixPermissions] as? Int, 0o600)
+        XCTAssertThrowsError(try CredentialFile(data: Data(), name: output.lastPathComponent).export(to: output))
+
+        func rejects(_ name: String, at index: Int = 0) {
+            var changed = entries
+            changed[index].name = name
+            XCTAssertThrowsError(try CISecretFile.validate(changed), name)
+        }
+        rejects("asc_key_id")
+        rejects("GITHUB_TOKEN")
+        rejects("1TEAM")
+        rejects("TEAM ID")
+        XCTAssertThrowsError(try CISecretFile.validate(entries.map { var entry = $0; entry.included = false; return entry }))
+
+        // A missing password is written commented out; a password dotenv cannot quote is refused.
+        let original = try vault.read(try XCTUnwrap(vault.records().first { $0.fileExtension == "p12" }), key: key).original
+        let missing = try XCTUnwrap(String(data: CISecretFile.render(entries, title: "First", at: .now) { record in
+            record.fileExtension == "p12" ? CredentialPayload(original: original, password: nil) : try vault.read(record, key: key)
+        }, encoding: .utf8))
+        XCTAssertTrue(missing.contains("\n# P12_PASSWORD=\n"))
+        XCTAssertFalse(missing.contains("P12_PASSWORD='"))
+        XCTAssertThrowsError(try CISecretFile.render(entries, title: "First", at: .now) { record in
+            record.fileExtension == "p12" ? CredentialPayload(original: original, password: "it's") : try vault.read(record, key: key)
+        })
+
+        // Expired profiles are not offered, so their certificate is no longer chosen.
+        let stored = try XCTUnwrap(vault.records().first { $0.fileExtension == "mobileprovision" && $0.app?.id == app.id })
+        stored.expiresAt = .now.addingTimeInterval(-60)
+        let later = CISecretFile.entries(for: app, records: try vault.records(), at: .now)
+        XCTAssertFalse(later.contains { $0.id == "profile-\(stored.id)" })
+        XCTAssertFalse(try XCTUnwrap(later.first { $0.name == "BUILD_CERTIFICATE_BASE64" }).included)
     }
 
     @MainActor

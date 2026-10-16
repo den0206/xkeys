@@ -28,6 +28,7 @@
 		BB0000000000000000000001 /* Services/AppPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC0000000000000000000001 /* Services/AppPreferences.swift */; };
 		BB0000000000000000000003 /* Features/SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC0000000000000000000003 /* Features/SettingsView.swift */; };
 		BB0000000000000000000004 /* Features/ManagementViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC0000000000000000000004 /* Features/ManagementViews.swift */; };
+		BB0000000000000000000099 /* Features/CISecretFileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC0000000000000000000099 /* Features/CISecretFileView.swift */; };
 		BB0000000000000000000005 /* Features/CICopyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC0000000000000000000005 /* Features/CICopyView.swift */; };
 		BB0000000000000000000006 /* Services/ImportSources.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC0000000000000000000006 /* Services/ImportSources.swift */; };
 		D5AB3D6787FE83109935B0E3 /* Features/CredentialAppView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF4E022172D3641297064FC2 /* Features/CredentialAppView.swift */; };
@@ -71,6 +72,7 @@
 		BC0000000000000000000001 /* Services/AppPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/AppPreferences.swift; sourceTree = "<group>"; };
 		BC0000000000000000000003 /* Features/SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/SettingsView.swift; sourceTree = "<group>"; };
 		BC0000000000000000000004 /* Features/ManagementViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/ManagementViews.swift; sourceTree = "<group>"; };
+		BC0000000000000000000099 /* Features/CISecretFileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/CISecretFileView.swift; sourceTree = "<group>"; };
 		BC0000000000000000000005 /* Features/CICopyView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/CICopyView.swift; sourceTree = "<group>"; };
 		BC0000000000000000000006 /* Services/ImportSources.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/ImportSources.swift; sourceTree = "<group>"; };
 		BFA38885211ADBBDEF2389B2 /* Persistence/EncryptedBlobStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Persistence/EncryptedBlobStore.swift; sourceTree = "<group>"; };
@@ -139,6 +141,7 @@
 				AD2000000000000000000000 /* Services/AppleDeveloperClient.swift */,
 				BC0000000000000000000006 /* Services/ImportSources.swift */,
 				BC0000000000000000000005 /* Features/CICopyView.swift */,
+				BC0000000000000000000099 /* Features/CISecretFileView.swift */,
 				BC0000000000000000000004 /* Features/ManagementViews.swift */,
 				BC0000000000000000000003 /* Features/SettingsView.swift */,
 				BC0000000000000000000001 /* Services/AppPreferences.swift */,
@@ -271,6 +274,7 @@
 				AD1000000000000000000000 /* Services/AppleDeveloperClient.swift in Sources */,
 				BB0000000000000000000006 /* Services/ImportSources.swift in Sources */,
 				BB0000000000000000000005 /* Features/CICopyView.swift in Sources */,
+				BB0000000000000000000099 /* Features/CISecretFileView.swift in Sources */,
 				BB0000000000000000000004 /* Features/ManagementViews.swift in Sources */,
 				BB0000000000000000000003 /* Features/SettingsView.swift in Sources */,
 				BB0000000000000000000001 /* Services/AppPreferences.swift in Sources */,
