@@ -564,32 +564,34 @@ struct RegistrationForm: View {
 
 
 enum AppMateStyle {
-    static let accent = Color(red: 10/255, green: 100/255, blue: 214/255)
-    static let canvas = adaptive(0xFFFFFF, 0x1D1D1F)
-    static let sidebar = adaptive(0xF3F3F5, 0x242426)
-    static let inspector = adaptive(0xFBFBFC, 0x222224)
-    static let search = adaptive(0xE6E6EA, 0x343438)
-    static let text = adaptive(0x1D1D1F, 0xF5F5F7)
-    static let secondary = adaptive(0x5F5F66, 0xAEAEB5)
-    static let border = adaptive(0xDEDEE2, 0x414145)
-    static let rowBorder = adaptive(0xF0F0F3, 0x333337)
-    static let selection = adaptive(0xD9E6FB, 0x243D60)
-    static let selectedRow = adaptive(0xEEF3FD, 0x25354D)
-    static let warningBackground = adaptive(0xFFF1D6, 0x49371B)
-    static let warningText = adaptive(0x7A4700, 0xFFD68A)
-    static let warningBorder = adaptive(0xF2D28C, 0x77582A)
-    static let warningBanner = adaptive(0xFFF6E3, 0x3C301F)
-    static let danger = Color(red: 217/255, green: 58/255, blue: 43/255)
-    static let dangerText = adaptive(0x8F1C12, 0xFFAAA1)
-    static let dangerBackground = adaptive(0xFBD5D1, 0x4A2928)
-    static let successText = adaptive(0x17612E, 0x91DBA4)
-    static let successBackground = adaptive(0xE3F4E8, 0x233D2B)
+    // Light only: the app pins `.preferredColorScheme(.light)` until a dark design exists.
+    static let accent = hex(0x4338CA)
+    static let canvas = hex(0xFFFFFF)
+    static let sidebar = hex(0xFAFAFB)
+    static let inspector = hex(0xFAFAFB)
+    static let search = hex(0xF4F4F6)
+    static let text = hex(0x18181B)
+    static let secondary = hex(0x71717A)
+    static let tertiary = hex(0xA1A1AA)
+    static let border = hex(0xE2E2E8)
+    static let rowBorder = hex(0xF1F1F4)
+    static let selection = hex(0xEEF0FF)
+    static let selectionBorder = hex(0xC7CBF5)
+    static let selectedRow = hex(0xF3F4FF)
+    static let dropBorder = hex(0xA5ABEF)
+    static let warningBackground = hex(0xFFFBEB)
+    static let warningText = hex(0x8A4B00)
+    static let warningBorder = hex(0xF3D9A4)
+    static let warningBanner = hex(0xFFFBEB)
+    static let danger = hex(0xDC2626)
+    static let dangerText = hex(0xB42318)
+    static let dangerBackground = hex(0xFEF2F2)
+    static let dangerBorder = hex(0xFBD5D1)
+    static let successText = hex(0x15803D)
+    static let successBackground = hex(0xDCFCE7)
 
-    private static func adaptive(_ light: Int, _ dark: Int) -> Color {
-        Color(nsColor: NSColor(name: nil) { appearance in
-            let hex = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? dark : light
-            return NSColor(srgbRed: Double((hex >> 16) & 255)/255, green: Double((hex >> 8) & 255)/255, blue: Double(hex & 255)/255, alpha: 1)
-        })
+    private static func hex(_ value: Int) -> Color {
+        Color(red: Double((value >> 16) & 255)/255, green: Double((value >> 8) & 255)/255, blue: Double(value & 255)/255)
     }
 
     static func iconColor(_ name: String) -> Color {

@@ -21,6 +21,7 @@ struct AppMateApp: App {
                 CatalogView(container: container, navigation: navigation)
                     .modelContainer(container)
                     .frame(minWidth: 960, minHeight: 640)
+                    .preferredColorScheme(.light)
             case .failure:
                 ContentUnavailableView("保存領域を開けません", systemImage: "externaldrive.badge.exclamationmark",
                                        description: Text("既存データを変更せずに停止しました。保存先とアクセス権を確認して再起動してください。"))
@@ -30,7 +31,7 @@ struct AppMateApp: App {
         .defaultSize(width: 1232, height: 752)
 
         Settings {
-            if case .success(let container) = container { AppSettingsView(container: container).modelContainer(container) }
+            if case .success(let container) = container { AppSettingsView(container: container).modelContainer(container).preferredColorScheme(.light) }
         }
     }
 }
