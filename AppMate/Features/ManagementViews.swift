@@ -465,3 +465,117 @@ struct CredentialBatchDeleteConfirmation: View {
         }.font(.system(size: 13)).padding(24).frame(width: 500).background(AppMateStyle.canvas)
     }
 }
+
+struct P8PurposeToggles: View {
+    @Binding var purposes: Set<P8Purpose>
+
+    var body: some View {
+        LazyVGrid(columns: [GridItem(.flexible(), alignment: .leading), GridItem(.flexible(), alignment: .leading)], alignment: .leading, spacing: 6) {
+            ForEach(P8Purpose.allCases, id: \.self) { item in
+                Toggle(item.title, isOn: Binding(get: { purposes.contains(item) }, set: { on in
+                    // App Store Connect keys are issued separately and never carry Developer key services.
+                    if !on { purposes.remove(item) }
+                    else if item == .appStoreConnect { purposes = [item] }
+                    else { purposes.remove(.appStoreConnect); purposes.insert(item) }
+                })).toggleStyle(.checkbox)
+            }
+        }
+    }
+}
+
+// Online only on request: reads the key's enabled services, never the private key.
+struct P8PurposeFetchButton: View {
+    let keyID: String
+    let teamID: String
+    var session: AppleDeveloperSession = .shared
+    @Binding var purposes: Set<P8Purpose>
+    @State private var fetching = false
+    @State private var message: String?
+    @State private var work: Task<Void, Never>?
+    private var value: String { keyID.trimmingCharacters(in: .whitespacesAndNewlines) }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Button("Apple Developerから用途を取得", systemImage: "icloud.and.arrow.down", action: fetch)
+                .disabled(fetching || value.range(of: "^[A-Z0-9]{10}$", options: .regularExpression) == nil)
+            if fetching { ProgressView().controlSize(.small) }
+            if let message { Text(message).font(.caption).foregroundStyle(AppMateStyle.secondary).fixedSize(horizontal: false, vertical: true) }
+        }.onDisappear { work?.cancel() }
+    }
+
+    private func fetch() {
+        let keyID = value
+        fetching = true
+        message = nil
+        work = Task { @MainActor in
+            defer { fetching = false }
+            do {
+                let key = try await session.key(keyID: keyID, teamID: teamID)
+                guard !Task.isCancelled else { return }
+                if let key {
+                    purposes = Set(key.purposes)
+                    message = "Apple Developerの鍵「\(key.name)」の有効なサービスから用途を設定しました。"
+                } else {
+                    message = "Apple Developerの鍵一覧にこのKey IDは見つかりませんでした。App Store Connect APIの鍵の場合は手動で選んでください。"
+                }
+            } catch { if !Task.isCancelled { message = AppleDeveloperError.message(for: error) } }
+        }
+    }
+}
+
+struct P8PurposeEditor: View {
+    let vault: CredentialVault
+    let record: StoredCredential
+    var session: AppleDeveloperSession = .shared
+    @Environment(\.dismiss) private var dismiss
+    @State private var access = VaultAccess()
+    @State private var purposes: Set<P8Purpose> = []
+    @State private var issuerID = ""
+    @State private var error: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("用途を変更").font(.title2.bold())
+            Text("\(record.name) · Key ID \(record.keyID ?? "未設定")").foregroundStyle(AppMateStyle.secondary).textSelection(.enabled)
+            P8PurposeToggles(purposes: $purposes)
+            if let keyID = record.keyID, let teamID = record.team?.teamID {
+                P8PurposeFetchButton(keyID: keyID, teamID: teamID, session: session, purposes: $purposes)
+            }
+            if purposes.contains(.appStoreConnect) {
+                TextField("App Store ConnectのIssuer ID", text: $issuerID).textFieldStyle(.roundedBorder)
+            }
+            Text("登録名も用途に合わせて変わります。保存時にMacで認証し、暗号化し直します。元ファイルは変わりません。")
+                .font(.caption).foregroundStyle(AppMateStyle.secondary).fixedSize(horizontal: false, vertical: true)
+            if let error { Text(error).foregroundStyle(.red).textSelection(.enabled) }
+            HStack {
+                if access.busy { ProgressView().controlSize(.small) }
+                Spacer()
+                Button("キャンセル") { dismiss() }.keyboardShortcut(.cancelAction)
+                Button("認証して保存", action: save).keyboardShortcut(.defaultAction).disabled(access.busy || purposes.isEmpty)
+            }
+        }
+        .padding(24).frame(width: 520).font(.system(size: 13))
+        .buttonStyle(AppMateButtonStyle()).background(AppMateStyle.canvas).foregroundStyle(AppMateStyle.text)
+        .interactiveDismissDisabled(access.busy)
+        .onAppear {
+            purposes = Set(record.keyPurpose.flatMap(P8Purpose.purposes(stored:)) ?? [])
+            issuerID = record.issuerID ?? ""
+        }
+        .onDisappear { access.lock() }
+        .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.willSleepNotification)) { _ in access.lock(); dismiss() }
+        .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.sessionDidResignActiveNotification)) { _ in access.lock(); dismiss() }
+    }
+
+    private func save() {
+        let metadata = P8Metadata(purposes: Array(purposes), keyID: record.keyID ?? "", issuerID: issuerID)
+        error = nil
+        Task { @MainActor in
+            do {
+                try await access.withKey(reason: "鍵の用途を変更します", allowCreation: false, vault: vault) { key in
+                    try VaultManagement(vault: vault).updatePurposes(record, metadata: metadata, key: key)
+                }
+                dismiss()
+            } catch { self.error = error.localizedDescription }
+        }
+    }
+}

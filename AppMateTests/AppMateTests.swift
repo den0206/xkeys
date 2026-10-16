@@ -2187,6 +2187,57 @@ final class AppMateTests: XCTestCase {
     }
 
     @MainActor
+    func testP8PurposeUpdateReencryptsAndRollsBackOnFailure() throws {
+        let (vault, app, _, _) = try makeVault()
+        defer { try? FileManager.default.removeItem(at: vault.blobs.directory) }
+        let key = SymmetricKey(size: .bits256)
+        let management = VaultManagement(vault: vault)
+        let file = p8File()
+        let id = try vault.importFile(file, parsed: CredentialParser.parse(file.data, extension: "p8"), app: app, password: nil,
+                                      confirmUnknownTeam: true, key: key, p8: P8Metadata(purposes: [.maps], keyID: "DUMMYKEY01", issuerID: nil))
+        let record = try XCTUnwrap(vault.records().first { $0.id == id })
+        try management.saveNote("note", record: record, key: key)
+        let history = try vault.context.fetchCount(FetchDescriptor<BackupChange>())
+        let blobs = try FileManager.default.contentsOfDirectory(atPath: vault.blobs.directory.path).count
+
+        struct CommitFailure: Error {}
+        XCTAssertThrowsError(try management.updatePurposes(record, metadata: P8Metadata(purposes: [.weatherKit], keyID: "IGNORED001", issuerID: nil), key: key) { throw CommitFailure() })
+        // SwiftData's rollback leaves loaded objects stale until the next fetch refreshes them from the store.
+        _ = try vault.records()
+        XCTAssertEqual(record.keyPurpose, "maps")
+        XCTAssertEqual(record.name, "Maps（DUMMYKEY01）")
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: vault.blobs.directory.path).count, blobs)
+        XCTAssertEqual(try vault.read(record, key: key).note, "note")
+        XCTAssertThrowsError(try management.updatePurposes(record, metadata: P8Metadata(purposes: [.appStoreConnect], keyID: "", issuerID: nil), key: key))
+        XCTAssertThrowsError(try management.updatePurposes(record, metadata: P8Metadata(purposes: [.maps], keyID: "", issuerID: nil), key: SymmetricKey(size: .bits256)))
+
+        try management.updatePurposes(record, metadata: P8Metadata(purposes: [.weatherKit, .maps], keyID: "IGNORED001", issuerID: nil), key: key)
+        XCTAssertEqual(record.keyID, "DUMMYKEY01")
+        XCTAssertEqual(record.keyPurpose, "maps,weatherkit")
+        XCTAssertEqual(record.name, "Maps・WeatherKit（DUMMYKEY01）")
+        XCTAssertEqual(record.metadataVersion, 2)
+        XCTAssertEqual(record.purposeTitle, "Maps・WeatherKit")
+        let payload = try vault.read(record, key: key)
+        XCTAssertEqual(payload.original, file.data)
+        XCTAssertEqual(payload.note, "note")
+        XCTAssertEqual(try vault.context.fetchCount(FetchDescriptor<BackupChange>()), history + 1)
+        _ = try BackupSnapshot.capture(vault: vault, key: key)
+        record.keyPurpose = "apns,weatherkit"
+        XCTAssertThrowsError(try vault.read(record, key: key))
+        vault.context.rollback()
+
+        let newFile = p8File()
+        let newID = try vault.importFile(newFile, parsed: CredentialParser.parse(newFile.data, extension: "p8"), app: app, password: nil,
+                                         confirmUnknownTeam: true, key: key, p8: P8Metadata(purposes: [.maps, .weatherKit], keyID: "DUMMYKEY02", issuerID: nil),
+                                         replacingID: id, confirmReplacement: true)
+        for linked in [record, try XCTUnwrap(vault.records().first { $0.id == newID })] {
+            XCTAssertThrowsError(try management.updatePurposes(linked, metadata: P8Metadata(purposes: [.apns], keyID: "", issuerID: nil), key: key)) { error in
+                guard case ManagementError.purposeLocked = error else { return XCTFail("Unexpected error: \(error)") }
+            }
+        }
+    }
+
+    @MainActor
     func testP8VaultRequiresMetadataAndSharesEncryptedOriginal() throws {
         let (vault, first, sibling, other) = try makeVault()
         defer { try? FileManager.default.removeItem(at: vault.blobs.directory) }

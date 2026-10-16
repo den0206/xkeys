@@ -33,6 +33,10 @@ extension StoredCredential {
         }
     }
 
+    var purposeTitle: String {
+        keyPurpose.flatMap(P8Purpose.purposes(stored:))?.map(\.title).joined(separator: "・") ?? "未設定"
+    }
+
     func displayState(at now: Date) -> CredentialDisplayState {
         if revokedAt != nil { return .revoked }
         if replacedByID != nil { return .replaced }
@@ -91,6 +95,7 @@ struct CredentialAppView: View {
     @State private var status = ""
     @State private var revealedPassword: String?
     @State private var editingNote = false
+    @State private var editingPurposes = false
     @State private var editingApp = false
     @State private var addingTarget = false
     @State private var purposeFilter: CredentialPurposeFilter = .all
@@ -176,6 +181,7 @@ struct CredentialAppView: View {
             }
         }
         .sheet(isPresented: $editingNote) { NoteEditor(vault: vault, app: selectedRecord == nil ? app : nil, record: selectedRecord) }
+        .sheet(isPresented: $editingPurposes) { if let record = selectedRecord { P8PurposeEditor(vault: vault, record: record) } }
         .sheet(isPresented: $addingTarget) {
             if let parent = app?.product {
                 RegistrationForm(container: container, teams: parent.team.map { [$0] } ?? [], initialTeam: parent.team?.id, isTeam: false, parentApp: parent) { _ in }
@@ -224,7 +230,7 @@ struct CredentialAppView: View {
         .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.willSleepNotification)) { _ in lock() }
         .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.sessionDidResignActiveNotification)) { _ in lock() }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didResignActiveNotification)) { _ in
-            if !access.busy && !access.presentingPanel && !editingNote && !copyingCI && !editingApp { lock(dismissImport: false) }
+            if !access.busy && !access.presentingPanel && !editingNote && !editingPurposes && !copyingCI && !editingApp { lock(dismissImport: false) }
         }
     }
 
@@ -471,6 +477,17 @@ struct CredentialAppView: View {
                         }.buttonStyle(AppMateButtonStyle()).frame(maxWidth: .infinity).disabled(access.busy)
                         VStack(alignment: .leading, spacing: 10) {
                             metadata("ファイルの種類", "\(record.fileTypeTitle)（.\(record.fileExtension)）")
+                            if record.fileExtension == "p8" {
+                                HStack(alignment: .top, spacing: 12) {
+                                    Text("用途").foregroundStyle(AppMateStyle.secondary).frame(width: 96, alignment: .leading)
+                                    VStack(alignment: .leading, spacing: 6) {
+                                        Text(record.purposeTitle).frame(maxWidth: .infinity, alignment: .leading)
+                                        let linked = record.replacesCredentialID != nil || record.replacedByID != nil
+                                        Button("用途を変更…") { editingPurposes = true }.disabled(access.busy || linked)
+                                            .help(linked ? "置き換え履歴のある鍵は用途を変更できません。" : "Apple Developer側の変更を反映します")
+                                    }
+                                }
+                            }
                             if record.isIntermediateCA {
                                 metadata("Team ID", "対象外（中間CA証明書）")
                                 metadata("保管先チーム", record.team?.name ?? "未設定")
@@ -567,6 +584,7 @@ struct CredentialAppView: View {
         deletingApp = false
         showingRenewalGuide = false
         showingIdentity = false
+        editingPurposes = false
         showingInspector = false
         if dismissImport { importing = false; onlineImporting = false }
         selected = nil
@@ -693,8 +711,6 @@ struct CredentialImportView: View {
     @State private var purposes: Set<P8Purpose> = []
     @State private var keyID = ""
     @State private var issuerID = ""
-    @State private var fetchingPurposes = false
-    @State private var purposeSource: String?
     @State private var replacing = false
     @State private var targetID: UUID?
     @State private var confirmReplacement = false
@@ -843,26 +859,13 @@ struct CredentialImportView: View {
                             Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 14) {
                                 GridRow {
                                     Text("用途").frame(width: 120, alignment: .leading)
-                                    LazyVGrid(columns: [GridItem(.flexible(), alignment: .leading), GridItem(.flexible(), alignment: .leading)], alignment: .leading, spacing: 6) {
-                                        ForEach(P8Purpose.allCases, id: \.self) { item in
-                                            Toggle(item.title, isOn: Binding(get: { purposes.contains(item) }, set: { on in
-                                                if !on { purposes.remove(item) }
-                                                else if item == .appStoreConnect { purposes = [item] }
-                                                else { purposes.remove(.appStoreConnect); purposes.insert(item) }
-                                            })).toggleStyle(.checkbox)
-                                        }
-                                    }
+                                    P8PurposeToggles(purposes: $purposes)
                                 }
                                 GridRow { Text("登録先チーム"); Text("\(team.name)（\(team.teamID)）") }
                                 GridRow { Text("Key ID"); TextField("英大文字・数字10文字", text: $keyID).labelsHidden() }
                                 GridRow {
                                     Color.clear.frame(width: 120, height: 1)
-                                    VStack(alignment: .leading, spacing: 6) {
-                                        Button("Apple Developerから用途を取得", systemImage: "icloud.and.arrow.down", action: fetchPurposes)
-                                            .disabled(fetchingPurposes || keyID.trimmingCharacters(in: .whitespacesAndNewlines).range(of: "^[A-Z0-9]{10}$", options: .regularExpression) == nil)
-                                        if fetchingPurposes { ProgressView().controlSize(.small) }
-                                        if let purposeSource { Text(purposeSource).font(.caption).foregroundStyle(AppMateStyle.secondary).fixedSize(horizontal: false, vertical: true) }
-                                    }
+                                    P8PurposeFetchButton(keyID: keyID, teamID: team.teamID, session: session, purposes: $purposes).id(parseID)
                                 }
                                 if purposes.contains(.appStoreConnect) {
                                     GridRow { Text("Issuer ID"); TextField("App Store ConnectのIssuer ID", text: $issuerID).labelsHidden() }
@@ -982,7 +985,6 @@ struct CredentialImportView: View {
         parsedPassword = ""
         confirmUnknownTeam = false
         purposes = []
-        purposeSource = nil
         keyID = ""
         issuerID = ""
         replacing = false
@@ -1059,30 +1061,6 @@ struct CredentialImportView: View {
             } catch {
                 if token == parseID, generation == access.generation { self.error = error.localizedDescription }
             }
-        }
-    }
-
-    // Online only on request: reads the key's enabled services, never the private key.
-    private func fetchPurposes() {
-        let value = keyID.trimmingCharacters(in: .whitespacesAndNewlines)
-        let token = parseID
-        fetchingPurposes = true
-        error = nil
-        purposeSource = nil
-        lastActivity = .now
-        Task { @MainActor in
-            defer { fetchingPurposes = false }
-            do {
-                let key = try await session.key(keyID: value, teamID: team.teamID)
-                guard token == parseID else { return }
-                if let key {
-                    purposes = Set(key.purposes)
-                    purposeSource = "Apple Developerの鍵「\(key.name)」の有効なサービスから用途を設定しました。"
-                } else {
-                    purposeSource = "Apple Developerの鍵一覧にこのKey IDは見つかりませんでした。App Store Connect APIの鍵の場合は手動で選んでください。"
-                }
-                lastActivity = .now
-            } catch { if token == parseID { self.error = AppleDeveloperError.message(for: error) } }
         }
     }
 

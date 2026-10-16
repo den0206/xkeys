@@ -63,6 +63,41 @@ struct VaultManagement {
         }
     }
 
+    // Purposes are authenticated data, so the payload is re-encrypted under a new blob before the reference switches.
+    func updatePurposes(_ record: StoredCredential, metadata: P8Metadata, key: SymmetricKey, beforeCommit: () throws -> Void = {}) throws {
+        guard record.modelContext === context, record.fileExtension == "p8", record.deletedAt == nil, let keyID = record.keyID else {
+            throw VaultError.invalidAssociation
+        }
+        // Backups require a replacement pair to share purposes; keep that rule instead of loosening the format.
+        guard record.replacesCredentialID == nil, record.replacedByID == nil else { throw ManagementError.purposeLocked }
+        let value = try P8Metadata(purposes: metadata.purposes, keyID: keyID, issuerID: metadata.issuerID).validated()
+        guard !context.hasChanges else { throw RestoreError.pendingChanges }
+        let payload = try vault.read(record, key: key)
+        guard value.storedPurpose != record.keyPurpose || value.issuerID != record.issuerID else { return }
+        context.autosaveEnabled = false
+        let id = UUID()
+        var staged = false
+        do {
+            try BackupHistory.prepare(in: context)
+            record.metadataVersion = 2
+            record.keyPurpose = value.storedPurpose
+            record.issuerID = value.issuerID
+            record.name = "\(value.title)（\(keyID)）"
+            record.kind = value.title
+            record.blobID = id
+            try vault.blobs.write(JSONEncoder().encode(payload), id: id, key: key, authenticating: record.authenticatedData())
+            staged = true
+            _ = try vault.read(record, key: key)
+            BackupHistory.record(in: context)
+            try beforeCommit()
+            try context.save()
+        } catch {
+            context.rollback()
+            if staged { try? FileManager.default.removeItem(at: vault.blobs.file(id)) }
+            throw error
+        }
+    }
+
     func change(_ operation: () throws -> Void) throws {
         guard !context.hasChanges else { throw RestoreError.pendingChanges }
         context.autosaveEnabled = false
@@ -185,12 +220,13 @@ struct VaultManagement {
 }
 
 enum ManagementError: LocalizedError {
-    case parentDeleted, teamNotEmpty, replacementInUse
+    case parentDeleted, teamNotEmpty, replacementInUse, purposeLocked
     var errorDescription: String? {
         switch self {
         case .parentDeleted: "先に、所属するアプリを復元してください。"
         case .teamNotEmpty: "Appまたは共有資格情報が残っているTeamは削除できません。最近削除した項目も確認してください。"
         case .replacementInUse: "置き換え履歴で参照されています。新旧の関連項目を一緒に完全削除してください。"
+        case .purposeLocked: "置き換え履歴のある鍵は、バックアップとの整合性を保つため用途を変更できません。"
         }
     }
 }

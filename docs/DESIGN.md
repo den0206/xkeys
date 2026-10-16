@@ -69,7 +69,9 @@ Developer Portalの所属チーム一覧を取得し、英大文字・数字10�
 
 .p8の中身は秘密鍵だけで用途を含まないため、用途は利用者が選ぶ。選択肢はASC、およびApple Developerの鍵のサービス（APNs・Sign in with Apple・DeviceCheck・Maps・WeatherKit・Media Services・その他）。Developerの鍵は複数のサービスを持てるため複数選択でき、別に発行されるASCはほかの用途と組み合わせない。用途は定義順のカンマ区切りで `keyPurpose` に保存する。既存の単一値はそのまま読み、AADは変更しない。新しい用途を含むバックアップは、この変更より前のApp Mateでは読み込めない。英大文字・数字10文字のKey IDを確認し、ASCだけUUID形式のIssuer IDを求める。
 
-取り込み画面の「Apple Developerから用途を取得」を押した場合だけ、保存セッションと保管先チームへの所属を確認し、Developer Portalの `services-account/QH65B2/account/auth/key/get`（`teamId`・`keyId`）から鍵の有効なサービスを読み取る。APNs・DeviceCheck・MusicKitはサービスID、それ以外はサービス名で用途に対応付け、不明なサービスは「その他のサービス」とする。取得した用途は保存前に変更できる。秘密鍵は取得しない。鍵一覧に見つからない場合（ASCの鍵など）は手動で選ぶ。応答は1MiB・鍵1,000件・サービス100件までで、不正な形式は拒否する。.p8にはTeam IDが含まれないため、画面に表示した登録先Teamに割り当てる。それ以外の形式でTeamを取得できない場合は、選んだTeamへの割り当てを明示確認する。
+取り込み画面の「Apple Developerから用途を取得」を押した場合だけ、保存セッションと保管先チームへの所属を確認し、Developer Portalの `services-account/QH65B2/account/auth/key/get`（`teamId`・`keyId`）から鍵の有効なサービスを読み取る。APNs・DeviceCheck・MusicKitはサービスID、それ以外はサービス名で用途に対応付け、不明なサービスは「その他のサービス」とする。取得した用途は保存前に変更できる。秘密鍵は取得しない。鍵一覧に見つからない場合（ASCの鍵など）は手動で選ぶ。応答は1MiB・鍵1,000件・サービス100件までで、不正な形式は拒否する。
+
+保存した用途はApple側と自動同期しない。詳細の「用途」から手動またはApple Developerからの再取得で変更でき、認証後に元ファイル・メモ・保存済みパスワードを新しいAAD（metadataVersion 2）で別blobへ暗号化し直してから参照を切り替える。登録名は用途とKey IDから作り直し、Key IDは変更しない。変更は未バックアップの変更として記録する。置き換え元・置き換え先の鍵は、バックアップの用途一致の検証を保つため変更できない。.p8にはTeam IDが含まれないため、画面に表示した登録先Teamに割り当てる。それ以外の形式でTeamを取得できない場合は、選んだTeamへの割り当てを明示確認する。
 
 .cerの中間CA証明書はBasic ConstraintsのCA属性と、正規化したSubject・Issuerが異なることから識別する。ファイル名には依存しない。Team IDは対象外とし、Teamへの割り当て確認を求めず、選択中のTeamを保管先として共有領域に保存する。分類は既存のkindに保存し、一覧・詳細・バックアップ復元後にも維持する。この分類は発行元の信頼性や署名検証を保証しない。既存データのkindは暗号化AADに含まれるため、自動的には書き換えない。
 
