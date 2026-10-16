@@ -27,6 +27,7 @@ final class AppNavigation {
 struct CatalogView: View {
     let container: ModelContainer
     let navigation: AppNavigation
+    var appleSession: AppleDeveloperSession = .shared
     @Query(sort: \DeveloperTeam.name) private var teams: [DeveloperTeam]
     @Query(sort: \ManagedApp.name) private var apps: [ManagedApp]
     @Query private var credentials: [StoredCredential]
@@ -164,7 +165,7 @@ struct CatalogView: View {
 
     private var header: some View {
         HStack(spacing: 16) {
-            Text("App Mate").font(.system(size: 14, weight: .bold))
+            Text("App Mate").font(.system(size: 14, weight: .bold)).fixedSize()
                 .padding(.leading, 78)
             Spacer(minLength: 12)
             HStack(spacing: 8) {
@@ -172,9 +173,10 @@ struct CatalogView: View {
                 TextField("アプリ・鍵・IDを横断検索", text: $search)
                     .textFieldStyle(.plain).focused($searchFocused)
             }
-            .font(.system(size: 13)).padding(.horizontal, 10).frame(width: 320, height: 30)
+            .font(.system(size: 13)).padding(.horizontal, 10).frame(minWidth: 160, idealWidth: 320, maxWidth: 320).frame(height: 30)
             .background(AppMateStyle.search, in: RoundedRectangle(cornerRadius: 8))
             Spacer(minLength: 12)
+            AppleDeveloperAccountView(session: appleSession, compact: true)
             Menu {
                 if let historyError {
                     Text(historyError)

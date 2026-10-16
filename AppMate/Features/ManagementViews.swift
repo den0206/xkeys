@@ -130,6 +130,16 @@ struct TeamManagementView: View {
     @Query(sort: \DeveloperTeam.name) private var teams: [DeveloperTeam]
     @State private var editing: DeveloperTeam?
     @State private var deleting: DeveloperTeam?
+    @State private var loggingIn: DeveloperTeam?
+    @State private var error: String?
+
+    private let appleSession: AppleDeveloperSession
+
+    init(vault: CredentialVault, appleSession: AppleDeveloperSession = .shared, onDeleted: @escaping (UUID) -> Void) {
+        self.vault = vault
+        self.appleSession = appleSession
+        self.onDeleted = onDeleted
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -139,13 +149,30 @@ struct TeamManagementView: View {
             ScrollView {
                 LazyVStack(spacing: 8) {
                     ForEach(teams) { team in
+                        let loggedIn = appleSession.connected && appleSession.teams.contains { $0.teamID == team.teamID }
                         HStack(spacing: 12) {
                             VStack(alignment: .leading, spacing: 4) {
-                                Text(team.name).fontWeight(.medium)
+                                HStack(spacing: 8) {
+                                    Text(team.name).fontWeight(.medium)
+                                    if loggedIn {
+                                        Text("ログイン中").font(.caption).foregroundStyle(.green)
+                                    }
+                                }
                                 Text("Team ID: " + team.teamID).font(.system(.caption, design: .monospaced))
                                     .foregroundStyle(AppMateStyle.secondary).textSelection(.enabled)
                             }
                             Spacer()
+                            if loggedIn {
+                                Button("ログアウト") {
+                                    do { try appleSession.disconnect(); error = nil }
+                                    catch { self.error = AppleDeveloperError.message(for: error) }
+                                }
+                            } else {
+                                Button("ログイン") {
+                                    appleSession.useAnotherAccount()
+                                    loggingIn = team
+                                }.disabled(appleSession.busy)
+                            }
                             Button("編集…") { editing = team }.accessibilityLabel(team.name + "を編集")
                             Button("削除…", role: .destructive) { deleting = team }.accessibilityLabel(team.name + "を削除")
                         }.padding(12).frame(maxWidth: .infinity, alignment: .leading)
@@ -154,11 +181,40 @@ struct TeamManagementView: View {
                     if teams.isEmpty { Text("登録済みのチームはありません。").foregroundStyle(AppMateStyle.secondary).padding() }
                 }
             }
+            if appleSession.busy {
+                HStack(spacing: 8) {
+                    ProgressView().controlSize(.small)
+                    Text("ログイン状態を確認しています…").font(.caption).foregroundStyle(.secondary)
+                }
+            }
+            if let error { Text(error).font(.caption).foregroundStyle(.red) }
             HStack { Spacer(); Button("閉じる") { dismiss() }.keyboardShortcut(.cancelAction) }
         }
         .padding(24).frame(width: 600, height: 440)
         .font(.system(size: 13)).buttonStyle(AppMateButtonStyle())
         .background(AppMateStyle.canvas).foregroundStyle(AppMateStyle.text)
+        .task {
+            do {
+                try appleSession.loadSavedAccount()
+                if appleSession.hasSavedSession && !appleSession.connected && !appleSession.busy {
+                    try await appleSession.resume()
+                }
+            } catch AppleDeveloperError.loginRequired {
+                // An expired session leaves the cards ready for another login.
+            } catch { self.error = AppleDeveloperError.message(for: error) }
+        }
+        .sheet(item: $loggingIn) { team in
+            AppleDeveloperLoginView(onVerified: {
+                guard appleSession.teams.contains(where: { $0.teamID == team.teamID }) else {
+                    throw AppleDeveloperError.teamAccessRequired
+                }
+            }, session: appleSession, verificationTitle: team.name + "にログイン", restoreSavedSession: false)
+                .onChange(of: appleSession.connected) { _, connected in
+                    if connected && appleSession.teams.contains(where: { $0.teamID == team.teamID }) {
+                        loggingIn = nil
+                    }
+                }
+        }
         .sheet(item: $editing) { team in CatalogEditor(vault: vault, team: team, app: nil) }
         .sheet(item: $deleting) { team in
             let id = team.id

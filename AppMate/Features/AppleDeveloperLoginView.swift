@@ -5,6 +5,7 @@ import XcodesLoginKit
 struct AppleDeveloperLoginView: View {
     var onTeam: ((RemoteDeveloperTeam) throws -> Void)? = nil
     var onVerified: (() throws -> Void)? = nil
+    var restoreSavedSession: Bool
     var verificationTitle: String
     @Environment(\.dismiss) private var dismiss
     @Query private var registeredTeams: [DeveloperTeam]
@@ -24,9 +25,10 @@ struct AppleDeveloperLoginView: View {
     init(onTeam: ((RemoteDeveloperTeam) throws -> Void)? = nil,
          onVerified: (() throws -> Void)? = nil,
          session: AppleDeveloperSession = .shared,
-         verificationTitle: String = "復元するチームへの所属を確認") {
+         verificationTitle: String = "復元するチームへの所属を確認", restoreSavedSession: Bool = true) {
         self.onTeam = onTeam
         self.onVerified = onVerified
+        self.restoreSavedSession = restoreSavedSession
         self.verificationTitle = verificationTitle
         _session = State(initialValue: session)
     }
@@ -49,7 +51,7 @@ struct AppleDeveloperLoginView: View {
         .font(.system(size: 13)).padding(32).frame(width: 440)
         .background(AppMateStyle.canvas).foregroundStyle(AppMateStyle.text).tint(AppMateStyle.accent)
         .task {
-            guard !session.connected else { return }
+            guard restoreSavedSession, !session.connected else { return }
             run {
                 do { try await session.resume() }
                 catch AppleDeveloperError.loginRequired { }
@@ -160,24 +162,24 @@ struct AppleDeveloperLoginView: View {
     private var teams: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 10) {
-                Text(trimmedAccount.first.map { String($0).uppercased() } ?? "A")
+                Text((session.currentAccount?.label ?? trimmedAccount).first.map { String($0).uppercased() } ?? "A")
                     .font(.system(size: 11, weight: .bold)).foregroundStyle(.white)
                     .frame(width: 24, height: 24).background(Color.gray, in: Circle())
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(trimmedAccount.isEmpty ? "接続中" : trimmedAccount)
-                    Text("Apple Developer に接続中").font(.caption).foregroundStyle(AppMateStyle.secondary)
+                    Text(session.currentAccount?.label ?? "ログイン中").textSelection(.enabled)
+                    Text("Apple Developer にログイン中").font(.caption).foregroundStyle(AppMateStyle.secondary)
                 }
                 Spacer()
                 Menu("アカウント") {
                     Button("チームを再読み込み") { run { try await session.resume() } }
                     Button("別のApple Accountでサインイン") { switchAccount() }
                     Divider()
-                    Button("サインアウト") {
+                    Button("ログアウト") {
                         do { try session.disconnect(); switchAccount() } catch { self.error = AppleDeveloperError.message(for: error) }
                     }
                 }.menuStyle(.borderlessButton).fixedSize()
             }
-            Text(onTeam == nil ? "所属を確認" : "追加するチーム").font(.system(size: 20, weight: .bold))
+            Text(onTeam == nil ? verificationTitle : "追加するチーム").font(.system(size: 20, weight: .bold))
             Text(onTeam == nil ? "このアカウントで確認できるチームです。" : "このアカウントが所属するチームです。")
                 .foregroundStyle(AppMateStyle.secondary)
             if session.teams.isEmpty {

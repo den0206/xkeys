@@ -115,3 +115,14 @@ Team ID手入力を削除し、未登録Teamを含むバックアップの復元
 APIの形式はfastlaneの公開実装を参照した（コードは複製していない）：[Webセッション用読み取り](https://github.com/fastlane/fastlane/blob/master/spaceship/lib/spaceship/connect_api/provisioning/client.rb)、[証明書・プロファイルAPI](https://github.com/fastlane/fastlane/blob/master/spaceship/lib/spaceship/connect_api/provisioning/provisioning.rb)。実アカウントを使った取得確認は未実施。Appleの非公開WebセッションAPIが変更された場合は追従が必要。
 
 最終版で全96件のXCTestと通常の署名付きDebugビルドが成功した。追加4件はWebセッション用リクエストのTeam ID・読み取り指定・CSRF引き継ぎ・ページ送り・権限拒否、不正な一覧とページリンク、取得データのリソース一致・base64・プロファイル解析、所属確認とファイルのTeam ID不一致を確認する。通常幅と最小960×640、およびオンライン一覧・メモリ内ファイルの確認画面を架空データで描画した。結果画像は `/tmp/app-mate-online-screens`、ログは `/tmp/app-mate-online-tests.log` と `/tmp/app-mate-online-final-build.log` に分離した。実アカウントでの取得と、製品Keychainを使ったオンライン取り込みの通し操作は未確認。
+
+
+## 接続アカウントの表示（2026-10-16）
+
+最新mainを取り込み、段階式サインインとオンライン取り込みを統合した。設定のセキュリティ・登録済みチーム一覧・チーム選択にアカウント情報を表示する。ログイン中と前回のログイン情報を区別し、一覧と設定の共通パネルからログイン・再ログイン・ログアウトできる。再ログイン画面は保存Cookieへ自動復帰せず、アカウント入力から始める。Cookieとアカウント情報を同じ端末専用Keychain項目へ保存し、旧Cookie単独JSONは読み取り後の接続確認で移行する。
+
+全95件のXCTestと通常Debugビルドが成功。アカウント情報の解析・保存・再接続・接続解除・旧形式移行・不正形式拒否を確認し、設定画面とチーム選択の画像も確認した。ログは `/tmp/app-mate-account-entry-tests.log` と `/tmp/app-mate-account-entry-build.log`、画像は `/tmp/app-mate-account-entry-screens`。実Apple Accountでの通信・製品Keychainを使った通し操作は未確認。
+
+チーム一覧のアカウント専用枠と上部メニューを廃止し、確認済みの所属チームのカード内に緑文字の「ログイン中」と「ログアウト」ボタンを表示する。それ以外のカードには「ログイン」ボタンを表示する。対象チームへの所属を確認してログイン画面を閉じる。ホーム上部はメールアドレスを表示するアカウントメニューとし、再ログイン・ログアウトの入口を維持する。ホームの検索欄は最小幅で縮小できるようにした。画面描画2件の確認ログは `/tmp/app-mate-account-card-final-tests.log`、通常Debugビルドは `/tmp/app-mate-account-card-final-build.log`。
+
+チームカードの「ログイン中」はチーム名の隣に置き、操作ボタンを一列に揃えた。チーム一覧を開く際に保存セッションを復元するよう修正し、再起動相当の新しいセッションから一覧を開いて再接続されることを対象画面だけのテストで確認する。確認ログは `/tmp/app-mate-team-session-tests.log` と `/tmp/app-mate-team-session-build.log`。実アカウント・製品Keychainの通し確認は未実施。

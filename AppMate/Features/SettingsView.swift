@@ -13,6 +13,12 @@ struct AppSettingsView: View {
     @State private var restoringBackup = false
     private let sections = ["一般", "セキュリティ", "CIテンプレート", "バックアップ"]
 
+    init(container: ModelContainer, appleSession: AppleDeveloperSession = .shared, initialSection: String = "一般") {
+        self.container = container
+        _apple = State(initialValue: appleSession)
+        _section = State(initialValue: initialSection)
+    }
+
     var body: some View {
         HStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 2) {
@@ -39,15 +45,7 @@ struct AppSettingsView: View {
                                 .foregroundStyle(AppMateStyle.secondary)
                         case "セキュリティ":
                             settingsGroup("Apple Developer") {
-                                VStack(alignment: .leading, spacing: 8) {
-                                    Text(apple.connected ? "接続中" : "未接続（オンライン操作時に保存済みの接続を確認します）")
-                                    Text("接続情報はこのMacのKeychainに保存します。再起動・画面ロック・スリープでは削除しません。")
-                                        .font(.caption).foregroundStyle(.secondary)
-                                    Button("接続を解除") {
-                                        do { try apple.disconnect(); error = nil }
-                                        catch { self.error = AppleDeveloperError.message(for: error) }
-                                    }
-                                }.padding(14)
+                                AppleDeveloperAccountView(session: apple).padding(14)
                             }
 
                             settingsGroup("このMacの認証") {
@@ -119,6 +117,86 @@ struct AppSettingsView: View {
             Spacer(minLength: 10)
             Toggle(title, isOn: isOn).labelsHidden().toggleStyle(.checkbox)
         }.padding(.horizontal, 14).padding(.vertical, 11)
+    }
+
+}
+
+struct AppleDeveloperAccountView: View {
+    let session: AppleDeveloperSession
+    var compact = false
+    @State private var showingLogin = false
+    @State private var error: String?
+
+    var body: some View {
+        Group {
+            if compact {
+                Menu {
+                    Text(session.connected ? "ログイン中" : session.hasSavedSession ? "前回のログイン" : "未ログイン")
+                    if let account = session.currentAccount ?? session.savedAccount { Text(account.label) }
+                    accountActions
+                    if let error { Text(error) }
+                } label: {
+                    Label((session.currentAccount ?? session.savedAccount)?.label ?? "Apple Developerにログイン", systemImage: "person.crop.circle")
+                        .font(.system(size: 12))
+                        .lineLimit(1).truncationMode(.middle)
+                        .frame(width: 180, alignment: .leading)
+                }.menuStyle(.borderlessButton)
+            } else {
+                VStack(alignment: .leading, spacing: 8) {
+                    Label(session.connected ? "ログイン中のApple Account" : session.hasSavedSession ? "前回ログインしたApple Account" : "ログインしていません",
+                          systemImage: session.connected ? "person.crop.circle.badge.checkmark" : "person.crop.circle")
+                        .font(.headline)
+                    if let account = session.currentAccount ?? session.savedAccount {
+                        Text(account.label).font(.system(size: 17, weight: .semibold))
+                            .textSelection(.enabled)
+                        if let email = account.email, let name = account.name, email != name {
+                            Text(name).foregroundStyle(.secondary).textSelection(.enabled)
+                        }
+                    }
+                    if !session.connected {
+                        Text(session.hasSavedSession
+                             ? "保存したログイン情報を次回のオンライン操作で使用します。期限が切れている場合は再ログインが必要です。"
+                             : "Apple Developerにログインして所属チームを確認できます。")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                    HStack { accountActions }
+                    if let error { Text(error).font(.caption).foregroundStyle(.red) }
+                }
+            }
+        }
+        .task {
+            do { try session.loadSavedAccount() }
+            catch { self.error = AppleDeveloperError.message(for: error) }
+        }
+        .sheet(isPresented: $showingLogin) {
+            AppleDeveloperLoginView(onVerified: {}, session: session,
+                                    verificationTitle: "所属チーム", restoreSavedSession: false)
+                .onChange(of: session.connected) { _, connected in
+                    if connected { showingLogin = false }
+                }
+        }
+    }
+    @ViewBuilder
+    private var accountActions: some View {
+        Button(session.hasSavedSession || session.connected ? "再ログイン…" : "ログイン…") {
+            session.useAnotherAccount()
+            showingLogin = true
+        }.disabled(session.busy)
+        if session.hasSavedSession && !session.connected {
+            Button("ログイン状態を確認") {
+                Task {
+                    do { try await session.resume(); error = nil }
+                    catch { self.error = AppleDeveloperError.message(for: error) }
+                }
+            }.disabled(session.busy)
+        }
+        if session.hasSavedSession || session.connected {
+            Button("ログアウト", role: .destructive) {
+                do { try session.disconnect(); error = nil }
+                catch { self.error = AppleDeveloperError.message(for: error) }
+            }
+        }
+        if session.busy { ProgressView().controlSize(.small) }
     }
 
 }

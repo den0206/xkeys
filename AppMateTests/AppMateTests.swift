@@ -19,6 +19,81 @@ final class AppMateTests: XCTestCase {
         return authorization
     }
 
+    @MainActor
+    func testAppleAccountPersistsWithoutConnectingAndLegacyCookiesUpgrade() async throws {
+        let store = MemoryAppleSessionStore()
+        let transport = FakeAppleDeveloperTransport()
+        transport.accountIdentity = AppleDeveloperAccount(email: "verified@example.invalid", name: "Fixture")
+        let session = AppleDeveloperSession(store: store, makeTransport: { transport }, observeLock: false)
+        try await session.login(account: "input@example.invalid", password: "fixture-only")
+        XCTAssertEqual(session.currentAccount?.email, "verified@example.invalid")
+        session.suspend()
+        XCTAssertNil(session.currentAccount)
+        let restored = AppleDeveloperSession(store: store, makeTransport: { transport }, observeLock: false)
+        try restored.loadSavedAccount()
+        XCTAssertEqual(restored.savedAccount?.email, "verified@example.invalid")
+        XCTAssertFalse(restored.connected)
+        XCTAssertFalse(transport.imported)
+        try await restored.resume()
+        XCTAssertEqual(restored.currentAccount?.email, "verified@example.invalid")
+        try restored.disconnect()
+        XCTAssertNil(restored.savedAccount)
+        XCTAssertFalse(restored.hasSavedSession)
+        store.data = Data("[]".utf8)
+        try restored.loadSavedAccount()
+        XCTAssertTrue(restored.hasSavedSession)
+        XCTAssertNil(restored.savedAccount)
+        try await restored.resume()
+        XCTAssertEqual(try SavedAppleDeveloperSession.read(XCTUnwrap(store.data)).account?.email, "verified@example.invalid")
+        XCTAssertThrowsError(try SavedAppleDeveloperSession(version: 2, cookies: Data([1]), account: nil).encoded())
+        XCTAssertThrowsError(try SavedAppleDeveloperSession.read(Data("invalid".utf8)))
+    }
+
+    @MainActor
+    func testTeamManagementRestoresSavedLoginWhenOpened() async throws {
+        let (vault, app, _, _) = try makeVault()
+        defer { try? FileManager.default.removeItem(at: vault.blobs.directory) }
+        let team = try XCTUnwrap(app.team)
+        team.name = "個人開発"
+        vault.context.insert(DeveloperTeam(name: "別のチーム", teamID: "OTHERID001"))
+        try vault.context.save()
+        let store = MemoryAppleSessionStore()
+        let transport = FakeAppleDeveloperTransport()
+        transport.teams = [RemoteDeveloperTeam(teamID: team.teamID, name: team.name)]
+        let previous = AppleDeveloperSession(store: store, makeTransport: { transport }, observeLock: false)
+        try await previous.login(account: "fixture@example.invalid", password: "fixture-only")
+        previous.suspend()
+        let restored = AppleDeveloperSession(store: store, makeTransport: { transport }, observeLock: false)
+        XCTAssertFalse(restored.connected)
+        let view = NSHostingView(rootView: TeamManagementView(vault: vault, appleSession: restored, onDeleted: { _ in })
+            .modelContainer(vault.context.container).environment(\.colorScheme, .light))
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 600, height: 440), styleMask: [.borderless], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        defer { window.close() }
+        window.contentView = view
+        window.orderFront(nil)
+        for _ in 0..<100 where !restored.connected { try await Task.sleep(for: .milliseconds(20)) }
+        XCTAssertTrue(restored.connected)
+        XCTAssertTrue(transport.imported)
+        XCTAssertEqual(restored.currentAccount?.email, "fixture@example.invalid")
+        view.layoutSubtreeIfNeeded()
+        let bitmap = try XCTUnwrap(view.bitmapImageRepForCachingDisplay(in: view.bounds))
+        view.cacheDisplay(in: view.bounds, to: bitmap)
+        let png = try XCTUnwrap(bitmap.representation(using: .png, properties: [:]))
+        let attachment = XCTAttachment(data: png, uniformTypeIdentifier: "public.png")
+        attachment.name = "team-management-login-actions"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
+    func testAppleAccountParserValidatesServerIdentity() throws {
+        let data = Data(#"{"user":{"emailAddress":" verified@example.invalid ","fullName":" Fixture "}}"#.utf8)
+        XCTAssertEqual(try AppleDeveloperClient.parseAccount(data), AppleDeveloperAccount(email: "verified@example.invalid", name: "Fixture"))
+        XCTAssertThrowsError(try AppleDeveloperClient.parseAccount(Data("{}".utf8)))
+        let oversized = try JSONSerialization.data(withJSONObject: ["user": ["emailAddress": String(repeating: "a", count: 1_025)]])
+        XCTAssertThrowsError(try AppleDeveloperClient.parseAccount(oversized))
+    }
+
     func testAppleTeamParserValidatesIDsDuplicatesAndLegacyPlist() throws {
         let valid: [String: Any] = ["resultCode": 0, "teams": [["teamId": "TESTTEAM01", "name": " Fixture "]]]
         for data in [try JSONSerialization.data(withJSONObject: valid),
@@ -611,15 +686,16 @@ final class AppMateTests: XCTestCase {
         let screens: [(String, NSSize, AnyView)] = [
             ("online-import", NSSize(width: 640, height: 520), AnyView(AppleDeveloperImportView(team: team, vault: vault, session: loginSession, onSaved: { _ in }))),
             ("online-confirm", NSSize(width: 720, height: 620), AnyView(CredentialImportView(app: nil, team: team, vault: vault, existing: [], initialFiles: [onlineFile], onSaved: { _ in }))),
-            ("main", NSSize(width: 1232, height: 752), AnyView(CatalogView(container: container, navigation: navigation).modelContainer(container))),
-            ("main-narrow", NSSize(width: 960, height: 640), AnyView(CatalogView(container: container, navigation: navigation).modelContainer(container))),
+            ("main", NSSize(width: 1232, height: 752), AnyView(CatalogView(container: container, navigation: navigation, appleSession: loginSession).modelContainer(container))),
+            ("main-narrow", NSSize(width: 960, height: 640), AnyView(CatalogView(container: container, navigation: navigation, appleSession: loginSession).modelContainer(container))),
             ("settings", NSSize(width: 852, height: 592), AnyView(AppSettingsView(container: container))),
+            ("settings-account", NSSize(width: 852, height: 592), AnyView(AppSettingsView(container: container, appleSession: loginSession, initialSection: "セキュリティ"))),
             ("welcome", NSSize(width: 760, height: 518), AnyView(OnboardingView(onFinished: { _ in }))),
             ("onboarding-import", NSSize(width: 760, height: 518), AnyView(OnboardingView(step: 1, onFinished: { _ in }))),
             ("onboarding-security", NSSize(width: 760, height: 518), AnyView(OnboardingView(step: 2, onFinished: { _ in }))),
             ("add-app", NSSize(width: 560, height: 520), AnyView(RegistrationForm(container: container, teams: [team], initialTeam: team.id, isTeam: false, onSaved: { _ in }))),
             ("add-team", NSSize(width: 600, height: 540), AnyView(RegistrationForm(container: container, teams: [team], initialTeam: team.id, isTeam: true, onSaved: { _ in }))),
-            ("team-management", NSSize(width: 600, height: 440), AnyView(TeamManagementView(vault: vault, onDeleted: { _ in }))),
+            ("team-management", NSSize(width: 600, height: 440), AnyView(TeamManagementView(vault: vault, appleSession: loginSession, onDeleted: { _ in }))),
             ("team-deletion-empty", NSSize(width: 490, height: 360), AnyView(TeamDeletionView(vault: vault, team: emptyTeam, onDeleted: {}))),
             ("team-deletion-blocked", NSSize(width: 490, height: 400), AnyView(TeamDeletionView(vault: vault, team: team, onDeleted: {}))),
             ("team-selection", NSSize(width: 540, height: 540), AnyView(AppleDeveloperLoginView(onTeam: { _ in }, session: loginSession))),
@@ -2479,6 +2555,7 @@ private enum BeforeRestoreSchema {
 
 @MainActor
 private final class FakeAppleDeveloperTransport: AppleDeveloperTransport {
+    var accountIdentity: AppleDeveloperAccount?
     var teams = [RemoteDeveloperTeam(teamID: "TESTTEAM01", name: "Fixture")]
     var failure: Error?
     var pauseValidation = false
