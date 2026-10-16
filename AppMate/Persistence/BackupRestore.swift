@@ -36,6 +36,13 @@ struct RestorePlan: Sendable {
     let localRevision: String
     let items: [Item]
     let requiresSafetyBackup: Bool
+    var requiredTeamIDs: Set<String> {
+        let added = Set(items.filter { $0.kind == .team && $0.state == .added }.map(\.target))
+        return Set(incoming.teams.filter { added.contains($0.id) }.map(\.teamID))
+    }
+    func authorizationFingerprint() throws -> String {
+        localRevision + ":" + (try incoming.revision())
+    }
     var conflicts: [Item] { items.filter { $0.state == .conflict } }
     var addedCount: Int { items.filter { $0.state == .added }.count }
     var duplicateCount: Int { items.filter { $0.state == .duplicate }.count }
@@ -175,7 +182,7 @@ struct BackupRestore {
         try RestorePlan.make(incoming: snapshot, current: BackupSnapshot.capture(vault: vault, key: key))
     }
 
-    func merge(_ plan: RestorePlan, choices: [String: RestoreChoice], key: SymmetricKey,
+    func merge(_ plan: RestorePlan, choices: [String: RestoreChoice], authorization: RestoreTeamAuthorization? = nil, key: SymmetricKey,
                beforeCommit: () throws -> Void = {}, safetyBackup: SafetyBackup? = nil, replacingAll: Bool = false) throws -> Result {
         let context = vault.context
         guard !context.hasChanges else { throw RestoreError.pendingChanges }
@@ -192,6 +199,11 @@ struct BackupRestore {
             final = replacement
             try final.validate()
         } else { final = try plan.merged(with: current, choices: choices) }
+        let missingTeamIDs = Set(final.teams.map(\.teamID)).subtracting(current.teams.map(\.teamID))
+        if !missingTeamIDs.isEmpty {
+            guard missingTeamIDs.isSubset(of: plan.requiredTeamIDs), let authorization else { throw AppleDeveloperError.membershipRequired }
+            try authorization.validate(plan)
+        }
         guard try JSONEncoder().encode(final).count <= BackupArchive.maximumPayloadBytes else { throw BackupError.tooLarge }
         var teams = Dictionary(uniqueKeysWithValues: try context.fetch(FetchDescriptor<DeveloperTeam>()).map { ($0.id, $0) })
         var apps = Dictionary(uniqueKeysWithValues: try context.fetch(FetchDescriptor<ManagedApp>()).map { ($0.id, $0) })
@@ -276,6 +288,7 @@ struct BackupRestore {
             if replacing || plan.addedCount > 0 || plan.conflicts.contains(where: { choices[$0.id] == .backup }) {
                 BackupHistory.record(in: context)
             }
+            if !missingTeamIDs.isEmpty { try authorization?.validate(plan) }
             try beforeCommit()
             try context.save()
         } catch {

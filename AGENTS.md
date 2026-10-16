@@ -2,7 +2,7 @@
 
 ## プロジェクト構成
 
-App Mate は macOS 26.0 以降向けの SwiftUI・SwiftData アプリです。外部ライブラリは使用しません。
+App Mate は macOS 26.0 以降向けの SwiftUI・SwiftData アプリです。Apple Developer認証にはXcodesLoginKitを使用します。それ以外の外部ライブラリ追加は必要性を確認してください。
 
 - `AppMate/Application/`：起動、ウィンドウ構成、技術検証画面。
 - `AppMate/Features/`：一覧、取り込み、設定、バックアップなどの画面。

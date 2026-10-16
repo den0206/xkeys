@@ -123,6 +123,116 @@ struct CatalogEditor: View {
     }
 }
 
+struct TeamManagementView: View {
+    let vault: CredentialVault
+    let onDeleted: (UUID) -> Void
+    @Environment(\.dismiss) private var dismiss
+    @Query(sort: \DeveloperTeam.name) private var teams: [DeveloperTeam]
+    @State private var editing: DeveloperTeam?
+    @State private var deleting: DeveloperTeam?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("登録済みチーム（\(teams.count)件）").font(.title2.bold())
+            Text("App Mateに登録したすべてのチームです。現在ログイン中のApple Accountにかかわらず表示します。")
+                .font(.callout).foregroundStyle(AppMateStyle.secondary)
+            ScrollView {
+                LazyVStack(spacing: 8) {
+                    ForEach(teams) { team in
+                        HStack(spacing: 12) {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(team.name).fontWeight(.medium)
+                                Text("Team ID: " + team.teamID).font(.system(.caption, design: .monospaced))
+                                    .foregroundStyle(AppMateStyle.secondary).textSelection(.enabled)
+                            }
+                            Spacer()
+                            Button("編集…") { editing = team }.accessibilityLabel(team.name + "を編集")
+                            Button("削除…", role: .destructive) { deleting = team }.accessibilityLabel(team.name + "を削除")
+                        }.padding(12).frame(maxWidth: .infinity, alignment: .leading)
+                            .background(AppMateStyle.sidebar, in: RoundedRectangle(cornerRadius: 8))
+                    }
+                    if teams.isEmpty { Text("登録済みのチームはありません。").foregroundStyle(AppMateStyle.secondary).padding() }
+                }
+            }
+            HStack { Spacer(); Button("閉じる") { dismiss() }.keyboardShortcut(.cancelAction) }
+        }
+        .padding(24).frame(width: 600, height: 440)
+        .font(.system(size: 13)).buttonStyle(AppMateButtonStyle())
+        .background(AppMateStyle.canvas).foregroundStyle(AppMateStyle.text)
+        .sheet(item: $editing) { team in CatalogEditor(vault: vault, team: team, app: nil) }
+        .sheet(item: $deleting) { team in
+            let id = team.id
+            TeamDeletionView(vault: vault, team: team) { onDeleted(id) }
+        }
+    }
+}
+
+struct TeamDeletionView: View {
+    let vault: CredentialVault
+    let team: DeveloperTeam
+    let onDeleted: () -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var access = VaultAccess()
+    @State private var error: String?
+    @State private var hasContents = true
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("チームを削除").font(.title2.bold())
+            VStack(alignment: .leading, spacing: 4) {
+                Text(team.name).font(.headline)
+                Text("Team ID: " + team.teamID).font(.system(.body, design: .monospaced)).textSelection(.enabled)
+            }
+            if hasContents {
+                Label("このチームは削除できません", systemImage: "exclamationmark.triangle")
+                    .foregroundStyle(AppMateStyle.warningText)
+                Text("アプリや資格情報が残っています。チームを削除するには、先に所属データを削除し、「最近削除した項目」からも完全に削除する必要があります。")
+                    .foregroundStyle(AppMateStyle.secondary).fixedSize(horizontal: false, vertical: true)
+            } else {
+                Text("App Mateからこのチームの登録を削除します。この操作は元に戻せません。")
+                    .fixedSize(horizontal: false, vertical: true)
+                Text("Apple Developerのチームからの脱退や、Apple側の鍵・証明書の削除は行いません。")
+                    .foregroundStyle(AppMateStyle.secondary).fixedSize(horizontal: false, vertical: true)
+            }
+            if let error { Text(error).foregroundStyle(.red) }
+            HStack {
+                if access.busy { ProgressView().controlSize(.small) }
+                Spacer()
+                Button(hasContents ? "閉じる" : "キャンセル") { dismiss() }.keyboardShortcut(.cancelAction)
+                Button("認証してチームを削除", role: .destructive, action: remove)
+                    .disabled(hasContents || access.busy)
+            }
+        }
+        .padding(24).frame(width: 490).font(.system(size: 13))
+        .buttonStyle(AppMateButtonStyle()).background(AppMateStyle.canvas).foregroundStyle(AppMateStyle.text)
+        .interactiveDismissDisabled(access.busy)
+        .onAppear {
+            do {
+                let records = try vault.records()
+                hasContents = !team.apps.isEmpty || records.contains { $0.team?.id == team.id }
+            }
+            catch { self.error = error.localizedDescription }
+        }
+        .onDisappear { access.lock() }
+        .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.willSleepNotification)) { _ in access.lock(); dismiss() }
+        .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.sessionDidResignActiveNotification)) { _ in access.lock(); dismiss() }
+    }
+
+    private func remove() {
+        guard !hasContents, !access.busy else { return }
+        Task { @MainActor in
+            do {
+                let create = try vault.canCreateKey()
+                try await access.withKey(reason: "チーム「\(team.name)」の登録を削除します", allowCreation: create, vault: vault) { _ in
+                    try VaultManagement(vault: vault).removeTeam(team)
+                }
+                onDeleted()
+                dismiss()
+            } catch { self.error = error.localizedDescription }
+        }
+    }
+}
+
 struct TrashView: View {
     let vault: CredentialVault
     @Query private var records: [StoredCredential]

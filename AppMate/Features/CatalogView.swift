@@ -40,6 +40,8 @@ struct CatalogView: View {
     @FocusState private var searchFocused: Bool
     @State private var clock = Date.now
     @State private var search = ""
+    @State private var managingTeams = false
+    @State private var deletingTeam: DeveloperTeam?
     @State private var editingTeam: DeveloperTeam?
     @State private var editingApp: ManagedApp?
     @State private var onboarding = false
@@ -113,6 +115,19 @@ struct CatalogView: View {
             }
         }
         .onChange(of: addingFile) { _, shown in if !shown { onboardingSources = [] } }
+        .sheet(isPresented: $managingTeams) {
+            TeamManagementView(vault: CredentialVault(context: container.mainContext, blobs: EncryptedBlobStore(directory: CredentialVault.directory))) { id in
+                if selection == .team(id) { selection = .all }
+                if selectedTeam == id { selectedTeam = nil }
+            }.modelContainer(container)
+        }
+        .sheet(item: $deletingTeam) { team in
+            let id = team.id
+            TeamDeletionView(vault: CredentialVault(context: container.mainContext, blobs: EncryptedBlobStore(directory: CredentialVault.directory)), team: team) {
+                if selection == .team(id) { selection = .all }
+                if selectedTeam == id { selectedTeam = nil }
+            }
+        }
         .sheet(item: $editingTeam) { team in CatalogEditor(vault: CredentialVault(context: container.mainContext, blobs: EncryptedBlobStore(directory: CredentialVault.directory)), team: team, app: nil) }
         .sheet(item: $editingApp) { app in CatalogEditor(vault: CredentialVault(context: container.mainContext, blobs: EncryptedBlobStore(directory: CredentialVault.directory)), team: nil, app: app) }
         .sheet(isPresented: $restoringBackup) {
@@ -213,12 +228,23 @@ struct CatalogView: View {
                         sidebarItem("最近削除した項目", symbol: "trash", scope: .trash, count: trashCount)
                     }
                     ForEach(teams) { team in
-                        sidebarHeading(team.name).padding(.top, 10)
-                            .contentShape(Rectangle())
-                            .contextMenu {
+                        HStack(spacing: 4) {
+                            sidebarHeading(team.name).lineLimit(1)
+                                .help("\(team.name)（\(team.teamID)）")
+                            Spacer(minLength: 0)
+                            Menu {
                                 Button("チームを編集…") { editingTeam = team }
-                            }
-                            .help("右クリックでチームを編集")
+                                Button("チームを削除…", role: .destructive) { deletingTeam = team }
+                            } label: {
+                                Image(systemName: "ellipsis.circle").font(.system(size: 14))
+                            }.menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+                                .accessibilityLabel(team.name + "の編集・削除")
+                                .help("チームの編集・削除")
+                        }.padding(.top, 10).padding(.trailing, 8)
+                        .contextMenu {
+                            Button("チームを編集…") { editingTeam = team }
+                            Button("チームを削除…", role: .destructive) { deletingTeam = team }
+                        }
                         sidebarItem("チームの鍵・証明書", symbol: "key", scope: .team(team.id),
                                     count: active.filter { $0.isTeamShared && $0.team?.id == team.id }.count)
                         sidebarHeading("アプリ").padding(.top, 8)
@@ -259,6 +285,8 @@ struct CatalogView: View {
                         Spacer(minLength: 0)
                     }.frame(maxWidth: .infinity)
                 }.buttonStyle(AppMateButtonStyle())
+                Button("登録済みチームを管理…", systemImage: "person.2") { managingTeams = true }
+                    .buttonStyle(AppMateButtonStyle()).frame(maxWidth: .infinity, alignment: .leading)
             }.padding(.horizontal, 14).padding(.bottom, 14)
         }.background(AppMateStyle.sidebar)
     }
@@ -390,87 +418,92 @@ struct RegistrationForm: View {
     @FocusState private var nameFocused: Bool
 
     var body: some View {
+        if isTeam {
+            AppleDeveloperLoginView(onTeam: { team in
+                let id = try AppleDeveloperSession.shared.register(team, catalog: AppCatalog(context: container.mainContext))
+                onSaved(id)
+            }).modelContainer(container)
+        } else {
+            registrationBody
+        }
+    }
+
+    private var registrationBody: some View {
         VStack(alignment: .leading, spacing: 16) {
             VStack(alignment: .leading, spacing: 4) {
-                Text(isTeam ? "チームを追加" : parentApp == nil ? "アプリを追加" : "ターゲットを追加").font(.system(size: 18, weight: .bold))
-                Text(isTeam ? "Apple Developerのチーム名とTeam IDを入力してください。" : parentApp.map { "\($0.name) の配下にBundle IDを登録します。" } ?? "最初のターゲット（本体）のBundle IDを登録します。")
+                Text(parentApp == nil ? "アプリを追加" : "ターゲットを追加").font(.system(size: 18, weight: .bold))
+                Text(parentApp.map { "\($0.name) の配下にBundle IDを登録します。" } ?? "最初のターゲット（本体）のBundle IDを登録します。")
                     .foregroundStyle(AppMateStyle.secondary)
             }
-            if !isTeam {
-                Label("プロファイルをここにドロップすると、下の項目を自動で入力します", systemImage: "arrow.down.to.line")
-                    .font(.system(size: 13)).foregroundStyle(AppMateStyle.accent)
-                    .frame(maxWidth: .infinity).frame(height: 64)
-                    .background(AppMateStyle.selectedRow, in: RoundedRectangle(cornerRadius: 10))
-                    .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(AppMateStyle.accent.opacity(0.4), style: StrokeStyle(lineWidth: 1.5, dash: [6, 4])))
-                    .dropDestination(for: URL.self) { urls, _ in
-                        guard let url = urls.first else { return false }
-                        readProfile(url)
-                        return true
-                    }
-            }
+            Label("プロファイルをここにドロップすると、下の項目を自動で入力します", systemImage: "arrow.down.to.line")
+                .font(.system(size: 13)).foregroundStyle(AppMateStyle.accent)
+                .frame(maxWidth: .infinity).frame(height: 64)
+                .background(AppMateStyle.selectedRow, in: RoundedRectangle(cornerRadius: 10))
+                .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(AppMateStyle.accent.opacity(0.4), style: StrokeStyle(lineWidth: 1.5, dash: [6, 4])))
+                .dropDestination(for: URL.self) { urls, _ in
+                    guard let url = urls.first else { return false }
+                    readProfile(url)
+                    return true
+                }
+
             Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 14) {
                 GridRow {
-                    Text(isTeam ? "チーム名" : "表示名").frame(width: 120, alignment: .leading)
+                    Text("表示名").frame(width: 120, alignment: .leading)
                     TextField("表示名", text: $name).focused($nameFocused).labelsHidden()
                 }
                 GridRow {
-                    Text(isTeam ? "Team ID" : "Bundle ID")
-                    TextField(isTeam ? "A1B2C3D4E5" : "com.example.app", text: $identifier)
+                    Text("Bundle ID")
+                    TextField("com.example.app", text: $identifier)
                         .font(.system(size: 13, design: .monospaced)).labelsHidden()
                 }
-                if !isTeam {
-                    GridRow {
-                        Text("プラットフォーム")
-                        Picker("プラットフォーム", selection: $platform) {
-                            ForEach(AppCatalog.platforms, id: \.self) { Text($0).tag($0) }
-                        }.labelsHidden()
-                    }
-                    GridRow {
-                        Text("チーム")
-                        Picker("チーム", selection: $teamID) {
-                            Text("選択してください").tag(nil as UUID?)
-                            ForEach(registeredTeams) { team in Text("\(team.name)（\(team.teamID)）").tag(Optional(team.id)) }
-                        }.labelsHidden().disabled(parentApp != nil)
-                    }
-                    GridRow {
-                        Color.clear.frame(width: 120, height: 1)
-                        Button("チームを追加…") { showingAddTeam = true }.buttonStyle(.borderless).foregroundStyle(AppMateStyle.accent).disabled(parentApp != nil)
-                    }
-                    GridRow {
-                        Text("アイコン")
-                        HStack(spacing: 10) {
-                            ZStack {
-                                RoundedRectangle(cornerRadius: 11).fill(AppMateStyle.iconColor(iconColor))
-                                if let iconImage, let image = NSImage(data: iconImage) { Image(nsImage: image).resizable().scaledToFill() }
-                                else { Text(String(name.prefix(1))).font(.system(size: 20, weight: .bold)).foregroundStyle(.white) }
-                            }.frame(width: 44, height: 44).clipShape(RoundedRectangle(cornerRadius: 11))
-                            ForEach(AppCatalog.iconColors, id: \.self) { color in
-                                Button { iconColor = color; iconImage = nil } label: {
-                                    Circle().fill(AppMateStyle.iconColor(color)).frame(width: 22, height: 22)
-                                        .overlay(Circle().stroke(iconColor == color && iconImage == nil ? AppMateStyle.text : .clear, lineWidth: 2))
-                                }.buttonStyle(.plain).accessibilityLabel("アイコンの色：" + color)
-                                    .accessibilityAddTraits(iconColor == color && iconImage == nil ? .isSelected : [])
-                            }
-                            Button("画像を選ぶ…", action: chooseIcon).buttonStyle(AppMateButtonStyle())
+                GridRow {
+                    Text("プラットフォーム")
+                    Picker("プラットフォーム", selection: $platform) {
+                        ForEach(AppCatalog.platforms, id: \.self) { Text($0).tag($0) }
+                    }.labelsHidden()
+                }
+                GridRow {
+                    Text("チーム")
+                    Picker("チーム", selection: $teamID) {
+                        Text("選択してください").tag(nil as UUID?)
+                        ForEach(registeredTeams) { team in Text("\(team.name)（\(team.teamID)）").tag(Optional(team.id)) }
+                    }.labelsHidden().disabled(parentApp != nil)
+                }
+                GridRow {
+                    Color.clear.frame(width: 120, height: 1)
+                    Button("チームを追加…") { showingAddTeam = true }.buttonStyle(.borderless).foregroundStyle(AppMateStyle.accent).disabled(parentApp != nil)
+                }
+                GridRow {
+                    Text("アイコン")
+                    HStack(spacing: 10) {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 11).fill(AppMateStyle.iconColor(iconColor))
+                            if let iconImage, let image = NSImage(data: iconImage) { Image(nsImage: image).resizable().scaledToFill() }
+                            else { Text(String(name.prefix(1))).font(.system(size: 20, weight: .bold)).foregroundStyle(.white) }
+                        }.frame(width: 44, height: 44).clipShape(RoundedRectangle(cornerRadius: 11))
+                        ForEach(AppCatalog.iconColors, id: \.self) { color in
+                            Button { iconColor = color; iconImage = nil } label: {
+                                Circle().fill(AppMateStyle.iconColor(color)).frame(width: 22, height: 22)
+                                    .overlay(Circle().stroke(iconColor == color && iconImage == nil ? AppMateStyle.text : .clear, lineWidth: 2))
+                            }.buttonStyle(.plain).accessibilityLabel("アイコンの色：" + color)
+                                .accessibilityAddTraits(iconColor == color && iconImage == nil ? .isSelected : [])
                         }
+                        Button("画像を選ぶ…", action: chooseIcon).buttonStyle(AppMateButtonStyle())
                     }
                 }
+
             }.textFieldStyle(.roundedBorder).controlSize(.large).padding(.vertical, 4)
-            if isTeam {
-                Text("Team IDは10文字の英大文字・数字です。Apple IDのパスワードは不要です。")
-                    .font(.system(size: 12)).foregroundStyle(AppMateStyle.secondary)
-            }
-            Text(isTeam ? "証明書と鍵は、チームの一覧で保管します。アプリが0件でも追加できます。" : "このアプリのプロファイルはアプリの一覧に、鍵と証明書はチームの一覧に保管します。")
+            Text("このアプリのプロファイルはアプリの一覧に、鍵と証明書はチームの一覧に保管します。")
                 .font(.system(size: 12)).padding(14).frame(maxWidth: .infinity, alignment: .leading)
-                .background(isTeam ? AppMateStyle.warningBackground : AppMateStyle.selectedRow, in: RoundedRectangle(cornerRadius: 9))
+                .background(AppMateStyle.selectedRow, in: RoundedRectangle(cornerRadius: 9))
             if let error { Label(error, systemImage: "exclamationmark.triangle").foregroundStyle(.red).textSelection(.enabled) }
             Divider()
             HStack(spacing: 10) {
                 Spacer()
                 Button("キャンセル") { dismiss() }.keyboardShortcut(.cancelAction).buttonStyle(AppMateButtonStyle())
-                Button(isTeam ? "チームを追加" : "追加", action: save).keyboardShortcut(.defaultAction)
+                Button("追加", action: save).keyboardShortcut(.defaultAction)
                     .buttonStyle(AppMateButtonStyle(primary: true))
-                    .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || identifier.isEmpty || (!isTeam && teamID == nil))
+                    .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || identifier.isEmpty || teamID == nil)
             }
         }
         .font(.system(size: 13)).padding(.horizontal, 26).padding(.vertical, 24).frame(width: isTeam ? 600 : 560)
@@ -521,13 +554,8 @@ struct RegistrationForm: View {
     private func save() {
         do {
             let catalog = AppCatalog(context: container.mainContext)
-            let id: UUID
-            if isTeam {
-                id = try catalog.addTeam(name: name, teamID: identifier)
-            } else {
-                guard let teamID else { throw RegistrationError.teamMissing }
-                id = try catalog.addApp(name: name, bundleID: identifier, platform: platform, teamID: teamID, iconColor: iconColor, iconImage: iconImage, parentAppID: parentApp?.id)
-            }
+            guard let teamID else { throw RegistrationError.teamMissing }
+            let id = try catalog.addApp(name: name, bundleID: identifier, platform: platform, teamID: teamID, iconColor: iconColor, iconImage: iconImage, parentAppID: parentApp?.id)
             onSaved(id)
             dismiss()
         } catch { self.error = error.localizedDescription }

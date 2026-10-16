@@ -12,6 +12,9 @@ struct RestoreView: View {
     @State private var password = ""
     @State private var snapshot: BackupSnapshot?
     @State private var plan: RestorePlan?
+    @State private var apple = AppleDeveloperSession.shared
+    @State private var authorization = RestoreTeamAuthorization()
+    @State private var verifyingTeams = false
     @State private var choices: [String: RestoreChoice] = [:]
     @State private var result: BackupRestore.Result?
     @State private var error: String?
@@ -29,6 +32,7 @@ struct RestoreView: View {
     }
     private var ready: Bool {
         guard let plan else { return false }
+        guard plan.requiredTeamIDs.isEmpty || (try? authorization.validate(plan)) != nil else { return false }
         if replaceAll { return !working && (!plan.requiresSafetyBackup || safetyBackup?.revision == plan.localRevision) }
         return !working && plan.conflicts.allSatisfy { choices[$0.id] != nil } && (plan.addedCount > 0 || !plan.conflicts.isEmpty)
     }
@@ -73,6 +77,19 @@ struct RestoreView: View {
                 }
                 if let plan {
                     Divider()
+                    if !plan.requiredTeamIDs.isEmpty {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("復元するチームへの所属確認").font(.headline)
+                            ForEach(plan.incoming.teams.filter { plan.requiredTeamIDs.contains($0.teamID) }, id: \.teamID) { team in
+                                let verified = (try? authorization.confirmedTeamIDs(for: plan).contains(team.teamID)) == true
+                                Label("\(team.name)（\(team.teamID)） · \(verified ? "確認済み" : "要確認")",
+                                      systemImage: verified ? "checkmark.circle" : "person.crop.circle.badge.questionmark")
+                            }
+                            Button("Apple Developerで所属を確認…") { verifyingTeams = true }
+                            Text("未登録のすべてのチームへの所属確認が必要です。アカウントを切り替えて確認できます。")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
                     Text("今のデータとの違い").font(.headline)
                     HStack(spacing: 28) {
                         count(plan.addedCount, title: "新しく追加")
@@ -141,6 +158,13 @@ struct RestoreView: View {
         .background(AppMateStyle.canvas).foregroundStyle(AppMateStyle.text).tint(AppMateStyle.accent)
         .disabled(working)
         .interactiveDismissDisabled(working)
+        .sheet(isPresented: $verifyingTeams) {
+            AppleDeveloperLoginView(onVerified: {
+                guard let plan else { throw RestoreError.stale }
+                try apple.confirm(authorization, plan: plan)
+                lastActivity = .now
+            }).modelContainer(container)
+        }
         .sheet(isPresented: $makingSafetyBackup) { BackupView(container: container, onSafetyBackup: { safetyBackup = $0 }) }
         .onDisappear { clear() }
         .onChange(of: password) { _, _ in lastActivity = .now }
@@ -153,7 +177,7 @@ struct RestoreView: View {
         .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.willSleepNotification)) { _ in clear(); dismiss() }
         .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.sessionDidResignActiveNotification)) { _ in clear(); dismiss() }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didResignActiveNotification)) { _ in
-            if !working && !access.presentingPanel && !makingSafetyBackup && result == nil { clear() }
+            if !working && !access.presentingPanel && !makingSafetyBackup && !verifyingTeams && result == nil { clear() }
         }
     }
 
@@ -165,6 +189,8 @@ struct RestoreView: View {
     }
 
     private func clear() {
+        authorization.clear()
+        verifyingTeams = false
         access.lock()
         work?.cancel()
         password = ""
@@ -228,6 +254,7 @@ struct RestoreView: View {
         }
         guard access.generation == generation, !Task.isCancelled else { throw VaultError.cancelled }
         snapshot = decoded
+        authorization.clear()
         plan = prepared
         choices = [:]
         error = nil
@@ -247,6 +274,7 @@ struct RestoreView: View {
                     try restore.prepare(snapshot, key: key)
                 }
                 guard generation == access.generation, !Task.isCancelled else { throw VaultError.cancelled }
+                authorization.clear()
                 plan = refreshed; choices = [:]; lastActivity = .now
             } catch { if generation == access.generation { self.error = error.localizedDescription } }
         }
@@ -263,7 +291,7 @@ struct RestoreView: View {
             do {
                 let canCreate = try restore.vault.canCreateKey()
                 let merged = try await access.withKey(reason: "バックアップの選択した内容を復元します", allowCreation: canCreate, vault: restore.vault) { key in
-                    try restore.merge(plan, choices: selected, key: key, safetyBackup: replaceAll ? safetyBackup : nil, replacingAll: replaceAll)
+                    try restore.merge(plan, choices: selected, authorization: authorization, key: key, safetyBackup: replaceAll ? safetyBackup : nil, replacingAll: replaceAll)
                 }
                 result = merged
                 self.snapshot = nil; self.plan = nil; file = nil; choices = [:]

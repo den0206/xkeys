@@ -9,6 +9,7 @@ struct AppSettingsView: View {
     @State private var error: String?
     @State private var loaded = false
     @State private var selectedTemplate: UUID?
+    @State private var apple = AppleDeveloperSession.shared
     @State private var section = "通知"
     @State private var creatingBackup = false
     @State private var restoringBackup = false
@@ -39,9 +40,21 @@ struct AppSettingsView: View {
                                 Divider()
                                 settingsToggle("メニューバーに表示", isOn: $preferences.showMenuBar)
                             }
-                            Text("外部通信・同期・自動起動は行いません。元ファイルは変更しません。")
+                            Text("Apple Developerへの接続は利用者の操作時に行います。同期・自動起動は行いません。元ファイルは変更しません。")
                                 .foregroundStyle(AppMateStyle.secondary)
                         case "セキュリティ":
+                            settingsGroup("Apple Developer") {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text(apple.connected ? "接続中" : "未接続（オンライン操作時に保存済みの接続を確認します）")
+                                    Text("接続情報はこのMacのKeychainに保存します。再起動・画面ロック・スリープでは削除しません。")
+                                        .font(.caption).foregroundStyle(.secondary)
+                                    Button("接続を解除") {
+                                        do { try apple.disconnect(); error = nil }
+                                        catch { self.error = AppleDeveloperError.message(for: error) }
+                                    }
+                                }.padding(14)
+                            }
+
                             settingsGroup("このMacの認証") {
                                 Label("Touch ID またはMacのパスワードで確認します", systemImage: "lock.shield").padding(14)
                                 Divider()

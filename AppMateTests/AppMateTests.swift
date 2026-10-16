@@ -4,9 +4,217 @@ import SwiftUI
 import SwiftData
 import Security
 import XCTest
+import XcodesLoginKit
 @testable import AppMate
 
 final class AppMateTests: XCTestCase {
+    @MainActor
+    private func restoreAuthorization(for plan: RestorePlan) async throws -> RestoreTeamAuthorization {
+        let transport = FakeAppleDeveloperTransport()
+        transport.teams = plan.incoming.teams.map { RemoteDeveloperTeam(teamID: $0.teamID, name: $0.name) }
+        let session = AppleDeveloperSession(store: MemoryAppleSessionStore(), makeTransport: { transport }, observeLock: false)
+        try await session.login(account: "fixture@example.invalid", password: "fixture-only")
+        let authorization = RestoreTeamAuthorization()
+        try session.confirm(authorization, plan: plan)
+        return authorization
+    }
+
+    func testAppleTeamParserValidatesIDsDuplicatesAndLegacyPlist() throws {
+        let valid: [String: Any] = ["resultCode": 0, "teams": [["teamId": "TESTTEAM01", "name": " Fixture "]]]
+        for data in [try JSONSerialization.data(withJSONObject: valid),
+                     try PropertyListSerialization.data(fromPropertyList: valid, format: .xml, options: 0)] {
+            XCTAssertEqual(try AppleDeveloperClient.parseTeams(data), [RemoteDeveloperTeam(teamID: "TESTTEAM01", name: "Fixture")])
+        }
+        for teams in [ [["teamId": "wrong", "name": "Fixture"]],
+                       [["teamId": "TESTTEAM01", "name": ""]],
+                       [["teamId": "TESTTEAM01", "name": "One"], ["teamId": "TESTTEAM01", "name": "Other"]] ] {
+            XCTAssertThrowsError(try AppleDeveloperClient.parseTeams(JSONSerialization.data(withJSONObject: ["resultCode": 0, "teams": teams])))
+        }
+        XCTAssertThrowsError(try AppleDeveloperClient.parseTeams(Data("<html>Login</html>".utf8)))
+        XCTAssertThrowsError(try AppleDeveloperClient.parseTeams(Data("{\"teams\":[]}".utf8)))
+        XCTAssertThrowsError(try AppleDeveloperClient.parseTeams(Data("{\"resultCode\":1100}".utf8)))
+    }
+
+    @MainActor
+    func testAppleSessionSurvivesSuspendAndNetworkFailureButDisconnectDeletesIt() async throws {
+        let store = MemoryAppleSessionStore()
+        let transport = FakeAppleDeveloperTransport()
+        let session = AppleDeveloperSession(store: store, makeTransport: { transport }, observeLock: false)
+        try await session.login(account: "fixture@example.invalid", password: "fixture-only")
+        XCTAssertTrue(session.connected)
+        XCTAssertNotNil(store.data)
+        session.suspend()
+        XCTAssertFalse(session.connected)
+        XCTAssertTrue(transport.cancelled)
+        XCTAssertNotNil(store.data)
+        try await session.resume()
+        XCTAssertTrue(transport.imported)
+        XCTAssertTrue(session.connected)
+        transport.failure = URLError(.notConnectedToInternet)
+        do { try await session.resume(); XCTFail("Network failure must stop the operation") } catch { }
+        XCTAssertNotNil(store.data)
+        transport.failure = AppleDeveloperError.loginRequired
+        do { try await session.resume(); XCTFail("Expired login must fail") } catch { }
+        XCTAssertNil(store.data)
+        transport.failure = nil
+        try await session.login(account: "fixture@example.invalid", password: "fixture-only")
+        try session.disconnect()
+        XCTAssertNil(store.data)
+        XCTAssertFalse(session.connected)
+    }
+
+    @MainActor
+    func testUnregisteredRestoreRequiresMembershipAndReceiptExpiresOrInvalidates() async throws {
+        let (source, _, _, _) = try makeVault()
+        defer { try? FileManager.default.removeItem(at: source.blobs.directory) }
+        let container = try ModelContainer(for: DeveloperTeam.self, ManagedApp.self, StoredCredential.self, BackupChange.self, BackupCheckpoint.self,
+                                           configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("AppMateTests/" + UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let target = CredentialVault(context: ModelContext(container), blobs: EncryptedBlobStore(directory: directory))
+        let service = BackupRestore(vault: target)
+        let key = SymmetricKey(size: .bits256)
+        let plan = try service.prepare(BackupSnapshot.capture(vault: source, key: key), key: key)
+        XCTAssertFalse(plan.requiredTeamIDs.isEmpty)
+        XCTAssertThrowsError(try service.merge(plan, choices: [:], key: key))
+        XCTAssertThrowsError(try service.merge(plan, choices: [:], key: key, replacingAll: true))
+        XCTAssertTrue(try target.context.fetch(FetchDescriptor<DeveloperTeam>()).isEmpty)
+        let transport = FakeAppleDeveloperTransport()
+        let session = AppleDeveloperSession(store: MemoryAppleSessionStore(), makeTransport: { transport }, observeLock: false)
+        let authorization = RestoreTeamAuthorization()
+        try await session.login(account: "fixture@example.invalid", password: "fixture-only")
+        try session.confirm(authorization, plan: plan)
+        XCTAssertThrowsError(try authorization.validate(plan)) // The second team is still missing.
+        session.useAnotherAccount()
+        transport.teams = plan.incoming.teams.filter { $0.teamID != "TESTTEAM01" }.map { RemoteDeveloperTeam(teamID: $0.teamID, name: $0.name) }
+        try await session.login(account: "other@example.invalid", password: "fixture-only")
+        try session.confirm(authorization, plan: plan)
+        XCTAssertNoThrow(try authorization.validate(plan))
+        XCTAssertThrowsError(try authorization.validate(plan, at: Date.now.addingTimeInterval(301)))
+        session.suspend()
+        XCTAssertThrowsError(try authorization.validate(plan))
+        let approved = try await restoreAuthorization(for: plan)
+        _ = try service.merge(plan, choices: [:], authorization: approved, key: key)
+        let repeatPlan = try service.prepare(plan.incoming, key: key)
+        XCTAssertTrue(repeatPlan.requiredTeamIDs.isEmpty)
+        XCTAssertNoThrow(try service.merge(repeatPlan, choices: [:], key: key))
+    }
+
+    @MainActor
+    func testRemoteTeamRegistrationKeepsExistingIdentityAndLocalName() async throws {
+        let (vault, app, _, _) = try makeVault()
+        defer { try? FileManager.default.removeItem(at: vault.blobs.directory) }
+        let team = try XCTUnwrap(app.team)
+        let originalName = team.name
+        let transport = FakeAppleDeveloperTransport()
+        transport.teams = [RemoteDeveloperTeam(teamID: team.teamID, name: "Remote name")]
+        let session = AppleDeveloperSession(store: MemoryAppleSessionStore(), makeTransport: { transport }, observeLock: false)
+        try await session.login(account: "fixture@example.invalid", password: "fixture-only")
+        XCTAssertEqual(try session.register(transport.teams[0], catalog: AppCatalog(context: vault.context)), team.id)
+        XCTAssertEqual(team.name, originalName)
+        XCTAssertThrowsError(try session.register(RemoteDeveloperTeam(teamID: "OTHERID001", name: "Unknown"), catalog: AppCatalog(context: vault.context)))
+    }
+
+    @MainActor
+    func testAppleSessionRejectsLateValidationAfterSuspendAndKeychainFailures() async throws {
+        let store = FailingAppleSessionStore()
+        let transport = FakeAppleDeveloperTransport()
+        let session = AppleDeveloperSession(store: store, makeTransport: { transport }, observeLock: false)
+        store.failWrite = true
+        do { try await session.login(account: "fixture@example.invalid", password: "fixture-only"); XCTFail("Saving must fail") } catch { }
+        XCTAssertFalse(session.connected)
+        store.failWrite = false
+        try await session.login(account: "fixture@example.invalid", password: "fixture-only")
+        let saved = store.data
+        session.suspend()
+        transport.pauseValidation = true
+        let pending = Task { try await session.resume() }
+        for _ in 0..<100 where transport.validationGate == nil { await Task.yield() }
+        let gate = try XCTUnwrap(transport.validationGate)
+        session.suspend()
+        gate.resume()
+        do { try await pending.value; XCTFail("Old validation must not reconnect") } catch { }
+        XCTAssertFalse(session.connected)
+        XCTAssertEqual(store.data, saved)
+        store.failDelete = true
+        XCTAssertThrowsError(try session.disconnect())
+        XCTAssertFalse(session.connected)
+        store.failDelete = false
+        try session.disconnect()
+        XCTAssertNil(store.data)
+    }
+
+    @MainActor
+    func testRestoreReceiptCannotAuthorizeAnotherSnapshotOrForgedTeamList() async throws {
+        let (source, _, _, _) = try makeVault()
+        defer { try? FileManager.default.removeItem(at: source.blobs.directory) }
+        let key = SymmetricKey(size: .bits256)
+        let incoming = try BackupSnapshot.capture(vault: source, key: key)
+        let container = try ModelContainer(for: DeveloperTeam.self, ManagedApp.self, StoredCredential.self, BackupChange.self, BackupCheckpoint.self,
+                                           configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("AppMateTests/" + UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let target = CredentialVault(context: ModelContext(container), blobs: EncryptedBlobStore(directory: directory))
+        let service = BackupRestore(vault: target)
+        let plan = try service.prepare(incoming, key: key)
+        let approval = try await restoreAuthorization(for: plan)
+        let changed = BackupSnapshot(version: incoming.version, createdAt: incoming.createdAt, appVersion: incoming.appVersion,
+                                     teams: incoming.teams.enumerated().map { index, team in
+                                         .init(id: team.id, name: index == 0 ? "Changed" : team.name, teamID: team.teamID)
+                                     }, apps: incoming.apps, credentials: incoming.credentials, preferences: incoming.preferences)
+        let other = try service.prepare(changed, key: key)
+        XCTAssertThrowsError(try service.merge(other, choices: [:], authorization: approval, key: key))
+        let forged = RestorePlan(incoming: plan.incoming, localRevision: plan.localRevision, items: [], requiresSafetyBackup: false)
+        XCTAssertThrowsError(try service.merge(forged, choices: [:], authorization: approval, key: key, replacingAll: true))
+        XCTAssertTrue(try target.context.fetch(FetchDescriptor<DeveloperTeam>()).isEmpty)
+    }
+
+    @MainActor
+    func testAppleCookiesStayIsolatedAndRejectUntrustedDomainsAndOversizedValues() throws {
+        let client = AppleDeveloperClient()
+        defer { client.cancel() }
+        let valid: [[String: Any]] = [["name": "myacinfo", "value": "fixture-token", "domain": ".apple.com", "path": "/", "httpOnly": true]]
+        try client.importCookies(JSONSerialization.data(withJSONObject: valid))
+        let exported = try XCTUnwrap(JSONSerialization.jsonObject(with: client.exportCookies()) as? [[String: Any]])
+        XCTAssertEqual(exported.count, 1)
+        XCTAssertEqual(exported.first?["value"] as? String, "fixture-token")
+        XCTAssertEqual(exported.first?["httpOnly"] as? Bool, true)
+        for (domain, path, value) in [("apple.com.invalid", "/", "fixture"),
+                                      (".apple.com", "invalid", "fixture"),
+                                      (".apple.com", "/", String(repeating: "x", count: 32_769))] {
+            let invalid: [[String: Any]] = [["name": "myacinfo", "value": value, "domain": domain, "path": path, "httpOnly": false]]
+            XCTAssertThrowsError(try client.importCookies(JSONSerialization.data(withJSONObject: invalid)))
+        }
+        XCTAssertThrowsError(try client.importCookies(Data(repeating: 0, count: 262_145)))
+        XCTAssertEqual(try XCTUnwrap(JSONSerialization.jsonObject(with: client.exportCookies()) as? [[String: Any]]).count, 1)
+    }
+
+    @MainActor
+    func testTeamDeletionOnlyRemovesEmptyTeamAndRejectsTrashedCredentials() throws {
+        let (vault, app, _, _) = try makeVault()
+        defer { try? FileManager.default.removeItem(at: vault.blobs.directory) }
+        let catalog = AppCatalog(context: vault.context)
+        let management = VaultManagement(vault: vault)
+        let originalIDs = Set(try vault.context.fetch(FetchDescriptor<DeveloperTeam>()).map(\.id))
+        let emptyID = try catalog.addTeam(name: "Empty", teamID: "EMPTYTEAM1")
+        let empty = try XCTUnwrap(vault.context.fetch(FetchDescriptor<DeveloperTeam>()).first { $0.id == emptyID })
+        try management.removeTeam(empty)
+        XCTAssertEqual(Set(try vault.context.fetch(FetchDescriptor<DeveloperTeam>()).map(\.id)), originalIDs)
+        XCTAssertThrowsError(try management.removeTeam(XCTUnwrap(app.team)))
+        let sharedID = try catalog.addTeam(name: "Shared", teamID: "SHARED0001")
+        let shared = try XCTUnwrap(vault.context.fetch(FetchDescriptor<DeveloperTeam>()).first { $0.id == sharedID })
+        let key = SymmetricKey(size: .bits256)
+        let file = p8File()
+        let recordID = try vault.importFile(file, parsed: CredentialParser.parse(file.data, extension: "p8"), app: nil, team: shared,
+                                            password: nil, confirmUnknownTeam: true, key: key,
+                                            p8: P8Metadata(purpose: .apns, keyID: "DUMMYKEY01", issuerID: nil))
+        let record = try XCTUnwrap(vault.records().first { $0.id == recordID })
+        XCTAssertThrowsError(try management.removeTeam(shared))
+        try management.trash(record, key: key)
+        XCTAssertThrowsError(try management.removeTeam(shared))
+        XCTAssertEqual(try vault.read(record, key: key).original, file.data)
+    }
+
     @MainActor
     func testTargetsGroupExistingAppsAndRouteProfilesWithoutChangingCredentials() throws {
         let (vault, root, child, other) = try makeVault()
@@ -33,7 +241,7 @@ final class AppMateTests: XCTestCase {
     }
 
     @MainActor
-    func testTargetRegistrationAndBackupRelationshipsRoundTrip() throws {
+    func testTargetRegistrationAndBackupRelationshipsRoundTrip() async throws {
         let (vault, root, _, other) = try makeVault()
         defer { try? FileManager.default.removeItem(at: vault.blobs.directory) }
         let catalog = AppCatalog(context: vault.context)
@@ -56,7 +264,8 @@ final class AppMateTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: destination.blobs.directory) }
         let plan = try BackupRestore(vault: destination).prepare(decoded, key: key)
         let choices = Dictionary(uniqueKeysWithValues: plan.conflicts.map { ($0.id, RestoreChoice.backup) })
-        _ = try BackupRestore(vault: destination).merge(plan, choices: choices, key: key)
+        let approvalPlan1 = try await restoreAuthorization(for: plan)
+        _ = try BackupRestore(vault: destination).merge(plan, choices: choices, authorization: approvalPlan1, key: key)
         let restored = try XCTUnwrap(destination.context.fetch(FetchDescriptor<ManagedApp>()).first { $0.bundleID == child.bundleID })
         XCTAssertEqual(restored.parentAppID, localRoot.id)
         XCTAssertEqual(restored.product.id, localRoot.id)
@@ -296,6 +505,14 @@ final class AppMateTests: XCTestCase {
         trashed.deletedAt = .now.addingTimeInterval(-7 * 86400)
         vault.context.insert(trashed)
         try vault.context.save()
+        let emptyTeam = DeveloperTeam(name: "未使用のチーム", teamID: "EMPTYTEAM1")
+        vault.context.insert(emptyTeam)
+        try vault.context.save()
+        let loginTransport = FakeAppleDeveloperTransport()
+        loginTransport.teams = [RemoteDeveloperTeam(teamID: team.teamID, name: team.name),
+                                RemoteDeveloperTeam(teamID: "NEWTEAM001", name: "新しいチーム")]
+        let loginSession = AppleDeveloperSession(store: MemoryAppleSessionStore(), makeTransport: { loginTransport }, observeLock: false)
+        try await loginSession.login(account: "fixture@example.invalid", password: "fixture-only")
         let screens: [(String, NSSize, AnyView)] = [
             ("main", NSSize(width: 1232, height: 752), AnyView(CatalogView(container: container, navigation: navigation).modelContainer(container))),
             ("main-narrow", NSSize(width: 960, height: 640), AnyView(CatalogView(container: container, navigation: navigation).modelContainer(container))),
@@ -304,7 +521,11 @@ final class AppMateTests: XCTestCase {
             ("onboarding-import", NSSize(width: 760, height: 518), AnyView(OnboardingView(step: 1, onFinished: { _ in }))),
             ("onboarding-security", NSSize(width: 760, height: 518), AnyView(OnboardingView(step: 2, onFinished: { _ in }))),
             ("add-app", NSSize(width: 560, height: 520), AnyView(RegistrationForm(container: container, teams: [team], initialTeam: team.id, isTeam: false, onSaved: { _ in }))),
-            ("add-team", NSSize(width: 600, height: 320), AnyView(RegistrationForm(container: container, teams: [team], initialTeam: team.id, isTeam: true, onSaved: { _ in }))),
+            ("add-team", NSSize(width: 600, height: 540), AnyView(RegistrationForm(container: container, teams: [team], initialTeam: team.id, isTeam: true, onSaved: { _ in }))),
+            ("team-management", NSSize(width: 600, height: 440), AnyView(TeamManagementView(vault: vault, onDeleted: { _ in }))),
+            ("team-deletion-empty", NSSize(width: 490, height: 360), AnyView(TeamDeletionView(vault: vault, team: emptyTeam, onDeleted: {}))),
+            ("team-deletion-blocked", NSSize(width: 490, height: 400), AnyView(TeamDeletionView(vault: vault, team: team, onDeleted: {}))),
+            ("team-selection", NSSize(width: 540, height: 540), AnyView(AppleDeveloperLoginView(onTeam: { _ in }, session: loginSession))),
             ("backup", NSSize(width: 600, height: 620), AnyView(BackupView(container: container).modelContainer(container))),
             ("restore", NSSize(width: 640, height: 300), AnyView(BackupView(container: container, restoring: true))),
             ("ci-copy", NSSize(width: 600, height: 620), AnyView(CICopyView(vault: vault, record: try XCTUnwrap(sample)))),
@@ -324,6 +545,9 @@ final class AppMateTests: XCTestCase {
             let bitmap = try XCTUnwrap(view.bitmapImageRepForCachingDisplay(in: view.bounds))
             view.cacheDisplay(in: view.bounds, to: bitmap)
             let png = try XCTUnwrap(bitmap.representation(using: .png, properties: [:]))
+            if ["team-selection", "team-management", "team-deletion-blocked", "team-deletion-empty"].contains(name) {
+                try png.write(to: FileManager.default.temporaryDirectory.appendingPathComponent("app-mate-" + name + ".png"))
+            }
             let attachment = XCTAttachment(data: png, uniformTypeIdentifier: "public.png")
             attachment.name = name
             attachment.lifetime = .keepAlways
@@ -334,7 +558,7 @@ final class AppMateTests: XCTestCase {
     }
 
     @MainActor
-    func testAppIconSurvivesProtectedBackupAndRestoreAndOlderBackups() throws {
+    func testAppIconSurvivesProtectedBackupAndRestoreAndOlderBackups() async throws {
         let (vault, app, _, _) = try makeVault()
         let key = SymmetricKey(size: .bits256)
         app.iconColor = "blue"
@@ -353,7 +577,8 @@ final class AppMateTests: XCTestCase {
         try vault.context.save()
         let restore = BackupRestore(vault: vault)
         let plan = try restore.prepare(decoded, key: key)
-        _ = try restore.merge(plan, choices: Dictionary(uniqueKeysWithValues: plan.conflicts.map { ($0.id, RestoreChoice.backup) }), key: key)
+        let approvalPlan1 = try await restoreAuthorization(for: plan)
+        _ = try restore.merge(plan, choices: Dictionary(uniqueKeysWithValues: plan.conflicts.map { ($0.id, RestoreChoice.backup) }), authorization: approvalPlan1, key: key)
         XCTAssertEqual(app.iconImage, originalIcon)
         XCTAssertEqual(app.iconColor, "blue")
         let old = try editing(snapshot) { json in
@@ -449,7 +674,7 @@ final class AppMateTests: XCTestCase {
 
 
     @MainActor
-    func testEncryptedNotesSurviveBackupMergeAndOrphanRecovery() throws {
+    func testEncryptedNotesSurviveBackupMergeAndOrphanRecovery() async throws {
         let (vault, app, _, _) = try makeVault()
         let key = SymmetricKey(size: .bits256)
         let file = CredentialFile(data: try fixture("cer"), name: "sample.cer")
@@ -472,7 +697,8 @@ final class AppMateTests: XCTestCase {
         let restore = BackupRestore(vault: target)
         let plan = try restore.prepare(snapshot, key: targetKey)
         let choices = Dictionary(uniqueKeysWithValues: plan.conflicts.map { ($0.id, RestoreChoice.backup) })
-        _ = try restore.merge(plan, choices: choices, key: targetKey)
+        let approvalPlan1 = try await restoreAuthorization(for: plan)
+        _ = try restore.merge(plan, choices: choices, authorization: approvalPlan1, key: targetKey)
         let restoredApp = try XCTUnwrap(target.context.fetch(FetchDescriptor<ManagedApp>()).first { $0.bundleID == app.bundleID && $0.team?.teamID == app.team?.teamID })
         XCTAssertEqual(try VaultManagement(vault: target).readNote(restoredApp, key: targetKey), "App secret note")
         XCTAssertEqual(try target.read(XCTUnwrap(target.records().first), key: targetKey).note, "Credential secret note")
@@ -589,7 +815,7 @@ final class AppMateTests: XCTestCase {
     }
 
     @MainActor
-    func testPreferencesAreStableValidatedAndIncludedInRestoreConflicts() throws {
+    func testPreferencesAreStableValidatedAndIncludedInRestoreConflicts() async throws {
         let (vault, _, _, _) = try makeVault()
         XCTAssertEqual(try PreferencesStore.read(in: vault.context), try PreferencesStore.read(in: vault.context))
         var prefs = AppPreferences()
@@ -607,7 +833,8 @@ final class AppMateTests: XCTestCase {
         let plan = try restore.prepare(snapshot, key: key)
         XCTAssertTrue(plan.conflicts.contains { $0.kind == .preferences })
         let choices = Dictionary(uniqueKeysWithValues: plan.conflicts.map { ($0.id, RestoreChoice.backup) })
-        _ = try restore.merge(plan, choices: choices, key: key)
+        let approvalPlan1 = try await restoreAuthorization(for: plan)
+        _ = try restore.merge(plan, choices: choices, authorization: approvalPlan1, key: key)
         XCTAssertEqual(try PreferencesStore.read(in: other.context), prefs)
         prefs.templates[0].variable = "SECRET; rm -rf"
         XCTAssertThrowsError(try PreferencesStore.save(prefs, in: other.context))
@@ -631,7 +858,7 @@ final class AppMateTests: XCTestCase {
     }
 
     @MainActor
-    func testWholeReplaceIntoEmptyVaultNeedsNoSafetyBackup() throws {
+    func testWholeReplaceIntoEmptyVaultNeedsNoSafetyBackup() async throws {
         let (source, app, _, _) = try makeVault()
         let key = SymmetricKey(size: .bits256)
         let file = p8File()
@@ -653,20 +880,23 @@ final class AppMateTests: XCTestCase {
         var prefs = AppPreferences()
         prefs.showMenuBar = false
         try PreferencesStore.save(prefs, in: target.context)
-        XCTAssertThrowsError(try restore.merge(plan, choices: [:], key: key, replacingAll: true))
+        let approvalPlan1 = try await restoreAuthorization(for: plan)
+        XCTAssertThrowsError(try restore.merge(plan, choices: [:], authorization: approvalPlan1, key: key, replacingAll: true))
         let changed = try restore.prepare(snapshot, key: key)
         XCTAssertTrue(changed.requiresSafetyBackup)
-        XCTAssertThrowsError(try restore.merge(changed, choices: [:], key: key, replacingAll: true))
+        let approvalChanged1 = try await restoreAuthorization(for: changed)
+        XCTAssertThrowsError(try restore.merge(changed, choices: [:], authorization: approvalChanged1, key: key, replacingAll: true))
         try PreferencesStore.save(AppPreferences(), in: target.context)
         let refreshed = try restore.prepare(snapshot, key: key)
-        _ = try restore.merge(refreshed, choices: [:], key: key, replacingAll: true)
+        let approvalRefreshed1 = try await restoreAuthorization(for: refreshed)
+        _ = try restore.merge(refreshed, choices: [:], authorization: approvalRefreshed1, key: key, replacingAll: true)
         XCTAssertEqual(try target.context.fetchCount(FetchDescriptor<ManagedApp>()), snapshot.apps.count)
         XCTAssertEqual(try target.read(XCTUnwrap(target.records().first), key: key).original, file.data)
         XCTAssertTrue(try restore.prepare(snapshot, key: key).requiresSafetyBackup)
     }
 
     @MainActor
-    func testWholeReplaceRequiresVerifiedCurrentSafetyBackupAndRejectsStaleProof() throws {
+    func testWholeReplaceRequiresVerifiedCurrentSafetyBackupAndRejectsStaleProof() async throws {
         let (vault, _, _, _) = try makeVault()
         let key = SymmetricKey(size: .bits256)
         try BackupHistory.bootstrap(in: vault.context)
@@ -675,18 +905,22 @@ final class AppMateTests: XCTestCase {
         let restore = BackupRestore(vault: vault)
         let plan = try restore.prepare(empty, key: key)
         XCTAssertTrue(plan.requiresSafetyBackup)
-        XCTAssertThrowsError(try restore.merge(plan, choices: [:], key: key, replacingAll: true))
+        let approvalPlan1 = try await restoreAuthorization(for: plan)
+        XCTAssertThrowsError(try restore.merge(plan, choices: [:], authorization: approvalPlan1, key: key, replacingAll: true))
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("AppMateTests/" + UUID().uuidString + ".appmatebackup")
         let archive = try BackupArchive.encode(current, password: nil)
         XCTAssertThrowsError(try SafetyBackup.export(Data([0]), password: nil, snapshot: current, to: url))
         let proof = try SafetyBackup.export(archive, password: nil, snapshot: current, to: url)
         XCTAssertTrue(FileManager.default.fileExists(atPath: url.path))
-        XCTAssertThrowsError(try restore.merge(plan, choices: [:], key: key, beforeCommit: { throw ValidationError.invalidFile }, safetyBackup: proof))
+        let approvalPlan2 = try await restoreAuthorization(for: plan)
+        XCTAssertThrowsError(try restore.merge(plan, choices: [:], authorization: approvalPlan2, key: key, beforeCommit: { throw ValidationError.invalidFile }, safetyBackup: proof))
         XCTAssertEqual(try vault.context.fetchCount(FetchDescriptor<ManagedApp>()), 3)
-        _ = try restore.merge(plan, choices: [:], key: key, safetyBackup: proof)
+        let approvalPlan3 = try await restoreAuthorization(for: plan)
+        _ = try restore.merge(plan, choices: [:], authorization: approvalPlan3, key: key, safetyBackup: proof)
         XCTAssertEqual(try vault.context.fetchCount(FetchDescriptor<ManagedApp>()), 0)
         XCTAssertEqual(try vault.context.fetchCount(FetchDescriptor<DeveloperTeam>()), 0)
-        XCTAssertThrowsError(try restore.merge(plan, choices: [:], key: key, safetyBackup: proof))
+        let approvalPlan4 = try await restoreAuthorization(for: plan)
+        XCTAssertThrowsError(try restore.merge(plan, choices: [:], authorization: approvalPlan4, key: key, safetyBackup: proof))
     }
 
     func testFolderImportDoesNotFollowSymlinksOrDuplicateFiles() throws {
@@ -911,7 +1145,7 @@ final class AppMateTests: XCTestCase {
     }
 
     @MainActor
-    func testHistoryTracksOnlyCommittedProductChangesAndNotIndividualExports() throws {
+    func testHistoryTracksOnlyCommittedProductChangesAndNotIndividualExports() async throws {
         let container = try ModelContainer(for: DeveloperTeam.self, ManagedApp.self, StoredCredential.self, BackupChange.self, BackupCheckpoint.self,
                                            configurations: ModelConfiguration(isStoredInMemoryOnly: true))
         let context = ModelContext(container)
@@ -960,9 +1194,11 @@ final class AppMateTests: XCTestCase {
         }
         let plan = try restore.prepare(changed, key: key)
         let choices = Dictionary(uniqueKeysWithValues: plan.conflicts.map { ($0.id, RestoreChoice.backup) })
-        XCTAssertThrowsError(try restore.merge(plan, choices: choices, key: key, beforeCommit: { throw ValidationError.invalidFile }))
+        let approvalPlan1 = try await restoreAuthorization(for: plan)
+        XCTAssertThrowsError(try restore.merge(plan, choices: choices, authorization: approvalPlan1, key: key, beforeCommit: { throw ValidationError.invalidFile }))
         XCTAssertEqual(try backupHistory(context).pendingCount, 5)
-        _ = try restore.merge(plan, choices: choices, key: key)
+        let approvalPlan2 = try await restoreAuthorization(for: plan)
+        _ = try restore.merge(plan, choices: choices, authorization: approvalPlan2, key: key)
         XCTAssertEqual(try backupHistory(context).pendingCount, 6)
     }
 
@@ -1077,7 +1313,7 @@ final class AppMateTests: XCTestCase {
 
 
     @MainActor
-    func testExistingVaultMigratesBlobReferenceAndKeepsOldEncryptedBytes() throws {
+    func testExistingVaultMigratesBlobReferenceAndKeepsOldEncryptedBytes() async throws {
         let (source, app, _, _) = try makeVault()
         defer { try? FileManager.default.removeItem(at: source.blobs.directory) }
         let key = SymmetricKey(size: .bits256)
@@ -1139,7 +1375,7 @@ final class AppMateTests: XCTestCase {
     }
 
     @MainActor
-    func testBackupRestoreToNewVaultKeepsIDsOriginalsPasswordsAndSharingAfterReopen() throws {
+    func testBackupRestoreToNewVaultKeepsIDsOriginalsPasswordsAndSharingAfterReopen() async throws {
         let (source, app, _, _) = try makeVault()
         defer { try? FileManager.default.removeItem(at: source.blobs.directory) }
         let sourceKey = SymmetricKey(size: .bits256)
@@ -1162,13 +1398,19 @@ final class AppMateTests: XCTestCase {
         let configuration = ModelConfiguration(url: directory.appendingPathComponent("restore.store"))
         let blobs = EncryptedBlobStore(directory: directory.appendingPathComponent("blobs"))
         let localKey = SymmetricKey(size: .bits256)
+        let membershipTransport = FakeAppleDeveloperTransport()
+        membershipTransport.teams = backup.teams.map { RemoteDeveloperTeam(teamID: $0.teamID, name: $0.name) }
+        let membershipSession = AppleDeveloperSession(store: MemoryAppleSessionStore(), makeTransport: { membershipTransport }, observeLock: false)
+        try await membershipSession.login(account: "fixture@example.invalid", password: "fixture-only")
         try autoreleasepool {
             let container = try ModelContainer(for: DeveloperTeam.self, ManagedApp.self, StoredCredential.self, BackupChange.self, BackupCheckpoint.self, configurations: configuration)
             let vault = CredentialVault(context: ModelContext(container), blobs: blobs)
             let restore = BackupRestore(vault: vault)
             let plan = try restore.prepare(backup, key: localKey)
             XCTAssertEqual(plan.addedCount, 9)
-            let result = try restore.merge(plan, choices: [:], key: localKey)
+            let approvalPlan1 = RestoreTeamAuthorization()
+            try membershipSession.confirm(approvalPlan1, plan: plan)
+            let result = try restore.merge(plan, choices: [:], authorization: approvalPlan1, key: localKey)
             XCTAssertEqual(result.added, 9)
             XCTAssertEqual(result.updated, 0)
             let restored = try BackupSnapshot.capture(vault: vault, key: localKey)
@@ -1211,7 +1453,7 @@ final class AppMateTests: XCTestCase {
     }
 
     @MainActor
-    func testRestoreInitialCommitFailureLeavesNoCatalogOrEncryptedFiles() throws {
+    func testRestoreInitialCommitFailureLeavesNoCatalogOrEncryptedFiles() async throws {
         let (source, app, _, _) = try makeVault()
         defer { try? FileManager.default.removeItem(at: source.blobs.directory) }
         let sourceKey = SymmetricKey(size: .bits256), localKey = SymmetricKey(size: .bits256)
@@ -1226,17 +1468,19 @@ final class AppMateTests: XCTestCase {
         let vault = CredentialVault(context: ModelContext(container), blobs: EncryptedBlobStore(directory: directory))
         let service = BackupRestore(vault: vault)
         let plan = try service.prepare(BackupSnapshot.capture(vault: source, key: sourceKey), key: localKey)
-        XCTAssertThrowsError(try service.merge(plan, choices: [:], key: localKey, beforeCommit: { throw ValidationError.invalidFile }))
+        let approvalPlan1 = try await restoreAuthorization(for: plan)
+        XCTAssertThrowsError(try service.merge(plan, choices: [:], authorization: approvalPlan1, key: localKey, beforeCommit: { throw ValidationError.invalidFile }))
         XCTAssertTrue(try vault.context.fetch(FetchDescriptor<DeveloperTeam>()).isEmpty)
         XCTAssertTrue(try vault.context.fetch(FetchDescriptor<ManagedApp>()).isEmpty)
         XCTAssertTrue(try vault.records().isEmpty)
         XCTAssertTrue(try FileManager.default.contentsOfDirectory(atPath: directory.path).isEmpty)
-        XCTAssertEqual(try service.merge(plan, choices: [:], key: localKey).added, 6)
+        let approvalPlan2 = try await restoreAuthorization(for: plan)
+        XCTAssertEqual(try service.merge(plan, choices: [:], authorization: approvalPlan2, key: localKey).added, 6)
         XCTAssertEqual(try vault.records().count, 1)
     }
 
     @MainActor
-    func testRestoreConflictSelectionAndFailedCommitPreserveOriginalBlobs() throws {
+    func testRestoreConflictSelectionAndFailedCommitPreserveOriginalBlobs() async throws {
         let (vault, app, _, _) = try makeVault()
         defer { try? FileManager.default.removeItem(at: vault.blobs.directory) }
         let key = SymmetricKey(size: .bits256)
@@ -1262,20 +1506,24 @@ final class AppMateTests: XCTestCase {
         let service = BackupRestore(vault: vault)
         let plan = try service.prepare(backup, key: key)
         XCTAssertEqual(plan.conflicts.count, 3)
-        XCTAssertThrowsError(try service.merge(plan, choices: [:], key: key))
+        let approvalPlan1 = try await restoreAuthorization(for: plan)
+        XCTAssertThrowsError(try service.merge(plan, choices: [:], authorization: approvalPlan1, key: key))
         let keep = Dictionary(uniqueKeysWithValues: plan.conflicts.map { ($0.id, RestoreChoice.current) })
-        XCTAssertEqual(try service.merge(plan, choices: keep, key: key).updated, 0)
+        let approvalPlan2 = try await restoreAuthorization(for: plan)
+        XCTAssertEqual(try service.merge(plan, choices: keep, authorization: approvalPlan2, key: key).updated, 0)
         XCTAssertEqual(try BackupSnapshot.capture(vault: vault, key: key).revision(), try baseline.revision())
         let record = try XCTUnwrap(vault.records().first { $0.id == id })
         let oldURL = vault.blobs.file(record.blobID ?? record.id)
         let oldBytes = try Data(contentsOf: oldURL)
         let oldFiles = try FileManager.default.contentsOfDirectory(atPath: vault.blobs.directory.path)
         let useBackup = Dictionary(uniqueKeysWithValues: plan.conflicts.map { ($0.id, RestoreChoice.backup) })
-        XCTAssertThrowsError(try service.merge(plan, choices: useBackup, key: key, beforeCommit: { throw ValidationError.invalidFile }))
+        let approvalPlan3 = try await restoreAuthorization(for: plan)
+        XCTAssertThrowsError(try service.merge(plan, choices: useBackup, authorization: approvalPlan3, key: key, beforeCommit: { throw ValidationError.invalidFile }))
         XCTAssertEqual(try BackupSnapshot.capture(vault: vault, key: key).revision(), try baseline.revision())
         XCTAssertEqual(try Data(contentsOf: oldURL), oldBytes)
         XCTAssertEqual(Set(try FileManager.default.contentsOfDirectory(atPath: vault.blobs.directory.path)), Set(oldFiles))
-        let updated = try service.merge(plan, choices: useBackup, key: key)
+        let approvalPlan4 = try await restoreAuthorization(for: plan)
+        let updated = try service.merge(plan, choices: useBackup, authorization: approvalPlan4, key: key)
         XCTAssertEqual(updated.updated, 3)
         let changed = try XCTUnwrap(vault.records().first { $0.id == id })
         XCTAssertEqual(changed.name, "Backup Certificate")
@@ -1291,7 +1539,7 @@ final class AppMateTests: XCTestCase {
     }
 
     @MainActor
-    func testRestoreRemapsNaturalIdentitiesAndReplacementReferences() throws {
+    func testRestoreRemapsNaturalIdentitiesAndReplacementReferences() async throws {
         let (source, sourceApp, _, _) = try makeVault()
         let (target, targetApp, _, _) = try makeVault()
         defer { try? FileManager.default.removeItem(at: source.blobs.directory); try? FileManager.default.removeItem(at: target.blobs.directory) }
@@ -1308,7 +1556,8 @@ final class AppMateTests: XCTestCase {
         let plan = try service.prepare(BackupSnapshot.capture(vault: source, key: sourceKey), key: targetKey)
         XCTAssertEqual(plan.addedCount, 1)
         let choices = Dictionary(uniqueKeysWithValues: plan.conflicts.map { ($0.id, $0.kind == .credential ? RestoreChoice.backup : .current) })
-        _ = try service.merge(plan, choices: choices, key: targetKey)
+        let approvalPlan1 = try await restoreAuthorization(for: plan)
+        _ = try service.merge(plan, choices: choices, authorization: approvalPlan1, key: targetKey)
         let records = try target.records()
         XCTAssertEqual(records.count, 2)
         XCTAssertFalse(records.contains { $0.id == sourceOld })
@@ -1323,14 +1572,15 @@ final class AppMateTests: XCTestCase {
     }
 
     @MainActor
-    func testRestoreRejectsStalePreviewAndIdentityCollisionWithoutWrites() throws {
+    func testRestoreRejectsStalePreviewAndIdentityCollisionWithoutWrites() async throws {
         let (vault, _, _, _) = try makeVault()
         let key = SymmetricKey(size: .bits256)
         let snapshot = try BackupSnapshot.capture(vault: vault, key: key)
         let service = BackupRestore(vault: vault)
         let plan = try service.prepare(snapshot, key: key)
         _ = try AppCatalog(context: vault.context).addTeam(name: "Changed after preview", teamID: "TESTTEAM03")
-        XCTAssertThrowsError(try service.merge(plan, choices: [:], key: key)) { error in
+        let approvalPlan1 = try await restoreAuthorization(for: plan)
+        XCTAssertThrowsError(try service.merge(plan, choices: [:], authorization: approvalPlan1, key: key)) { error in
             guard case RestoreError.stale = error else { return XCTFail("Unexpected error: \(error)") }
         }
         XCTAssertEqual(try vault.context.fetch(FetchDescriptor<DeveloperTeam>()).count, 3)
@@ -1977,7 +2227,7 @@ final class AppMateTests: XCTestCase {
     }
 
     @MainActor
-    func testIntermediateCAImportsWithoutTeamConfirmationAndSurvivesBackup() throws {
+    func testIntermediateCAImportsWithoutTeamConfirmationAndSurvivesBackup() async throws {
         let file = CredentialFile(data: try fixture("cer", name: "developer-id-g2"), name: "renamed.cer")
         let parsed = try CredentialParser.parse(file.data, extension: "cer")
         XCTAssertTrue(parsed.isIntermediateCA)
@@ -1998,7 +2248,8 @@ final class AppMateTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: target.blobs.directory) }
         let restore = BackupRestore(vault: target)
         let plan = try restore.prepare(decoded, key: key)
-        _ = try restore.merge(plan, choices: Dictionary(uniqueKeysWithValues: plan.conflicts.map { ($0.id, RestoreChoice.backup) }), key: key)
+        let approvalPlan1 = try await restoreAuthorization(for: plan)
+        _ = try restore.merge(plan, choices: Dictionary(uniqueKeysWithValues: plan.conflicts.map { ($0.id, RestoreChoice.backup) }), authorization: approvalPlan1, key: key)
         let restored = try XCTUnwrap(target.records().first)
         XCTAssertTrue(restored.isIntermediateCA)
         XCTAssertEqual(try target.read(restored, key: key).original, file.data)
@@ -2184,5 +2435,50 @@ private enum BeforeRestoreSchema {
             replacedByID = value.replacedByID
         }
 
+    }
+}
+
+@MainActor
+private final class FakeAppleDeveloperTransport: AppleDeveloperTransport {
+    var teams = [RemoteDeveloperTeam(teamID: "TESTTEAM01", name: "Fixture")]
+    var failure: Error?
+    var pauseValidation = false
+    var validationGate: CheckedContinuation<Void, Never>?
+    var imported = false
+    var cancelled = false
+    var state: AuthenticationState {
+        get throws { try JSONDecoder().decode(AppleSession.self, from: Data("{\"user\":{\"fullName\":\"Fixture\"}}".utf8)).asAuthenticationState }
+    }
+    func login(account: String, password: String) async throws -> AuthenticationState { try state }
+    func validate() async throws -> AuthenticationState {
+        if pauseValidation { await withCheckedContinuation { validationGate = $0 } }
+        if let failure { throw failure }
+        return try state
+    }
+    func submit(code: SecurityCode, session: AppleSessionData) async throws -> AuthenticationState { try state }
+    func sms(phone: AuthOptionsResponse.TrustedPhoneNumber, options: AuthOptionsResponse, session: AppleSessionData) async throws -> AuthenticationState { try state }
+    func listTeams() async throws -> [RemoteDeveloperTeam] { teams }
+    func exportCookies() throws -> Data { Data("fixture-cookie".utf8) }
+    func importCookies(_ data: Data) throws { imported = true }
+    func cancel() { cancelled = true }
+}
+
+private extension AppleSession {
+    var asAuthenticationState: AuthenticationState { .authenticated(self) }
+}
+
+@MainActor
+private final class FailingAppleSessionStore: AppleSessionStore {
+    var data: Data?
+    var failWrite = false
+    var failDelete = false
+    func read() throws -> Data? { data }
+    func write(_ data: Data) throws {
+        if failWrite { throw AppleDeveloperError.sessionStorage }
+        self.data = data
+    }
+    func delete() throws {
+        if failDelete { throw AppleDeveloperError.sessionStorage }
+        data = nil
     }
 }

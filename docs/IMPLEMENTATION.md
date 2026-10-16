@@ -7,7 +7,7 @@
 - 最低対応OS：macOS 26.0（Debug・Release共通）
 - 確認した環境：Apple Silicon、Xcode 27.0、Swift 6.4
 - プロジェクト／scheme：`AppMate.xcodeproj` / `AppMate`
-- 実装：SwiftUI、SwiftData、Apple標準フレームワーク。外部依存なし
+- 実装：SwiftUI、SwiftData、Apple標準フレームワーク。Apple Developer認証はXcodesLoginKitを使用
 
 ```sh
 xcode-select -p
@@ -90,3 +90,19 @@ xcodebuild -project AppMate.xcodeproj -scheme AppMate \
 - 配布用Bundle ID・署名・App Store審査
 
 既知の検証時警告は、AppIntents未使用によるメタデータ抽出省略、テスト内PKCS#12解析のメインスレッド警告、テスト終了後のOSログ収集権限警告。実装に不明点がある場合はSDKヘッダとApple公式資料を確認し、認証や暗号化を省略して回避しない。
+
+## Apple Developerログインの実装（2026-10-16）
+
+XcodesLoginKitのリビジョン `929f9aac3140caf7b64cbb5385f4f645c5f9913d` を採用し、Package.resolvedを保持する。Apple Account認証、信頼済み端末・SMSの確認コード、専用Keychainへのセッション保存、所属チーム選択、接続解除を実装した。フェデレーション認証・セキュリティキー・証明書等のオンライン取り込みは対象外。
+
+Team ID手入力を削除し、未登録Teamを含むバックアップの復元に所属確認を追加した。所属確認は5分間で、復元計画とローカルrevisionに結び付ける。登録済みTeamのみの復元はAppleに接続しない。既存の保存モデル・AAD・バックアップversionは変更していない。
+
+テスト時の共有Appleセッションにはメモリ内ストアを使い、HTTP・Keychainを架空データで置き換える。製品Keychainと実アカウントは自動テストに使用しない。ビルド・テスト出力は `/tmp/app-mate-login-build` と `/tmp/app-mate-login-tests`、依存パッケージのチェックアウトは `/tmp/app-mate-packages` に分離する。
+
+実アカウントでの認証・Developer Portalの現行エンドポイント・製品Keychainでの再起動後の復帰・フェデレーション等の未対応条件の実機検証は未実施。公開APIではないApple側の変更に追従する保守が必要。
+
+最終確認では全91件のXCTestと通常の署名付きDebugビルドが成功した。追加7件は所属チーム応答の検証、セッション復帰・期限切れ・切断、登録済みチームの維持、復元の所属確認・期限・別計画への流用拒否、Keychain失敗・遅延応答、Cookieの隔離と入力上限を確認する。既存の画面テストで通常幅1280×800と最小960×640、およびログイン画面を架空データで描画した。ログイン画面の画像は `/tmp/app-mate-login-screens` に書き出して確認した。実認証・製品Keychainを使った通し操作・新規画面のVoiceOver操作は未確認。
+
+チーム管理の導線を追加した。サイドバーの「登録済みチームを管理…」で全チームの名前・Team IDを表示し、各行から編集・削除できる。チーム名横にも編集・削除メニューを常時表示する。削除画面は対象を明記し、所属データが残る場合は理由を表示して認証前に停止する。削除後は該当チームの選択状態を解除する。
+
+確認は空チームだけの削除・所属データと最近削除した資格情報の保護、通常幅と最小960×640のメイン画面、管理一覧と削除可能／不可の画面描画。製品データの削除や実際の所有者認証は実行していない。

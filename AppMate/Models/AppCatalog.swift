@@ -82,6 +82,14 @@ struct AppCatalog {
     static let platforms = ["iOS", "macOS", "iPadOS", "watchOS", "tvOS", "visionOS"]
     let context: ModelContext
 
+    func registerRemoteTeam(_ remote: RemoteDeveloperTeam) throws -> UUID {
+        guard !context.hasChanges else { throw RestoreError.pendingChanges }
+        if let existing = try context.fetch(FetchDescriptor<DeveloperTeam>()).first(where: { $0.teamID == remote.teamID }) {
+            return existing.id
+        }
+        return try addTeam(name: remote.name, teamID: remote.teamID)
+    }
+
     func addTeam(name: String, teamID: String) throws -> UUID {
         guard !context.hasChanges else { throw RestoreError.pendingChanges }
         let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
