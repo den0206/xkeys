@@ -90,6 +90,9 @@ struct CatalogView: View {
         }
         .onReceive(Timer.publish(every: 60, on: .main, in: .common).autoconnect()) { _ in clock = .now }
         .onChange(of: selection) { _, _ in search = ""; typeFilter = .all }
+        .onChange(of: trashCount) { _, count in
+            if count == 0 && selection == .trash { selection = .all }
+        }
         .onChange(of: selectedApp?.deletedAt) { _, deletedAt in
             if deletedAt != nil { selection = .all }
         }
@@ -154,14 +157,6 @@ struct CatalogView: View {
             .background(AppMateStyle.search, in: RoundedRectangle(cornerRadius: 8))
             Spacer(minLength: 12)
             Menu {
-                Picker("種類", selection: $typeFilter) {
-                    ForEach(CredentialTypeFilter.allCases) { Text($0.title).tag($0) }
-                }
-                Divider()
-                Menu("チームを編集…") { ForEach(teams) { team in Button(team.name) { editingTeam = team } } }
-            } label: { Image(systemName: "line.3.horizontal.decrease") }
-                .menuStyle(.borderlessButton).frame(width: 24).help("種類で絞り込む・チームを管理")
-            Menu {
                 if let historyError {
                     Text(historyError)
                     Button("変更状態を再確認", action: loadHistory)
@@ -196,6 +191,7 @@ struct CatalogView: View {
         }.padding(.horizontal, 16).frame(height: 52).background(AppMateStyle.sidebar)
     }
 
+    private var trashCount: Int { credentials.filter { $0.deletedAt != nil }.count + apps.filter { $0.deletedAt != nil }.count }
     private var expiredCount: Int { active.filter { $0.displayState(at: clock) == .expired }.count }
     private var expiringCount: Int { active.filter { $0.displayState(at: clock).needsRenewal }.count }
 
@@ -213,12 +209,19 @@ struct CatalogView: View {
                                     count: expiringCount, color: Color(red: 224/255, green: 160/255, blue: 48/255))
                     }
                     sidebarItem("すべて", symbol: "circle", scope: .all, count: active.count)
-                    sidebarItem("最近削除した項目", symbol: "trash", scope: .trash,
-                                count: credentials.filter { $0.deletedAt != nil }.count + apps.filter { $0.deletedAt != nil }.count)
+                    if trashCount > 0 {
+                        sidebarItem("最近削除した項目", symbol: "trash", scope: .trash, count: trashCount)
+                    }
                     ForEach(teams) { team in
                         sidebarHeading(team.name).padding(.top, 10)
+                            .contentShape(Rectangle())
+                            .contextMenu {
+                                Button("チームを編集…") { editingTeam = team }
+                            }
+                            .help("右クリックでチームを編集")
                         sidebarItem("チームの鍵・証明書", symbol: "key", scope: .team(team.id),
                                     count: active.filter { $0.isTeamShared && $0.team?.id == team.id }.count)
+                        sidebarHeading("アプリ").padding(.top, 8)
                         ForEach(rootApps.filter { $0.team?.id == team.id }) { root in
                             VStack(alignment: .leading, spacing: 2) {
                                 sidebarApp(root)
@@ -233,7 +236,7 @@ struct CatalogView: View {
             }
             .focusable().focusEffectDisabled()
             .onMoveCommand { direction in
-                let scopes: [CredentialScope] = (expiredCount > 0 ? [.expired] : []) + (expiringCount > 0 ? [.expiring] : []) + [.all, .trash] + teams.flatMap { team in
+                let scopes: [CredentialScope] = (expiredCount > 0 ? [.expired] : []) + (expiringCount > 0 ? [.expiring] : []) + [.all] + (trashCount > 0 ? [.trash] : []) + teams.flatMap { team in
                     [.team(team.id)] + sidebarApps.filter { $0.team?.id == team.id }.map { .app($0.id) }
                 }
                 guard direction == .up || direction == .down else { return }
