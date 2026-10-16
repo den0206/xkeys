@@ -42,7 +42,22 @@ struct AppleDeveloperLoginView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
-            if session.connected { teams } else if case let .waitingForSecondFactor(option, options, _) = session.authentication { verification(option, options) } else { signIn }
+            if session.connected {
+                teams
+            } else if case .authenticated = session.authentication {
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("Apple Developer にサインイン済み").font(.system(size: 20, weight: .bold))
+                    if !session.busy {
+                        Button("再読み込み") { run { try await session.resume() } }
+                            .buttonStyle(AppMateButtonStyle(primary: true))
+                    }
+                    Button("キャンセル") { dismiss() }.buttonStyle(AppMateButtonStyle())
+                }
+            } else if case let .waitingForSecondFactor(option, options, _) = session.authentication {
+                verification(option, options)
+            } else {
+                signIn
+            }
             if session.busy, session.connected || session.authentication != .unauthenticated {
                 HStack(spacing: 8) { ProgressView().controlSize(.small); Text("Appleに接続しています…") }.foregroundStyle(AppMateStyle.secondary)
             }

@@ -179,13 +179,13 @@ final class AppleDeveloperSession {
             let identity = AppleDeveloperAccount(email: transport.accountIdentity?.email ?? pendingAccount ?? savedAccount?.email,
                                                  name: transport.accountIdentity?.name ?? authenticated.user.fullName)
             try identity.validate()
+            authentication = state
             let teams = try await transport.listTeams()
             try check(generation)
             try saveSession(transport, account: identity)
             currentAccount = identity
             pendingAccount = nil
             self.teams = teams
-            self.authentication = state
             connected = true
             validatedAt = .now
         case .waitingForSecondFactor(let option, _, _):

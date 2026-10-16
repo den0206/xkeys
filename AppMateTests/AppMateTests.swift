@@ -20,6 +20,33 @@ final class AppMateTests: XCTestCase {
     }
 
     @MainActor
+    func testSecondFactorSuccessLeavesCodeEntryBeforeTeamsFinishLoading() async throws {
+        let transport = FakeAppleDeveloperTransport()
+        transport.loginState = .waitingForSecondFactor(
+            .codeSent, try JSONDecoder().decode(AuthOptionsResponse.self, from: Data("{}".utf8)),
+            AppleSessionData(serviceKey: "fixture", sessionID: "fixture", scnt: "fixture"))
+        let session = AppleDeveloperSession(store: MemoryAppleSessionStore(), makeTransport: { transport }, observeLock: false)
+        try await session.login(account: "fixture@example.invalid", password: "fixture-only")
+        guard case .waitingForSecondFactor = session.authentication else { return XCTFail("Code entry must be shown") }
+        transport.pauseTeams = true
+        let pending = Task { try await session.submit(code: "123456") }
+        for _ in 0..<100 where transport.teamsGate == nil { await Task.yield() }
+        let gate = try XCTUnwrap(transport.teamsGate)
+        guard case .authenticated = session.authentication else {
+            gate.resume()
+            _ = try? await pending.value
+            return XCTFail("Successful verification must leave code entry immediately")
+        }
+        XCTAssertTrue(session.busy)
+        XCTAssertFalse(session.connected)
+        gate.resume()
+        try await pending.value
+        XCTAssertTrue(session.connected)
+        XCTAssertFalse(session.busy)
+        XCTAssertEqual(session.teams, transport.teams)
+    }
+
+    @MainActor
     func testAppleAccountPersistsWithoutConnectingAndLegacyCookiesUpgrade() async throws {
         let store = MemoryAppleSessionStore()
         let transport = FakeAppleDeveloperTransport()
@@ -2677,6 +2704,9 @@ private final class FakeAppleDeveloperTransport: AppleDeveloperTransport {
     var accountIdentity: AppleDeveloperAccount?
     var teams = [RemoteDeveloperTeam(teamID: "TESTTEAM01", name: "Fixture")]
     var failure: Error?
+    var loginState: AuthenticationState?
+    var pauseTeams = false
+    var teamsGate: CheckedContinuation<Void, Never>?
     var pauseValidation = false
     var validationGate: CheckedContinuation<Void, Never>?
     var imported = false
@@ -2684,7 +2714,7 @@ private final class FakeAppleDeveloperTransport: AppleDeveloperTransport {
     var state: AuthenticationState {
         get throws { try JSONDecoder().decode(AppleSession.self, from: Data("{\"user\":{\"fullName\":\"Fixture\"}}".utf8)).asAuthenticationState }
     }
-    func login(account: String, password: String) async throws -> AuthenticationState { try state }
+    func login(account: String, password: String) async throws -> AuthenticationState { if let loginState { return loginState }; return try state }
     func validate() async throws -> AuthenticationState {
         if pauseValidation { await withCheckedContinuation { validationGate = $0 } }
         if let failure { throw failure }
@@ -2696,7 +2726,10 @@ private final class FakeAppleDeveloperTransport: AppleDeveloperTransport {
     var downloads: [String: CredentialFile] = [:]
     var downloadFailure: Error?
     var downloadCount = 0
-    func listTeams() async throws -> [RemoteDeveloperTeam] { teams }
+    func listTeams() async throws -> [RemoteDeveloperTeam] {
+        if pauseTeams { await withCheckedContinuation { teamsGate = $0 } }
+        return teams
+    }
     func listFiles(teamID: String, kind: RemoteDeveloperFile.Kind) async throws -> [RemoteDeveloperFile] { remoteFiles }
     func download(_ item: RemoteDeveloperFile, teamID: String) async throws -> CredentialFile {
         downloadCount += 1
