@@ -7,7 +7,7 @@ App Mate は macOS 26.0 以降向けの SwiftUI・SwiftData アプリです。Ap
 - `AppMate/Application/`：起動、ウィンドウ構成、技術検証画面。
 - `AppMate/Features/`：一覧、取り込み、設定、バックアップなどの画面。
 - `AppMate/Models/`：チーム・アプリのモデルと登録時の検証。
-- `AppMate/Services/`：解析、認証、検索、通知、設定。
+- `AppMate/Services/`：解析、認証、検索、設定。
 - `AppMate/Persistence/`：暗号化保存、変更履歴、バックアップ・復元。
 - `AppMate/Resources/`：画像アセットと同梱リソース。
 - `AppMateTests/`：XCTest と架空データの `Fixtures/`。

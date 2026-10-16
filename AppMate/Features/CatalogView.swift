@@ -1,6 +1,6 @@
+import AppKit
 import SwiftData
 import SwiftUI
-import UserNotifications
 import UniformTypeIdentifiers
 
 enum CredentialScope: Hashable {
@@ -17,6 +17,11 @@ enum CredentialScope: Hashable {
         case .team: "チームの鍵・証明書"
         }
     }
+}
+
+@MainActor @Observable
+final class AppNavigation {
+    var scope: CredentialScope = .all
 }
 
 struct CatalogView: View {
@@ -91,17 +96,16 @@ struct CatalogView: View {
             onboarding = !onboardingCompleted && ProcessInfo.processInfo.environment["APP_MATE_TESTING"] != "1"
         }
         .onReceive(Timer.publish(every: 60, on: .main, in: .common).autoconnect()) { _ in clock = .now }
+        .onChange(of: dockBadgeLabel, initial: true) { _, label in
+            guard ProcessInfo.processInfo.environment["APP_MATE_TESTING"] != "1" else { return }
+            NSApp.dockTile.badgeLabel = label
+        }
         .onChange(of: selection) { _, _ in search = ""; typeFilter = .all }
         .onChange(of: trashCount) { _, count in
             if count == 0 && selection == .trash { selection = .all }
         }
         .onChange(of: selectedApp?.deletedAt) { _, deletedAt in
             if deletedAt != nil { selection = .all }
-        }
-        .onChange(of: navigation.request) { _, _ in
-            search = ""
-            typeFilter = .all
-            selection = navigation.scope
         }
         .sheet(isPresented: $onboarding, onDismiss: {
             guard !onboardingSources.isEmpty else { return }
@@ -209,6 +213,10 @@ struct CatalogView: View {
     private var trashCount: Int { credentials.filter { $0.deletedAt != nil }.count + apps.filter { $0.deletedAt != nil }.count }
     private var expiredCount: Int { active.filter { $0.displayState(at: clock) == .expired }.count }
     private var expiringCount: Int { active.filter { $0.displayState(at: clock).needsRenewal }.count }
+    private var dockBadgeLabel: String? {
+        let show = checkpoints.first?.preferencesData.flatMap { try? JSONDecoder().decode(AppPreferences.self, from: $0).showDockBadge } ?? true
+        return show && expiringCount > 0 ? String(expiringCount) : nil
+    }
 
     private var sidebar: some View {
         VStack(spacing: 0) {
@@ -629,8 +637,6 @@ struct OnboardingView: View {
     let onFinished: ([URL]) -> Void
     @State private var step: Int
     @State private var sources: [URL] = []
-    @State private var notificationMessage: String?
-    @State private var requesting = false
     private let artwork = ["OnboardingWelcome", "OnboardingImport", "OnboardingSecurity"]
     private let titles = ["App Mate へ\nようこそ", "今ある鍵を\n取り込みましょう", "安心して使うための\n設定"]
 
@@ -650,7 +656,7 @@ struct OnboardingView: View {
                         .font(.system(size: 14)).lineSpacing(5).foregroundStyle(AppMateStyle.secondary).padding(.top, 12)
                     VStack(alignment: .leading, spacing: 14) {
                         feature("保管先で整理", detail: "鍵と証明書はチーム、プロファイルはアプリにまとめます", symbol: "sidebar.left", color: AppMateStyle.accent, background: AppMateStyle.selectedRow)
-                        feature("期限前にお知らせ", detail: "Macの通知許可後、期限前にお知らせします", symbol: "clock", color: AppMateStyle.warningText, background: AppMateStyle.warningBackground)
+                        feature("期限を一覧で確認", detail: "期限切れと30日以内をサイドバーに出します", symbol: "clock", color: AppMateStyle.warningText, background: AppMateStyle.warningBackground)
                         feature("このMacの中だけ", detail: "暗号化して保存。サーバーには送りません", symbol: "lock", color: AppMateStyle.successText, background: AppMateStyle.successBackground)
                     }.padding(.top, 22)
                 } else if step == 1 {
@@ -668,19 +674,9 @@ struct OnboardingView: View {
                     Text(".p8 · .p12 · .cer · .mobileprovision · .provisionprofile に対応します。チームとアプリを登録した後、内容を確認して取り込みます。元のファイルは変更しません。")
                         .font(.system(size: 12)).lineSpacing(4).foregroundStyle(AppMateStyle.secondary).padding(.top, 12)
                 } else {
-                    Text("あとから設定でいつでも変えられます。")
+                    Text("秘密情報を開くときは、このMacで確認します。")
                         .font(.system(size: 14)).foregroundStyle(AppMateStyle.secondary).padding(.top, 10)
                     VStack(spacing: 10) {
-                        HStack(spacing: 12) {
-                            Image(systemName: "bell").foregroundStyle(AppMateStyle.warningText).frame(width: 36, height: 36)
-                                .background(AppMateStyle.warningBackground, in: RoundedRectangle(cornerRadius: 10))
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text("期限の通知").fontWeight(.bold)
-                                Text(notificationMessage ?? "30日前・7日前・前日・当日にお知らせします").font(.system(size: 11)).foregroundStyle(AppMateStyle.secondary).fixedSize(horizontal: false, vertical: true)
-                            }
-                            Spacer(minLength: 0)
-                            Button("通知を許可", action: requestNotifications).buttonStyle(AppMateButtonStyle(primary: true)).disabled(requesting)
-                        }.padding(12).background(AppMateStyle.sidebar, in: RoundedRectangle(cornerRadius: 14))
                         feature("Macの認証で守る", detail: "Touch ID またはMacのパスワードで確認します", symbol: "touchid", color: AppMateStyle.accent, background: AppMateStyle.selectedRow)
                             .padding(12).background(AppMateStyle.sidebar, in: RoundedRectangle(cornerRadius: 14))
                         HStack {
@@ -726,18 +722,6 @@ struct OnboardingView: View {
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = true
         if panel.runModal() == .OK { sources = panel.urls }
-    }
-
-    private func requestNotifications() {
-        guard ProcessInfo.processInfo.environment["APP_MATE_TESTING"] != "1" else { return }
-        requesting = true
-        Task { @MainActor in
-            defer { requesting = false }
-            do {
-                let allowed = try await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge])
-                notificationMessage = allowed ? "通知を許可しました" : "通知なしで続けられます。設定から変更できます。"
-            } catch { notificationMessage = error.localizedDescription }
-        }
     }
 }
 

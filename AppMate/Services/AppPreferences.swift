@@ -22,11 +22,7 @@ enum CIValue: String, Codable, CaseIterable, Sendable {
 }
 
 struct AppPreferences: Codable, Equatable, Sendable {
-    var expirationDays: [Int] = [30, 7, 1, 0]
-    var backupReminderDays: Int? = 7
-    var notificationsEnabled = true
     var showDockBadge = true
-    var showMenuBar = true
     var templates: [CITemplate] = [
         CITemplate(id: UUID(uuidString: "00000000-0000-0000-0001-000000000001")!, name: "GitHub Actions · 秘密鍵", variable: "ASC_KEY_P8_BASE64", value: .base64),
         CITemplate(id: UUID(uuidString: "00000000-0000-0000-0001-000000000002")!, name: "Key ID", variable: "ASC_KEY_ID", value: .keyID),
@@ -36,9 +32,7 @@ struct AppPreferences: Codable, Equatable, Sendable {
     ]
 
     func validate() throws {
-        guard expirationDays.allSatisfy({ [30, 7, 1, 0].contains($0) }), Set(expirationDays).count == expirationDays.count,
-              backupReminderDays.map({ (1...365).contains($0) }) ?? true,
-              templates.count <= 100, Set(templates.map(\.id)).count == templates.count,
+        guard templates.count <= 100, Set(templates.map(\.id)).count == templates.count,
               templates.allSatisfy({ !$0.name.isEmpty && $0.name.utf8.count <= 256 && $0.variable.range(of: "^[A-Za-z_][A-Za-z0-9_]{0,127}$", options: .regularExpression) != nil }) else { throw BackupError.invalid }
     }
 }

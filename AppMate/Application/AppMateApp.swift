@@ -1,15 +1,12 @@
 import SwiftData
 import SwiftUI
-import UserNotifications
 
 @main
 struct AppMateApp: App {
     @State private var navigation = AppNavigation()
-    @State private var menuInserted = ProcessInfo.processInfo.environment["APP_MATE_TESTING"] != "1"
     private let container: Result<ModelContainer, Error>
 
     init() {
-        if ProcessInfo.processInfo.environment["APP_MATE_TESTING"] != "1" { UNUserNotificationCenter.current().delegate = NotificationRouter.shared }
         container = Result {
             let testing = ProcessInfo.processInfo.environment["APP_MATE_TESTING"] == "1"
             return try ModelContainer(for: DeveloperTeam.self, ManagedApp.self, StoredCredential.self, VerificationRecord.self, BackupChange.self, BackupCheckpoint.self,
@@ -23,7 +20,6 @@ struct AppMateApp: App {
             case .success(let container):
                 CatalogView(container: container, navigation: navigation)
                     .modelContainer(container)
-                    .background(NotificationCoordinator(container: container, navigation: navigation).modelContainer(container))
                     .frame(minWidth: 960, minHeight: 640)
             case .failure:
                 ContentUnavailableView("保存領域を開けません", systemImage: "externaldrive.badge.exclamationmark",
@@ -33,15 +29,6 @@ struct AppMateApp: App {
         .windowStyle(.hiddenTitleBar)
         .defaultSize(width: 1232, height: 752)
         .commands { VerificationCommands() }
-
-        MenuBarExtra(isInserted: Binding(get: { menuInserted && navigation.menuVisible }, set: { menuInserted = $0 })) {
-            if case .success(let container) = container {
-                AppMateMenu(navigation: navigation).modelContainer(container)
-            }
-        } label: {
-            Image(systemName: "key").accessibilityLabel("App Mate")
-        }
-        .menuBarExtraStyle(.window)
 
         Settings {
             if case .success(let container) = container { AppSettingsView(container: container).modelContainer(container) }
