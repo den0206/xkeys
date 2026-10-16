@@ -530,7 +530,9 @@ struct CredentialAppView: View {
         case .certificate:
             let users = record.profilesUsing(in: records)
             VStack(alignment: .leading, spacing: 4) {
-                Text("\(record.fileTypeTitle) · .\(record.fileExtension)").font(.system(size: 12)).foregroundStyle(AppMateStyle.tertiary)
+                let bundled = record.bundledCertificates.count
+                Text("\(record.fileTypeTitle) · .\(record.fileExtension)" + (bundled > 0 ? " · ほか\(bundled)件の証明書" : ""))
+                    .font(.system(size: 12)).foregroundStyle(AppMateStyle.tertiary)
                 if !users.isEmpty {
                     HStack(spacing: 6) {
                         Text("使っているプロファイル").font(.system(size: 11)).foregroundStyle(AppMateStyle.secondary)
@@ -599,6 +601,10 @@ struct CredentialAppView: View {
             if let value = record.keyID { metadata("Key ID", value, monospaced: true) }
             if let value = record.issuerID { metadata("Issuer ID", value, monospaced: true) }
             if record.fileExtension == "p12" {
+                let bundled = record.bundledCertificates
+                metadata("同梱の証明書", record.p12Certificates == nil ? (record.hasSavedPassword ? "未確認（次の認証後に表示）" : "未確認（パスワード未保存）")
+                         : bundled.isEmpty ? "なし"
+                         : bundled.map { $0.name + ($0.expiresAt.map { "（" + $0.formatted(date: .abbreviated, time: .omitted) + "まで）" } ?? "") }.joined(separator: "\n"))
                 HStack(alignment: .top, spacing: 12) {
                     Text("パスワード").foregroundStyle(AppMateStyle.secondary).frame(width: 96, alignment: .leading)
                     Text(revealedPassword.map { $0.isEmpty ? "空のパスワード" : $0 } ?? (record.hasSavedPassword ? "••••••••" : "未保存"))

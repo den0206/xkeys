@@ -26,26 +26,44 @@ extension StoredCredential {
         signingCertificateDigests?.split(separator: ",").map(String.init) ?? []
     }
 
+    /// Certificates in a .p12 other than the chosen one. Empty until the file was read.
+    var bundledCertificates: [ContainedCertificate] {
+        guard let data = p12Certificates?.data(using: .utf8),
+              let all = try? JSONDecoder().decode([ContainedCertificate].self, from: data) else { return [] }
+        return all.filter { $0.fingerprint != fingerprint }
+    }
+
+    /// Fingerprint and expiry of every certificate this file holds.
+    private var certificateExpiries: [String: Date?] {
+        var result = [String: Date?]()
+        for certificate in bundledCertificates { result[certificate.fingerprint] = certificate.expiresAt }
+        if let fingerprint { result[fingerprint] = expiresAt }
+        return result
+    }
+
     /// Certificates (.cer / .p12 of the same team) embedded in this profile. Empty until the profile was read.
     func signingCertificates(in records: [StoredCredential]) -> [StoredCredential] {
         let digests = Set(signingDigestList)
         guard !digests.isEmpty else { return [] }
         return records.filter { other in
             other.deletedAt == nil && other.team?.id == team?.id && CredentialGroup(other) == .certificate
-                && other.fingerprint.map(digests.contains) == true
+                && !digests.isDisjoint(with: other.certificateExpiries.keys)
         }
     }
 
-    /// Profiles that embed this certificate.
+    /// Profiles that embed this certificate or one bundled with it.
     func profilesUsing(in records: [StoredCredential]) -> [StoredCredential] {
-        guard CredentialGroup(self) == .certificate, let fingerprint else { return [] }
-        return records.filter { $0.deletedAt == nil && $0.app?.deletedAt == nil && $0.team?.id == team?.id && $0.signingDigestList.contains(fingerprint) }
+        guard CredentialGroup(self) == .certificate else { return [] }
+        let fingerprints = Set(certificateExpiries.keys)
+        guard !fingerprints.isEmpty else { return [] }
+        return records.filter { $0.deletedAt == nil && $0.app?.deletedAt == nil && $0.team?.id == team?.id && !fingerprints.isDisjoint(with: $0.signingDigestList) }
     }
 
     /// True when every known signing certificate of this profile has expired.
     func signingCertificatesExpired(in records: [StoredCredential], at now: Date) -> Bool {
-        let certificates = signingCertificates(in: records)
-        return !certificates.isEmpty && certificates.allSatisfy { $0.displayState(at: now) == .expired }
+        let digests = Set(signingDigestList)
+        let expiries = signingCertificates(in: records).flatMap { $0.certificateExpiries.filter { digests.contains($0.key) }.map(\.value) }
+        return !expiries.isEmpty && expiries.allSatisfy { $0.map { $0 <= now } ?? false }
     }
 
     func needsAttention(in records: [StoredCredential], at now: Date) -> Bool {

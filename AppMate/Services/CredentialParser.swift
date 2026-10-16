@@ -14,6 +14,14 @@ struct ParsedCredential: Equatable, Sendable {
     let expiresAt: Date?
     /// SHA-256 of each certificate embedded in a profile; nil for other kinds.
     var signingCertificateDigests: [String]? = nil
+    /// Every certificate in a .p12, including the chosen one; nil for other kinds.
+    var p12Certificates: [ContainedCertificate]? = nil
+}
+
+struct ContainedCertificate: Codable, Equatable, Sendable {
+    let fingerprint: String
+    let name: String
+    let expiresAt: Date?
 }
 
 enum ValidationError: LocalizedError {
@@ -144,7 +152,12 @@ struct CredentialParser {
         let unique = certificates.filter { seen.insert(SecCertificateCopyData($0) as Data).inserted }
         guard !unique.isEmpty else { throw ValidationError.invalidFile }
         // Memory-only import does not reliably expose private-key associations on all supported systems.
-        return try unique.map { try certificateInfo($0, kind: "PKCS#12（証明書候補）") }
+        var candidates = try unique.map { try certificateInfo($0, kind: "PKCS#12（証明書候補）") }
+        let contained = candidates.compactMap { candidate in
+            candidate.fingerprint.map { ContainedCertificate(fingerprint: $0, name: candidate.name, expiresAt: candidate.expiresAt) }
+        }
+        for index in candidates.indices { candidates[index].p12Certificates = contained }
+        return candidates
     }
 
     private static func certificateInfo(_ certificate: SecCertificate, kind: String) throws -> ParsedCredential {

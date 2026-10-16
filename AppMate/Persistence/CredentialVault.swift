@@ -90,6 +90,8 @@ final class StoredCredential {
     var replacedByID: UUID?
     // Derived from the profile file. Kept out of the AAD and backups; nil means "not read yet".
     var signingCertificateDigests: String?
+    // JSON of every certificate in a .p12, read like signingCertificateDigests; nil means "not read yet".
+    var p12Certificates: String?
 
     init(file: CredentialFile, parsed: ParsedCredential, app: ManagedApp?, team: DeveloperTeam, savePassword: Bool, p8: P8Metadata? = nil) {
         let ext = (file.name as NSString).pathExtension.lowercased()
@@ -116,6 +118,11 @@ final class StoredCredential {
         keyID = p8?.keyID
         issuerID = p8?.issuerID
         signingCertificateDigests = parsed.signingCertificateDigests?.joined(separator: ",")
+        p12Certificates = parsed.p12Certificates.flatMap(Self.encode)
+    }
+
+    static func encode(_ certificates: [ContainedCertificate]) -> String? {
+        (try? JSONEncoder().encode(certificates)).flatMap { String(data: $0, encoding: .utf8) }
     }
 
     init(restoring value: BackupSnapshot.Credential, team: DeveloperTeam, app: ManagedApp?) {

@@ -212,16 +212,23 @@ struct VaultManagement {
         try purge(records: vault.records(), apps: context.fetch(FetchDescriptor<ManagedApp>()), expiredOnly: true, key: key)
     }
 
-    /// Reads embedded certificates of profiles stored before this field existed (or restored from a backup).
-    /// Not a user change, so it is not recorded in the backup history.
+    /// Reads embedded certificates of profiles and .p12 files stored before these fields existed (or restored from a backup).
+    /// A .p12 without a saved password stays unread. Not a user change, so it is not recorded in the backup history.
     func backfillSigningCertificates(key: SymmetricKey) throws {
         guard !context.hasChanges else { return }
-        let pending = try vault.records().filter { $0.signingCertificateDigests == nil && ["mobileprovision", "provisionprofile"].contains($0.fileExtension) }
-        guard !pending.isEmpty else { return }
-        for record in pending {
+        let records = try vault.records()
+        let profiles = records.filter { $0.signingCertificateDigests == nil && ["mobileprovision", "provisionprofile"].contains($0.fileExtension) }
+        let p12s = records.filter { $0.p12Certificates == nil && $0.fileExtension == "p12" && $0.hasSavedPassword }
+        guard !profiles.isEmpty || !p12s.isEmpty else { return }
+        for record in profiles {
             // An unreadable file gets "" (no links shown) so it is not decrypted again on every authentication.
             let parsed = try? CredentialParser.parse(vault.read(record, key: key).original, extension: record.fileExtension)
             record.signingCertificateDigests = parsed?.signingCertificateDigests?.joined(separator: ",") ?? ""
+        }
+        for record in p12s {
+            let payload = try? vault.read(record, key: key)
+            let parsed = payload.flatMap { try? CredentialParser.parseAll($0.original, extension: "p12", password: $0.password ?? "") }
+            record.p12Certificates = parsed?.first?.p12Certificates.flatMap(StoredCredential.encode) ?? ""
         }
         do { try context.save() } catch { context.rollback(); throw error }
     }

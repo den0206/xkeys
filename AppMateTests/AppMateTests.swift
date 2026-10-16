@@ -2720,6 +2720,81 @@ final class AppMateTests: XCTestCase {
         XCTAssertTrue(prov.signingCertificates(in: records).isEmpty)
     }
 
+    func testPKCS12ParsesEveryContainedCertificateForEachCandidate() throws {
+        let candidates = try CredentialParser.parseAll(fixture("p12", name: "chain"), extension: "p12", password: "fixture-only")
+        XCTAssertGreaterThan(candidates.count, 1)
+        for candidate in candidates {
+            XCTAssertEqual(candidate.p12Certificates?.map(\.fingerprint), candidates.map(\.fingerprint))
+        }
+        XCTAssertNil(try CredentialParser.parse(fixture("cer"), extension: "cer").p12Certificates)
+    }
+
+    @MainActor
+    func testProfileLinksToCertificateBundledInPKCS12AndUsesItsExpiry() throws {
+        let (vault, app, _, _) = try makeVault()
+        defer { try? FileManager.default.removeItem(at: vault.blobs.directory) }
+        let key = SymmetricKey(size: .bits256)
+        let sha = { (data: Data) in SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined() }
+        let p12 = CredentialFile(data: try fixture("p12"), name: "sample.p12")
+        try vault.importFile(p12, parsed: CredentialParser.parse(p12.data, extension: "p12", password: "fixture-only"), app: app,
+                             password: "fixture-only", confirmUnknownTeam: true, key: key)
+        let profile = CredentialFile(data: try fixture("mobileprovision", name: "certs"), name: "certs.mobileprovision")
+        try vault.importFile(profile, parsed: CredentialParser.parse(profile.data, extension: "mobileprovision"), app: app,
+                             password: nil, confirmUnknownTeam: true, key: key)
+        let records = try vault.records()
+        let identity = try XCTUnwrap(records.first { $0.fileExtension == "p12" })
+        let prov = try XCTUnwrap(records.first { $0.fileExtension == "mobileprovision" })
+        XCTAssertNotNil(identity.p12Certificates)
+        XCTAssertTrue(identity.bundledCertificates.isEmpty)
+
+        // The chosen certificate is not in the profile; only the bundled renewed.cer is.
+        let now = Date.now
+        let renewed = sha(try fixture("cer", name: "renewed"))
+        identity.fingerprint = "chosen-not-in-profile"
+        identity.expiresAt = now.addingTimeInterval(-60)
+        identity.p12Certificates = StoredCredential.encode([
+            ContainedCertificate(fingerprint: "chosen-not-in-profile", name: "Chosen", expiresAt: identity.expiresAt),
+            ContainedCertificate(fingerprint: renewed, name: "Bundled", expiresAt: now.addingTimeInterval(86400 * 365)),
+        ])
+        XCTAssertEqual(identity.bundledCertificates.map(\.name), ["Bundled"])
+        XCTAssertEqual(prov.signingCertificates(in: records).map(\.id), [identity.id])
+        XCTAssertEqual(identity.profilesUsing(in: records).map(\.id), [prov.id])
+        XCTAssertFalse(prov.signingCertificatesExpired(in: records, at: now))
+        identity.p12Certificates = StoredCredential.encode([
+            ContainedCertificate(fingerprint: renewed, name: "Bundled", expiresAt: now.addingTimeInterval(-60)),
+        ])
+        XCTAssertTrue(prov.signingCertificatesExpired(in: records, at: now))
+    }
+
+    @MainActor
+    func testBackfillReadsPKCS12CertificatesOnlyWithSavedPassword() throws {
+        let (vault, app, _, _) = try makeVault()
+        defer { try? FileManager.default.removeItem(at: vault.blobs.directory) }
+        let key = SymmetricKey(size: .bits256)
+        let saved = CredentialFile(data: try fixture("p12"), name: "sample.p12")
+        try vault.importFile(saved, parsed: CredentialParser.parse(saved.data, extension: "p12", password: "fixture-only"), app: app,
+                             password: "fixture-only", confirmUnknownTeam: true, key: key)
+        let chain = CredentialFile(data: try fixture("p12", name: "chain"), name: "chain.p12")
+        let chainParsed = try XCTUnwrap(CredentialParser.parseAll(chain.data, extension: "p12", password: "fixture-only").first)
+        try vault.importFile(chain, parsed: chainParsed, app: app, password: nil, confirmUnknownTeam: true, key: key)
+        let records = try vault.records()
+        let withPassword = try XCTUnwrap(records.first { $0.originalName == "sample.p12" })
+        let withoutPassword = try XCTUnwrap(records.first { $0.originalName == "chain.p12" })
+        let expected = try XCTUnwrap(withPassword.p12Certificates)
+        let aad = try withPassword.authenticatedData()
+        // Simulate files stored before the field existed or restored from a backup.
+        withPassword.p12Certificates = nil
+        withoutPassword.p12Certificates = nil
+        try vault.context.save()
+        let history = try vault.context.fetchCount(FetchDescriptor<BackupChange>())
+
+        try VaultManagement(vault: vault).backfillSigningCertificates(key: key)
+        XCTAssertEqual(withPassword.p12Certificates, expected)
+        XCTAssertNil(withoutPassword.p12Certificates)
+        XCTAssertEqual(try withPassword.authenticatedData(), aad)
+        XCTAssertEqual(try vault.context.fetchCount(FetchDescriptor<BackupChange>()), history)
+    }
+
     @MainActor
     func testCISecretFileSelectsLinkedCredentialsAndWritesEditableDotenv() throws {
         let (vault, app, _, _) = try makeVault()
