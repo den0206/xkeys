@@ -64,6 +64,8 @@ struct CatalogEditor: View {
     @State private var name = ""
     @State private var parentAppID: UUID?
     @State private var platform = "iOS"
+    @State private var iconColor: String?
+    @State private var iconImage: Data?
     @State private var error: String?
     @State private var deleting = false
     @State private var access = VaultAccess()
@@ -76,6 +78,9 @@ struct CatalogEditor: View {
                 .font(.caption).foregroundStyle(.secondary)
             if app != nil { Picker("プラットフォーム", selection: $platform) { ForEach(AppCatalog.platforms, id: \.self) { Text($0).tag($0) } } }
             if let app {
+                LabeledContent("アイコン") {
+                    AppIconPicker(name: name, iconColor: $iconColor, iconImage: $iconImage)
+                }
                 Picker("所属アプリ", selection: $parentAppID) {
                     Text("独立したアプリ（本体）").tag(nil as UUID?)
                     ForEach((app.team?.apps ?? []).filter { $0.id != app.id && $0.parentAppID == nil && $0.deletedAt == nil }.sorted { $0.name < $1.name }) { parent in
@@ -95,7 +100,8 @@ struct CatalogEditor: View {
                         let value = name.trimmingCharacters(in: .whitespacesAndNewlines)
                         guard !value.isEmpty else { throw RegistrationError.nameRequired }
                         if let app {
-                            try AppCatalog(context: vault.context).setParent(parentAppID, for: app, name: value, platform: platform)
+                            try AppCatalog(context: vault.context).updateApp(app, name: value, platform: platform, parentAppID: parentAppID,
+                                                                           iconColor: iconColor, iconImage: iconImage)
                         } else {
                             try VaultManagement(vault: vault).change { team?.name = value }
                         }
@@ -104,7 +110,14 @@ struct CatalogEditor: View {
                 }.keyboardShortcut(.defaultAction).disabled(access.busy)
             }
         }.padding(24).frame(width: 490)
-            .onAppear { name = app?.name ?? team?.name ?? ""; platform = app?.platform ?? "iOS"; parentAppID = app?.parentAppID }
+            .background(AppMateStyle.canvas).foregroundStyle(AppMateStyle.text)
+            .onAppear {
+                name = app?.name ?? team?.name ?? ""
+                platform = app?.platform ?? "iOS"
+                parentAppID = app?.parentAppID
+                iconColor = app?.iconColor
+                iconImage = app?.iconImage
+            }
             .confirmationDialog(app == nil ? "空のTeamを削除しますか？" : "Appと配下のターゲット・専用ファイルを最近削除した項目へ移しますか？", isPresented: $deleting, titleVisibility: .visible) {
                 Button("認証して削除", role: .destructive) {
                     Task { @MainActor in

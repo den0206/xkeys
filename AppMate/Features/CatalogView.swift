@@ -436,7 +436,7 @@ struct RegistrationForm: View {
     @State private var name = ""
     @State private var identifier = ""
     @State private var platform = "iOS"
-    @State private var iconColor = "purple"
+    @State private var iconColor: String? = "purple"
     @State private var iconImage: Data?
     @State private var showingAddTeam = false
     @Query(sort: \DeveloperTeam.name) private var registeredTeams: [DeveloperTeam]
@@ -502,21 +502,7 @@ struct RegistrationForm: View {
                 }
                 GridRow {
                     Text("アイコン")
-                    HStack(spacing: 10) {
-                        ZStack {
-                            RoundedRectangle(cornerRadius: 11).fill(AppMateStyle.iconColor(iconColor))
-                            if let iconImage, let image = NSImage(data: iconImage) { Image(nsImage: image).resizable().scaledToFill() }
-                            else { Text(String(name.prefix(1))).font(.system(size: 20, weight: .bold)).foregroundStyle(.white) }
-                        }.frame(width: 44, height: 44).clipShape(RoundedRectangle(cornerRadius: 11))
-                        ForEach(AppCatalog.iconColors, id: \.self) { color in
-                            Button { iconColor = color; iconImage = nil } label: {
-                                Circle().fill(AppMateStyle.iconColor(color)).frame(width: 22, height: 22)
-                                    .overlay(Circle().stroke(iconColor == color && iconImage == nil ? AppMateStyle.text : .clear, lineWidth: 2))
-                            }.buttonStyle(.plain).accessibilityLabel("アイコンの色：" + color)
-                                .accessibilityAddTraits(iconColor == color && iconImage == nil ? .isSelected : [])
-                        }
-                        Button("画像を選ぶ…", action: chooseIcon).buttonStyle(AppMateButtonStyle())
-                    }
+                    AppIconPicker(name: name, iconColor: $iconColor, iconImage: $iconImage)
                 }
 
             }.textFieldStyle(.roundedBorder).controlSize(.large).padding(.vertical, 4)
@@ -547,19 +533,6 @@ struct RegistrationForm: View {
         }
     }
 
-    private func chooseIcon() {
-        let panel = NSOpenPanel()
-        panel.allowedContentTypes = [.png, .jpeg]
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        let scoped = url.startAccessingSecurityScopedResource()
-        defer { if scoped { url.stopAccessingSecurityScopedResource() } }
-        do {
-            let file = try CredentialFile(url: url, maximumBytes: 1_048_576)
-            guard NSImage(data: file.data) != nil else { throw ValidationError.invalidFile }
-            iconImage = file.data
-            error = nil
-        } catch { self.error = "1MB以下のPNG・JPEG画像を選んでください。" }
-    }
 
     private func readProfile(_ url: URL) {
         let scoped = url.startAccessingSecurityScopedResource()
@@ -634,6 +607,49 @@ enum AppMateStyle {
         let index = app.bundleID.utf8.reduce(0) { ($0 + Int($1)) % colors.count }
         return colors[index]
     }
+}
+
+struct AppIconPicker: View {
+    let name: String
+    @Binding var iconColor: String?
+    @Binding var iconImage: Data?
+    @State private var error: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 10) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 11).fill(AppMateStyle.iconColor(iconColor ?? "purple"))
+                    if let iconImage, let image = NSImage(data: iconImage) { Image(nsImage: image).resizable().scaledToFill() }
+                    else { Text(String(name.prefix(1))).font(.system(size: 20, weight: .bold)).foregroundStyle(.white) }
+                }.frame(width: 44, height: 44).clipShape(RoundedRectangle(cornerRadius: 11))
+                ForEach(AppCatalog.iconColors, id: \.self) { color in
+                    Button { iconColor = color; iconImage = nil } label: {
+                        Circle().fill(AppMateStyle.iconColor(color)).frame(width: 22, height: 22)
+                            .overlay(Circle().stroke(iconColor == color && iconImage == nil ? AppMateStyle.text : .clear, lineWidth: 2))
+                    }.buttonStyle(.plain).accessibilityLabel("アイコンの色：" + color)
+                        .accessibilityAddTraits(iconColor == color && iconImage == nil ? .isSelected : [])
+                }
+                Button("画像を選ぶ…", action: chooseIcon).buttonStyle(AppMateButtonStyle())
+            }
+            if let error { Text(error).font(.caption).foregroundStyle(.red) }
+        }
+    }
+
+    private func chooseIcon() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.png, .jpeg]
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        let scoped = url.startAccessingSecurityScopedResource()
+        defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+        do {
+            let file = try CredentialFile(url: url, maximumBytes: 1_048_576)
+            guard NSImage(data: file.data) != nil else { throw ValidationError.invalidFile }
+            iconImage = file.data
+            error = nil
+        } catch { self.error = "1MB以下のPNG・JPEG画像を選んでください。" }
+    }
+
 }
 
 struct AppMateButtonStyle: ButtonStyle {

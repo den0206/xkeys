@@ -146,8 +146,13 @@ struct AppCatalog {
     }
 
     func setParent(_ parentAppID: UUID?, for app: ManagedApp, name: String, platform: String) throws {
+        try updateApp(app, name: name, platform: platform, parentAppID: parentAppID, iconColor: app.iconColor, iconImage: app.iconImage)
+    }
+
+    func updateApp(_ app: ManagedApp, name: String, platform: String, parentAppID: UUID?, iconColor: String?, iconImage: Data?) throws {
         let value = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !value.isEmpty else { throw RegistrationError.nameRequired }
+        guard (iconImage?.count ?? 0) <= 1_048_576, iconColor.map(Self.iconColors.contains) ?? true else { throw ValidationError.invalidFile }
         guard Self.platforms.contains(platform), app.modelContext === context, app.deletedAt == nil else { throw RegistrationError.invalidParent }
         let apps = try context.fetch(FetchDescriptor<ManagedApp>())
         if let parentAppID {
@@ -159,6 +164,8 @@ struct AppCatalog {
             app.name = value
             app.platform = platform
             app.parentAppID = parentAppID
+            app.iconColor = iconColor
+            app.iconImage = iconImage
         }
     }
 

@@ -786,6 +786,7 @@ final class AppMateTests: XCTestCase {
             ("onboarding-security", NSSize(width: 760, height: 518), AnyView(OnboardingView(step: 2, onFinished: { _ in }))),
             ("add-app", NSSize(width: 560, height: 520), AnyView(RegistrationForm(container: container, teams: [team], initialTeam: team.id, isTeam: false, onSaved: { _ in }))),
             ("add-team", NSSize(width: 600, height: 540), AnyView(RegistrationForm(container: container, teams: [team], initialTeam: team.id, isTeam: true, onSaved: { _ in }))),
+            ("edit-app-icon", NSSize(width: 490, height: 430), AnyView(CatalogEditor(vault: vault, team: nil, app: app))),
             ("team-management", NSSize(width: 600, height: 440), AnyView(TeamManagementView(vault: vault, appleSession: loginSession, onDeleted: { _ in }))),
             ("team-deletion-empty", NSSize(width: 490, height: 360), AnyView(TeamDeletionView(vault: vault, team: emptyTeam, onDeleted: {}))),
             ("team-deletion-blocked", NSSize(width: 490, height: 400), AnyView(TeamDeletionView(vault: vault, team: team, onDeleted: {}))),
@@ -819,6 +820,33 @@ final class AppMateTests: XCTestCase {
             XCTAssertGreaterThan(png.count, 1000, name)
             window.close()
         }
+    }
+
+    @MainActor
+    func testEditingAppIconPersistsAndRejectsInvalidChangesWithoutChangingCredentials() throws {
+        let (vault, app, _, _) = try makeVault()
+        defer { try? FileManager.default.removeItem(at: vault.blobs.directory) }
+        let key = SymmetricKey(size: .bits256)
+        let file = CredentialFile(data: try fixture("cer"), name: "sample.cer")
+        let id = try vault.importFile(file, parsed: CredentialParser.parse(file.data, extension: "cer"), app: app,
+                                      password: nil, confirmUnknownTeam: false, key: key)
+        let record = try XCTUnwrap(vault.records().first { $0.id == id })
+        let aad = try record.authenticatedData()
+        let catalog = AppCatalog(context: vault.context)
+        let image = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a6WQAAAAASUVORK5CYII=")!
+        try catalog.updateApp(app, name: app.name, platform: app.platform, parentAppID: nil, iconColor: "blue", iconImage: image)
+        XCTAssertEqual(app.iconImage, image)
+        XCTAssertEqual(try BackupSnapshot.capture(vault: vault, key: key).apps.first { $0.id == app.id }?.iconImage, image)
+        XCTAssertThrowsError(try catalog.updateApp(app, name: "Invalid", platform: app.platform, parentAppID: nil, iconColor: "invalid", iconImage: nil))
+        XCTAssertThrowsError(try catalog.updateApp(app, name: "Invalid", platform: app.platform, parentAppID: nil, iconColor: "blue", iconImage: Data(repeating: 0, count: 1_048_577)))
+        XCTAssertEqual(app.iconImage, image)
+        try catalog.setParent(nil, for: app, name: app.name, platform: app.platform)
+        XCTAssertEqual(app.iconImage, image)
+        try catalog.updateApp(app, name: app.name, platform: app.platform, parentAppID: nil, iconColor: "orange", iconImage: nil)
+        XCTAssertEqual(app.iconColor, "orange")
+        XCTAssertNil(app.iconImage)
+        XCTAssertEqual(try record.authenticatedData(), aad)
+        XCTAssertEqual(try vault.read(record, key: key).original, file.data)
     }
 
     @MainActor
