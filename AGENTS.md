@@ -4,7 +4,7 @@
 
 App Mate は macOS 26.0 以降向けの SwiftUI・SwiftData アプリです。Apple Developer認証にはXcodesLoginKitを使用します。それ以外の外部ライブラリ追加は必要性を確認してください。
 
-- `AppMate/Application/`：起動、ウィンドウ構成、技術検証画面。
+- `AppMate/Application/`：起動とウィンドウ構成。
 - `AppMate/Features/`：一覧、取り込み、設定、バックアップなどの画面。
 - `AppMate/Models/`：チーム・アプリのモデルと登録時の検証。
 - `AppMate/Services/`：解析、認証、検索、設定。
@@ -41,7 +41,7 @@ xcodebuild -project AppMate.xcodeproj -scheme AppMate \
 - 取り込みは `CredentialVault`（`validate` → `importFile`）、編集・削除・復元・完全削除は `VaultManagement` が担当します。秘密情報の操作は `OwnerAuthentication` で毎回認証し、取得した `SymmetricKey` を渡します。
 - データを変更する処理は、変更の前に `BackupHistory.prepare` を、変更時に `BackupHistory.record` を同じ context で呼び、未バックアップ件数を記録します。バックアップ形式は `BackupArchive`（`BackupSnapshot`、旧 version 1 / 2 も読み込む）、復元は `BackupRestore` / `RestorePlan` です。
 - Apple Developer 連携は `AppleDeveloperSession`（XcodesLoginKit、Cookie を Keychain に保存）と `AppleDeveloperClient`（非公開の Web API、応答サイズ・件数を検証）が担当します。HTTP と Keychain はテストで架空のものに差し替えます。
-- `Application/VerificationView.swift` と `VerificationRecord` は技術検証用です。実装から参照しているため削除しないでください。製品バックアップの対象外です。
+- `VerificationRecord` は削除済みの技術検証画面が使っていた SwiftData モデルです。既存ストアを開くために型一覧に残しています。
 - 仕様を変えたら `docs/DESIGN.md`、確認範囲を変えたら `docs/IMPLEMENTATION.md`、操作を変えたら `README.md` も更新します。
 
 ## コーディング規約

@@ -573,7 +573,7 @@ final class AppMateTests: XCTestCase {
         XCTAssertEqual(child.target(forProfileBundleID: root.bundleID)?.id, root.id)
         XCTAssertNil(child.target(forProfileBundleID: "com.example.unregistered"))
         XCTAssertNil(child.target(forProfileBundleID: "*"))
-        XCTAssertTrue(CredentialSearch.includes(record, scope: .app(child.id), app: child, query: "", type: .all, showReplaced: false, at: .now))
+        XCTAssertTrue(CredentialSearch.includes(record, scope: .app(child.id), app: child, query: "", type: .all, at: .now))
         XCTAssertFalse(record.isVisible(in: child))
         XCTAssertThrowsError(try AppCatalog(context: vault.context).setParent(root.id, for: child, name: child.name, platform: child.platform))
         XCTAssertThrowsError(try AppCatalog(context: vault.context).setParent(other.id, for: root, name: root.name, platform: root.platform))
@@ -696,14 +696,11 @@ final class AppMateTests: XCTestCase {
         let key = SymmetricKey(size: .bits256)
         let metadata = P8Metadata(purposes: [.apns], keyID: "DUMMYKEY01", issuerID: nil)
         let oldFile = p8File()
-        let oldID = try vault.importFile(oldFile, parsed: CredentialParser.parse(oldFile.data, extension: "p8"), app: app,
-                                         password: nil, confirmUnknownTeam: true, key: key, p8: metadata)
+        _ = try vault.importFile(oldFile, parsed: CredentialParser.parse(oldFile.data, extension: "p8"), app: app,
+                                 password: nil, confirmUnknownTeam: true, key: key, p8: metadata)
         let newFile = p8File()
         let parsed = try CredentialParser.parse(newFile.data, extension: "p8")
-        try vault.importFile(newFile, parsed: parsed, app: app, password: nil, confirmUnknownTeam: true,
-                             key: key, p8: metadata, replacingID: oldID, confirmReplacement: true)
-        let old = try XCTUnwrap(vault.records().first { $0.id == oldID })
-        let replacement = old.replacedByID
+        try vault.importFile(newFile, parsed: parsed, app: app, password: nil, confirmUnknownTeam: true, key: key, p8: metadata)
         let files = try FileManager.default.contentsOfDirectory(atPath: vault.blobs.directory.path).sorted()
         let history = try vault.context.fetchCount(FetchDescriptor<BackupChange>())
         let teamID = try XCTUnwrap(app.team?.id)
@@ -714,8 +711,7 @@ final class AppMateTests: XCTestCase {
             { _ = try catalog.addTeam(name: "Extra", teamID: "EXTRATEAM1") },
             { _ = try catalog.addApp(name: "Extra", bundleID: "com.example.extra", platform: "iOS", teamID: teamID) },
             { _ = try vault.importFile(extra, parsed: CredentialParser.parse(extra.data, extension: "p8"), app: app,
-                                      password: nil, confirmUnknownTeam: true, key: key, p8: metadata) },
-            { try vault.restoreToList(old, key: key) }
+                                      password: nil, confirmUnknownTeam: true, key: key, p8: metadata) }
         ] {
             XCTAssertThrowsError(try operation()) { error in
                 guard case RestoreError.pendingChanges = error else { return XCTFail("Unexpected error: \(error)") }
@@ -723,7 +719,6 @@ final class AppMateTests: XCTestCase {
             XCTAssertTrue(vault.context.hasChanges)
             XCTAssertEqual(app.name, "pending edit")
         }
-        XCTAssertEqual(old.replacedByID, replacement)
         XCTAssertEqual(try vault.records().count, 2)
         XCTAssertEqual(try vault.context.fetchCount(FetchDescriptor<BackupChange>()), history)
         XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: vault.blobs.directory.path).sorted(), files)
@@ -860,7 +855,7 @@ final class AppMateTests: XCTestCase {
         let onlineFile = CredentialFile(data: try fixture("cer"), name: "downloaded.cer")
         let screens: [(String, NSSize, AnyView)] = [
             ("online-import", NSSize(width: 640, height: 520), AnyView(AppleDeveloperImportView(team: team, vault: vault, session: loginSession, onSaved: { _ in }))),
-            ("online-confirm", NSSize(width: 720, height: 620), AnyView(CredentialImportView(app: nil, team: team, vault: vault, existing: [], initialFiles: [onlineFile], onSaved: { _ in }))),
+            ("online-confirm", NSSize(width: 720, height: 620), AnyView(CredentialImportView(app: nil, team: team, vault: vault, initialFiles: [onlineFile], onSaved: { _ in }))),
             ("main", NSSize(width: 1232, height: 752), AnyView(CatalogView(container: container, navigation: navigation, appleSession: loginSession).modelContainer(container))),
             ("main-narrow", NSSize(width: 960, height: 640), AnyView(CatalogView(container: container, navigation: navigation, appleSession: loginSession).modelContainer(container))),
             ("settings", NSSize(width: 852, height: 592), AnyView(AppSettingsView(container: container))),
@@ -878,8 +873,8 @@ final class AppMateTests: XCTestCase {
             ("backup", NSSize(width: 600, height: 620), AnyView(BackupView(container: container).modelContainer(container))),
             ("restore", NSSize(width: 640, height: 300), AnyView(BackupView(container: container, restoring: true))),
             ("ci-copy", NSSize(width: 600, height: 620), AnyView(CICopyView(vault: vault, record: try XCTUnwrap(sample)))),
-            ("import", NSSize(width: 720, height: 620), AnyView(CredentialImportView(app: app, team: team, vault: vault, existing: [], onSaved: { _ in }))),
-            ("p8-metadata", NSSize(width: 720, height: 620), AnyView(CredentialImportView(app: app, team: team, vault: vault, existing: [], initialSources: [importURL], onSaved: { _ in }))),
+            ("import", NSSize(width: 720, height: 620), AnyView(CredentialImportView(app: app, team: team, vault: vault, onSaved: { _ in }))),
+            ("p8-metadata", NSSize(width: 720, height: 620), AnyView(CredentialImportView(app: app, team: team, vault: vault, initialSources: [importURL], onSaved: { _ in }))),
             ("delete", NSSize(width: 460, height: 380), AnyView(CredentialDeleteConfirmation(record: try XCTUnwrap(sample), onDelete: {}))),
             ("trash", NSSize(width: 996, height: 700), AnyView(TrashView(vault: vault)))
         ]
@@ -1001,7 +996,8 @@ final class AppMateTests: XCTestCase {
         let file = CredentialFile(data: try fixture("cer"), name: "sample.cer")
         let old = try vault.importFile(file, parsed: CredentialParser.parse(file.data, extension: "cer"), app: app, password: nil, confirmUnknownTeam: true, key: key)
         let renewed = CredentialFile(data: try fixture("cer", name: "renewed"), name: "renewed.cer")
-        let next = try vault.importFile(renewed, parsed: CredentialParser.parse(renewed.data, extension: "cer"), app: app, password: nil, confirmUnknownTeam: true, key: key, replacingID: old, confirmReplacement: true)
+        let next = try vault.importFile(renewed, parsed: CredentialParser.parse(renewed.data, extension: "cer"), app: app, password: nil, confirmUnknownTeam: true, key: key)
+        try linkLegacyReplacement(old, to: next, vault: vault, key: key)
         let record = try XCTUnwrap(vault.records().first { $0.id == old })
         let manager = VaultManagement(vault: vault)
         try manager.trash(record, key: key, at: .now.addingTimeInterval(-31 * 86400))
@@ -1143,23 +1139,23 @@ final class AppMateTests: XCTestCase {
     }
 
     @MainActor
-    func testRevocationAndDeletionAreExcludedFromSearch() throws {
+    func testDeletionIsExcludedFromSearchAndLegacyRevocationSurvivesBackup() throws {
         let (vault, app, _, _) = try makeVault()
         let key = SymmetricKey(size: .bits256)
         let file = CredentialFile(data: try fixture("cer"), name: "sample.cer")
         _ = try vault.importFile(file, parsed: CredentialParser.parse(file.data, extension: "cer"), app: app, password: nil, confirmUnknownTeam: true, key: key)
         let record = try XCTUnwrap(vault.records().first)
-        try VaultManagement(vault: vault).setRevoked(record, key: key)
-        XCTAssertEqual(record.displayState(at: .now), .revoked)
+        record.revokedAt = .now
+        try vault.context.save()
         try VaultManagement(vault: vault).trash(record, key: key)
-        XCTAssertFalse(CredentialSearch.includes(record, scope: .all, app: nil, query: "sample", type: .all, showReplaced: true, at: .now))
+        XCTAssertFalse(CredentialSearch.includes(record, scope: .all, app: nil, query: "sample", type: .all, at: .now))
         let snapshot = try BackupSnapshot.capture(vault: vault, key: key)
         XCTAssertNotNil(snapshot.credentials.first?.deletedAt)
         XCTAssertNotNil(snapshot.credentials.first?.revokedAt)
     }
 
     @MainActor
-    func testPreferencesAreStableValidatedAndIncludedInRestoreConflicts() async throws {
+    func testPreferencesAreStableIgnoreLegacyTemplatesAndAreIncludedInRestoreConflicts() async throws {
         let (vault, _, _, _) = try makeVault()
         XCTAssertEqual(try PreferencesStore.read(in: vault.context), try PreferencesStore.read(in: vault.context))
         var prefs = AppPreferences()
@@ -1179,10 +1175,8 @@ final class AppMateTests: XCTestCase {
         let approvalPlan1 = try await restoreAuthorization(for: plan)
         _ = try restore.merge(plan, choices: choices, authorization: approvalPlan1, key: key)
         XCTAssertEqual(try PreferencesStore.read(in: other.context), prefs)
-        prefs.templates[0].variable = "SECRET; rm -rf"
-        XCTAssertThrowsError(try PreferencesStore.save(prefs, in: other.context))
-        prefs = AppPreferences(); prefs.templates[0].name = ""
-        XCTAssertThrowsError(try prefs.validate())
+        let legacy = Data(#"{"showDockBadge":false,"templates":[{"id":"00000000-0000-0000-0001-000000000004","name":"Team ID","variable":"APPLE_TEAM_ID","value":"teamID"}]}"#.utf8)
+        XCTAssertEqual(try JSONDecoder().decode(AppPreferences.self, from: legacy), prefs)
     }
 
     @MainActor
@@ -1336,7 +1330,7 @@ final class AppMateTests: XCTestCase {
                 parsed: ParsedCredential(name: ext, kind: "テスト", teamID: team.teamID, bundleID: nil, expiresAt: nil),
                 app: app, team: team, savePassword: false)
             func includes(_ scope: CredentialScope, app: ManagedApp? = nil) -> Bool {
-                CredentialSearch.includes(record, scope: scope, app: app, query: "", type: .all, showReplaced: false, at: .now)
+                CredentialSearch.includes(record, scope: scope, app: app, query: "", type: .all, at: .now)
             }
             XCTAssertEqual(includes(.team(team.id)), ext != "mobileprovision")
             XCTAssertFalse(includes(.team(try XCTUnwrap(other.team?.id))))
@@ -1366,8 +1360,8 @@ final class AppMateTests: XCTestCase {
     }
 
     @MainActor
-    func testTeamImportNeedsNoAppsAndPreservesDuplicateAndReplacementValidation() throws {
-        let (vault, app, _, other) = try makeVault()
+    func testTeamImportNeedsNoAppsAndPreservesDuplicateValidation() throws {
+        let (vault, app, _, _) = try makeVault()
         defer { try? FileManager.default.removeItem(at: vault.blobs.directory) }
         let team = DeveloperTeam(name: "Empty Team", teamID: "EMPTYTEAM1")
         vault.context.insert(team)
@@ -1384,25 +1378,20 @@ final class AppMateTests: XCTestCase {
         XCTAssertEqual(try vault.read(record, key: key).original, file.data)
         XCTAssertThrowsError(try vault.importFile(file, parsed: parsed, app: nil, team: team, password: nil, confirmUnknownTeam: false, key: key, p8: metadata))
         XCTAssertThrowsError(try vault.validate(file: file, parsed: parsed, app: app, team: team, confirmUnknownTeam: false, p8: metadata))
-        let next = p8File()
-        let nextParsed = try CredentialParser.parse(next.data, extension: "p8")
-        XCTAssertThrowsError(try vault.validate(file: next, parsed: nextParsed, app: nil, team: try XCTUnwrap(other.team), confirmUnknownTeam: false, p8: metadata, replacingID: id, confirmReplacement: true))
-        let nextID = try vault.importFile(next, parsed: nextParsed, app: nil, team: team, password: nil, confirmUnknownTeam: false, key: key, p8: metadata, replacingID: id, confirmReplacement: true)
-        XCTAssertEqual(record.replacedByID, nextID)
         XCTAssertTrue(team.apps.isEmpty)
         let profile = CredentialFile(data: try fixture("mobileprovision"), name: "sample.mobileprovision")
         XCTAssertThrowsError(try vault.validate(file: profile, parsed: CredentialParser.parse(profile.data, extension: "mobileprovision"), app: nil, team: try XCTUnwrap(app.team), confirmUnknownTeam: true))
     }
 
     @MainActor
-    func testGlobalSearchOverridesAppScopeButPreservesTypeAndReplacementFilters() throws {
+    func testGlobalSearchOverridesAppScopeButPreservesTypeFilterAndShowsLegacyReplacedRecords() throws {
         let (_, first, _, other) = try makeVault()
         let now = Date(timeIntervalSince1970: 1_900_000_000)
         let record = StoredCredential(file: CredentialFile(data: Data([1]), name: "other.cer"),
                                       parsed: ParsedCredential(name: "Other Certificate", kind: "証明書", teamID: nil, bundleID: nil, expiresAt: now),
                                       app: other, team: try XCTUnwrap(other.team), savePassword: false)
-        func includes(_ query: String, type: CredentialTypeFilter = .all, old: Bool = false, scope: CredentialScope? = nil) -> Bool {
-            CredentialSearch.includes(record, scope: scope ?? .app(first.id), app: first, query: query, type: type, showReplaced: old, at: now)
+        func includes(_ query: String, type: CredentialTypeFilter = .all, scope: CredentialScope? = nil) -> Bool {
+            CredentialSearch.includes(record, scope: scope ?? .app(first.id), app: first, query: query, type: type, at: now)
         }
         XCTAssertFalse(includes(""))
         XCTAssertFalse(includes("　 \n"))
@@ -1412,8 +1401,7 @@ final class AppMateTests: XCTestCase {
         XCTAssertTrue(includes("", scope: .expired))
         XCTAssertFalse(includes("", scope: .expiring))
         record.replacedByID = UUID()
-        XCTAssertFalse(includes("other"))
-        XCTAssertTrue(includes("other", old: true))
+        XCTAssertTrue(includes("other"))
     }
 
     @MainActor
@@ -1483,23 +1471,19 @@ final class AppMateTests: XCTestCase {
         try vault.export(old, to: directory.appendingPathComponent("exported.p8"), key: key)
         _ = try vault.read(old, key: key)
         XCTAssertEqual(try backupHistory(context).pendingCount, 3)
-        let newID = try vault.importFile(next, parsed: CredentialParser.parse(next.data, extension: "p8"), app: app,
-                                         password: nil, confirmUnknownTeam: true, key: key, p8: metadata,
-                                         replacingID: oldID, confirmReplacement: true)
-        XCTAssertEqual(old.replacedByID, newID)
+        _ = try vault.importFile(next, parsed: CredentialParser.parse(next.data, extension: "p8"), app: app,
+                                 password: nil, confirmUnknownTeam: true, key: key, p8: metadata)
         XCTAssertEqual(try backupHistory(context).pendingCount, 4)
-        try vault.restoreToList(old, key: key)
-        XCTAssertEqual(try backupHistory(context).pendingCount, 5)
         let failed = p8File()
         XCTAssertThrowsError(try vault.importFile(failed, parsed: CredentialParser.parse(failed.data, extension: "p8"), app: app,
                                                   password: nil, confirmUnknownTeam: true, key: key, p8: metadata,
                                                   beforeCommit: { throw ValidationError.invalidFile }))
-        XCTAssertEqual(try backupHistory(context).pendingCount, 5)
+        XCTAssertEqual(try backupHistory(context).pendingCount, 4)
         XCTAssertEqual(try vault.records().count, 2)
         let restore = BackupRestore(vault: vault)
         let snapshot = try BackupSnapshot.capture(vault: vault, key: key)
         _ = try restore.merge(restore.prepare(snapshot, key: key), choices: [:], key: key)
-        XCTAssertEqual(try backupHistory(context).pendingCount, 5)
+        XCTAssertEqual(try backupHistory(context).pendingCount, 4)
         let changed = try editing(snapshot) { json in
             var teams = json["teams"] as! [[String: Any]]
             teams[0]["name"] = "Restored Team"
@@ -1509,10 +1493,10 @@ final class AppMateTests: XCTestCase {
         let choices = Dictionary(uniqueKeysWithValues: plan.conflicts.map { ($0.id, RestoreChoice.backup) })
         let approvalPlan1 = try await restoreAuthorization(for: plan)
         XCTAssertThrowsError(try restore.merge(plan, choices: choices, authorization: approvalPlan1, key: key, beforeCommit: { throw ValidationError.invalidFile }))
-        XCTAssertEqual(try backupHistory(context).pendingCount, 5)
+        XCTAssertEqual(try backupHistory(context).pendingCount, 4)
         let approvalPlan2 = try await restoreAuthorization(for: plan)
         _ = try restore.merge(plan, choices: choices, authorization: approvalPlan2, key: key)
-        XCTAssertEqual(try backupHistory(context).pendingCount, 6)
+        XCTAssertEqual(try backupHistory(context).pendingCount, 5)
     }
 
     @MainActor
@@ -1703,8 +1687,8 @@ final class AppMateTests: XCTestCase {
         let oldID = try source.importFile(first, parsed: CredentialParser.parse(first.data, extension: "p8"), app: app,
                                           password: nil, confirmUnknownTeam: true, key: sourceKey, p8: metadata)
         let nextID = try source.importFile(next, parsed: CredentialParser.parse(next.data, extension: "p8"), app: app,
-                                           password: nil, confirmUnknownTeam: true, key: sourceKey, p8: metadata,
-                                           replacingID: oldID, confirmReplacement: true)
+                                           password: nil, confirmUnknownTeam: true, key: sourceKey, p8: metadata)
+        try linkLegacyReplacement(oldID, to: nextID, vault: source, key: sourceKey)
         let backup = try BackupArchive.decode(BackupArchive.encode(BackupSnapshot.capture(vault: source, key: sourceKey), password: "fixture-backup-password"), password: "fixture-backup-password")
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent("AppMateTests/" + UUID().uuidString)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -1759,8 +1743,6 @@ final class AppMateTests: XCTestCase {
         XCTAssertEqual(old.replacedByID, nextID)
         XCTAssertEqual(nextRecord.replacesCredentialID, oldID)
         XCTAssertEqual(try vault.read(nextRecord, key: localKey).original, next.data)
-        try vault.restoreToList(old, key: localKey)
-        XCTAssertNil(old.replacedByID)
         try vault.recover()
         XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: blobs.directory.path).count, 4)
     }
@@ -1863,8 +1845,8 @@ final class AppMateTests: XCTestCase {
         let sourceOld = try source.importFile(file, parsed: parsed, app: sourceApp, password: nil, confirmUnknownTeam: true, key: sourceKey, p8: metadata)
         let targetOld = try target.importFile(file, parsed: parsed, app: targetApp, password: nil, confirmUnknownTeam: true, key: targetKey, p8: metadata)
         let newID = try source.importFile(renewed, parsed: CredentialParser.parse(renewed.data, extension: "p8"), app: sourceApp,
-                                          password: nil, confirmUnknownTeam: true, key: sourceKey, p8: metadata,
-                                          replacingID: sourceOld, confirmReplacement: true)
+                                          password: nil, confirmUnknownTeam: true, key: sourceKey, p8: metadata)
+        try linkLegacyReplacement(sourceOld, to: newID, vault: source, key: sourceKey)
         let service = BackupRestore(vault: target)
         let plan = try service.prepare(BackupSnapshot.capture(vault: source, key: sourceKey), key: targetKey)
         XCTAssertEqual(plan.addedCount, 1)
@@ -1969,8 +1951,8 @@ final class AppMateTests: XCTestCase {
                                        password: nil, confirmUnknownTeam: true, key: key, p8: metadata)
         let next = p8File()
         let replacement = try vault.importFile(next, parsed: CredentialParser.parse(next.data, extension: "p8"), app: app,
-                                               password: nil, confirmUnknownTeam: true, key: key, p8: metadata,
-                                               replacingID: old, confirmReplacement: true)
+                                               password: nil, confirmUnknownTeam: true, key: key, p8: metadata)
+        try linkLegacyReplacement(old, to: replacement, vault: vault, key: key)
         let snapshot = try BackupSnapshot.capture(vault: vault, key: key)
         let secret = "backup-fixture-only-password"
         let archive = try BackupArchive.encode(snapshot, password: secret)
@@ -2092,10 +2074,26 @@ final class AppMateTests: XCTestCase {
         record.expiresAt = nil
         XCTAssertEqual(record.displayState(at: now), .stored)
         record.replacedByID = UUID()
-        XCTAssertEqual(record.displayState(at: now), .replaced)
+        record.revokedAt = now
+        XCTAssertEqual(record.displayState(at: now), .stored)
         XCTAssertTrue(CredentialDisplayState.withinDay.needsRenewal)
         XCTAssertFalse(CredentialDisplayState.expired.needsRenewal)
         _ = vault
+    }
+
+    // Older versions linked a renewed credential to the one it replaced; this rebuilds that stored state.
+    @MainActor
+    private func linkLegacyReplacement(_ oldID: UUID, to newID: UUID, vault: CredentialVault, key: SymmetricKey) throws {
+        let records = try vault.records()
+        let old = try XCTUnwrap(records.first { $0.id == oldID }), new = try XCTUnwrap(records.first { $0.id == newID })
+        let payload = try vault.read(new, key: key)
+        new.replacesCredentialID = oldID
+        old.replacedByID = newID
+        let blob = UUID()
+        new.blobID = blob
+        try vault.blobs.write(JSONEncoder().encode(payload), id: blob, key: key, authenticating: new.authenticatedData())
+        try vault.context.save()
+        try vault.recover()
     }
 
     private func p8File() -> CredentialFile {
@@ -2113,10 +2111,9 @@ final class AppMateTests: XCTestCase {
         let oldID = try vault.importFile(oldFile, parsed: CredentialParser.parse(oldFile.data, extension: "cer"), app: first,
                                          password: nil, confirmUnknownTeam: true, key: key)
         let newID = try vault.importFile(newFile, parsed: CredentialParser.parse(newFile.data, extension: "cer"), app: first,
-                                         password: nil, confirmUnknownTeam: true, key: key, replacingID: oldID, confirmReplacement: true)
+                                         password: nil, confirmUnknownTeam: true, key: key)
         let old = try XCTUnwrap(vault.records().first(where: { $0.id == oldID }))
         let new = try XCTUnwrap(vault.records().first(where: { $0.id == newID }))
-        XCTAssertEqual(old.replacedByID, newID)
         XCTAssertTrue(new.isVisible(in: sibling))
         XCTAssertEqual(try vault.read(old, key: key).original, oldFile.data)
         XCTAssertEqual(try vault.read(new, key: key).original, newFile.data)
@@ -2228,8 +2225,8 @@ final class AppMateTests: XCTestCase {
 
         let newFile = p8File()
         let newID = try vault.importFile(newFile, parsed: CredentialParser.parse(newFile.data, extension: "p8"), app: app, password: nil,
-                                         confirmUnknownTeam: true, key: key, p8: P8Metadata(purposes: [.maps, .weatherKit], keyID: "DUMMYKEY02", issuerID: nil),
-                                         replacingID: id, confirmReplacement: true)
+                                         confirmUnknownTeam: true, key: key, p8: P8Metadata(purposes: [.maps, .weatherKit], keyID: "DUMMYKEY02", issuerID: nil))
+        try linkLegacyReplacement(id, to: newID, vault: vault, key: key)
         for linked in [record, try XCTUnwrap(vault.records().first { $0.id == newID })] {
             XCTAssertThrowsError(try management.updatePurposes(linked, metadata: P8Metadata(purposes: [.apns], keyID: "", issuerID: nil), key: key)) { error in
                 guard case ManagementError.purposeLocked = error else { return XCTFail("Unexpected error: \(error)") }
@@ -2257,64 +2254,6 @@ final class AppMateTests: XCTestCase {
         XCTAssertNil(try Data(contentsOf: vault.blobs.file(record.id)).range(of: file.data))
         record.keyID = "TAMPERED01"
         XCTAssertThrowsError(try vault.read(record, key: key))
-    }
-
-    @MainActor
-    func testReplacementPreservesBothFilesAndCanRestoreOldToList() throws {
-        let (vault, first, sibling, _) = try makeVault()
-        defer { try? FileManager.default.removeItem(at: vault.blobs.directory) }
-        let oldFile = p8File()
-        let newFile = p8File()
-        let key = SymmetricKey(size: .bits256)
-        let metadata = P8Metadata(purposes: [.apns], keyID: "DUMMYKEY01", issuerID: nil)
-        let oldID = try vault.importFile(oldFile, parsed: CredentialParser.parse(oldFile.data, extension: "p8"), app: first,
-                                         password: nil, confirmUnknownTeam: true, key: key, p8: metadata)
-        let parsed = try CredentialParser.parse(newFile.data, extension: "p8")
-        XCTAssertThrowsError(try vault.importFile(newFile, parsed: parsed, app: first, password: nil, confirmUnknownTeam: true,
-                                                key: key, p8: metadata, replacingID: oldID))
-        let newID = try vault.importFile(newFile, parsed: parsed, app: first, password: nil, confirmUnknownTeam: true,
-                                         key: key, p8: metadata, replacingID: oldID, confirmReplacement: true)
-        let records = try vault.records()
-        let old = try XCTUnwrap(records.first(where: { $0.id == oldID }))
-        let new = try XCTUnwrap(records.first(where: { $0.id == newID }))
-        XCTAssertEqual(old.replacedByID, newID)
-        XCTAssertEqual(new.replacesCredentialID, oldID)
-        XCTAssertTrue(new.isVisible(in: sibling))
-        XCTAssertEqual(records.filter { $0.replacedByID == nil }.map(\.id), [newID])
-        XCTAssertEqual(try vault.read(old, key: key).original, oldFile.data)
-        XCTAssertEqual(try vault.read(new, key: key).original, newFile.data)
-        let output = vault.blobs.directory.appendingPathComponent("old.p8")
-        try vault.export(old, to: output, key: key)
-        XCTAssertEqual(try Data(contentsOf: output), oldFile.data)
-        try vault.restoreToList(old, key: key)
-        XCTAssertNil(old.replacedByID)
-        XCTAssertEqual(try vault.records().count, 2)
-        XCTAssertEqual(try vault.read(old, key: key).original, oldFile.data)
-    }
-
-    @MainActor
-    func testReplacementFailureAndWrongScopeLeaveOldUnchanged() throws {
-        let (vault, first, _, other) = try makeVault()
-        defer { try? FileManager.default.removeItem(at: vault.blobs.directory) }
-        let oldFile = p8File()
-        let newFile = p8File()
-        let key = SymmetricKey(size: .bits256)
-        let metadata = P8Metadata(purposes: [.apns], keyID: "DUMMYKEY01", issuerID: nil)
-        let oldID = try vault.importFile(oldFile, parsed: CredentialParser.parse(oldFile.data, extension: "p8"), app: first,
-                                         password: nil, confirmUnknownTeam: true, key: key, p8: metadata)
-        let parsed = try CredentialParser.parse(newFile.data, extension: "p8")
-        XCTAssertThrowsError(try vault.importFile(newFile, parsed: parsed, app: other, password: nil, confirmUnknownTeam: true,
-                                                key: key, p8: metadata, replacingID: oldID, confirmReplacement: true))
-        XCTAssertThrowsError(try vault.importFile(newFile, parsed: parsed, app: first, password: nil, confirmUnknownTeam: true,
-                                                key: key, p8: P8Metadata(purposes: [.signInWithApple], keyID: "DUMMYKEY01", issuerID: nil), replacingID: oldID, confirmReplacement: true))
-        struct CommitFailure: Error {}
-        XCTAssertThrowsError(try vault.importFile(newFile, parsed: parsed, app: first, password: nil, confirmUnknownTeam: true,
-                                                key: key, p8: metadata, replacingID: oldID, confirmReplacement: true) { throw CommitFailure() })
-        let old = try XCTUnwrap(vault.records().first)
-        XCTAssertNil(old.replacedByID)
-        XCTAssertEqual(try vault.records().count, 1)
-        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: vault.blobs.directory.path).count, 1)
-        XCTAssertEqual(try vault.read(old, key: key).original, oldFile.data)
     }
 
     @MainActor
@@ -2730,56 +2669,40 @@ final class AppMateTests: XCTestCase {
         XCTAssertThrowsError(try CredentialFile(url: oversized))
     }
 
-    @MainActor
-    func testEncryptedStoreReopensWithMetadata() throws {
-        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("AppMateTests", isDirectory: true).appendingPathComponent(UUID().uuidString)
-        // SwiftData can retain SQLite handles; remove this test directory after the test host exits.
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        try autoreleasepool {
-            let configuration = ModelConfiguration(url: directory.appendingPathComponent("metadata.store"))
-            let container = try ModelContainer(for: VerificationRecord.self, configurations: configuration)
-            let context = ModelContext(container)
-            context.autosaveEnabled = false
-            let key = SymmetricKey(size: .bits256)
-            let data = Data("test-secret-must-not-be-plaintext".utf8)
-            let store = EncryptedProbeStore(directory: directory.appendingPathComponent("blobs"))
-            try store.save(data, key: key) { record in
-                context.insert(record)
-                try context.save()
-            }
-            let reopened = try ModelContainer(for: VerificationRecord.self, configurations: configuration)
-            let records = try ModelContext(reopened).fetch(FetchDescriptor<VerificationRecord>())
-            let record = try XCTUnwrap(records.first)
-            XCTAssertEqual(records.count, 1)
-            XCTAssertEqual(try store.read(record.id, key: key), data)
-            let sealed = try Data(contentsOf: store.file(record.id))
-            XCTAssertNil(sealed.range(of: data))
-            XCTAssertThrowsError(try store.read(record.id, key: SymmetricKey(size: .bits256)))
-            var tampered = sealed
-            tampered[tampered.count - 1] ^= 1
-            try tampered.write(to: store.file(record.id))
-            XCTAssertThrowsError(try store.read(record.id, key: key))
-        }
+    func testEncryptedBlobStoreRejectsWrongKeyAADAndTampering() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("AppMateTests/" + UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let store = EncryptedBlobStore(directory: directory)
+        let key = SymmetricKey(size: .bits256), id = UUID(), aad = Data("fixture-aad".utf8)
+        let data = Data("test-secret-must-not-be-plaintext".utf8)
+        try store.write(data, id: id, key: key, authenticating: aad)
+        XCTAssertEqual(try store.read(id, key: key, authenticating: aad), data)
+        XCTAssertThrowsError(try store.write(data, id: id, key: key, authenticating: aad))
+        let sealed = try Data(contentsOf: store.file(id))
+        XCTAssertNil(sealed.range(of: data))
+        XCTAssertThrowsError(try store.read(id, key: SymmetricKey(size: .bits256), authenticating: aad))
+        XCTAssertThrowsError(try store.read(id, key: key, authenticating: Data("other-aad".utf8)))
+        var tampered = sealed
+        tampered[tampered.count - 1] ^= 1
+        try tampered.write(to: store.file(id))
+        XCTAssertThrowsError(try store.read(id, key: key, authenticating: aad))
     }
 
-    func testFailedCommitAndInterruptedSaveRecovery() throws {
-        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    func testEncryptedBlobStoreRemovesOnlyUnreferencedBlobs() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("AppMateTests/" + UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: directory) }
-        let store = EncryptedProbeStore(directory: directory)
-        let key = SymmetricKey(size: .bits256)
-        let data = Data("test".utf8)
-        struct CommitFailure: Error {}
-        XCTAssertThrowsError(try store.save(data, key: key) { _ in throw CommitFailure() })
-        XCTAssertTrue(try FileManager.default.contentsOfDirectory(atPath: directory.path).isEmpty)
-        var savedID: UUID?
-        try store.save(data, key: key) { savedID = $0.id }
-        let saved = try XCTUnwrap(savedID)
+        let store = EncryptedBlobStore(directory: directory)
+        let key = SymmetricKey(size: .bits256), saved = UUID(), aad = Data("fixture-aad".utf8)
+        try store.write(Data("test".utf8), id: saved, key: key, authenticating: aad)
         // An unreferenced blob models termination between the file write and metadata commit.
         let orphan = UUID()
         try Data("orphan".utf8).write(to: store.file(orphan))
+        let unrelated = directory.appendingPathComponent("notes.txt")
+        try Data("keep".utf8).write(to: unrelated)
         try store.removeOrphans(keeping: [saved])
         XCTAssertFalse(FileManager.default.fileExists(atPath: store.file(orphan).path))
-        XCTAssertEqual(try store.read(saved, key: key), data)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: unrelated.path))
+        XCTAssertEqual(try store.read(saved, key: key, authenticating: aad), Data("test".utf8))
     }
 }
 

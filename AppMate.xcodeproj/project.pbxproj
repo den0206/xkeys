@@ -10,14 +10,12 @@
 		0222C866A7070CA9D77B371B /* Services/OwnerAuthentication.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D32500D0DC4CC98B7AC172B /* Services/OwnerAuthentication.swift */; };
 		0B9177794691F3018677DFFA /* Application/AppMateApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100C041E14DE33E0152765FE /* Application/AppMateApp.swift */; };
 		205FC0C6AD696D68E9D5AE01 /* Models/AppCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 735DACB0CD1890235097A8AF /* Models/AppCatalog.swift */; };
-		21409CD07CBD9751EE632E3B /* Application/VerificationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C132DC34710247253C2C4104 /* Application/VerificationView.swift */; };
-		3151368B61B05343A55C77DF /* Resources/sample.mobileprovision in Resources */ = {isa = PBXBuildFile; fileRef = AF2BDBE1AA9B6EC1E2ADE1D6 /* Resources/sample.mobileprovision */; };
 		3490D0655DC60B16ADB47404 /* Features/CatalogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22CAFBB626C0E80C30E7D31D /* Features/CatalogView.swift */; };
 		587854A59EFBF8969CAFD37F /* AppMateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D37B9395C2BAF168F977CE9F /* AppMateTests.swift */; };
 		8AAD9CB9833BC16230BD9766 /* Services/CredentialParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E1814744B33849C5EC9325F /* Services/CredentialParser.swift */; };
 		8F70FEAAA107ADEF37464932 /* Persistence/CredentialVault.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D0C25BD41FF872EF528DB22 /* Persistence/CredentialVault.swift */; };
 		AA1000000000000000000001 /* Resources/DesignAssets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AA1000000000000000000002 /* Resources/DesignAssets.xcassets */; };
-		B4D9566931CF573707CC0A1A /* Persistence/EncryptedProbeStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFA38885211ADBBDEF2389B2 /* Persistence/EncryptedProbeStore.swift */; };
+		B4D9566931CF573707CC0A1A /* Persistence/EncryptedBlobStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFA38885211ADBBDEF2389B2 /* Persistence/EncryptedBlobStore.swift */; };
 		BA0000000000000000000001 /* Persistence/BackupArchive.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA0000000000000000000002 /* Persistence/BackupArchive.swift */; };
 		BA0000000000000000000003 /* Features/BackupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA0000000000000000000004 /* Features/BackupView.swift */; };
 		BA0000000000000000000005 /* Persistence/BackupRestore.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA0000000000000000000006 /* Persistence/BackupRestore.swift */; };
@@ -59,7 +57,6 @@
 		7E1814744B33849C5EC9325F /* Services/CredentialParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/CredentialParser.swift; sourceTree = "<group>"; };
 		AA1000000000000000000002 /* Resources/DesignAssets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Resources/DesignAssets.xcassets; sourceTree = "<group>"; };
 		AE0042EC290704DA7E641B97 /* App Mate.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; path = "App Mate.app"; sourceTree = BUILT_PRODUCTS_DIR; };
-		AF2BDBE1AA9B6EC1E2ADE1D6 /* Resources/sample.mobileprovision */ = {isa = PBXFileReference; lastKnownFileType = file; path = Resources/sample.mobileprovision; sourceTree = "<group>"; };
 		BA0000000000000000000002 /* Persistence/BackupArchive.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Persistence/BackupArchive.swift; sourceTree = "<group>"; };
 		BA0000000000000000000004 /* Features/BackupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/BackupView.swift; sourceTree = "<group>"; };
 		BA0000000000000000000006 /* Persistence/BackupRestore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Persistence/BackupRestore.swift; sourceTree = "<group>"; };
@@ -72,8 +69,7 @@
 		BC0000000000000000000004 /* Features/ManagementViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/ManagementViews.swift; sourceTree = "<group>"; };
 		BC0000000000000000000005 /* Features/CICopyView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/CICopyView.swift; sourceTree = "<group>"; };
 		BC0000000000000000000006 /* Services/ImportSources.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/ImportSources.swift; sourceTree = "<group>"; };
-		BFA38885211ADBBDEF2389B2 /* Persistence/EncryptedProbeStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Persistence/EncryptedProbeStore.swift; sourceTree = "<group>"; };
-		C132DC34710247253C2C4104 /* Application/VerificationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Application/VerificationView.swift; sourceTree = "<group>"; };
+		BFA38885211ADBBDEF2389B2 /* Persistence/EncryptedBlobStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Persistence/EncryptedBlobStore.swift; sourceTree = "<group>"; };
 		CCB32DA757F8CB91EA8A9F9D /* AppMate.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = AppMate.entitlements; sourceTree = "<group>"; };
 		CF4E022172D3641297064FC2 /* Features/CredentialAppView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/CredentialAppView.swift; sourceTree = "<group>"; };
 		D37B9395C2BAF168F977CE9F /* AppMateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppMateTests.swift; sourceTree = "<group>"; };
@@ -154,12 +150,10 @@
 				22CAFBB626C0E80C30E7D31D /* Features/CatalogView.swift */,
 				735DACB0CD1890235097A8AF /* Models/AppCatalog.swift */,
 				100C041E14DE33E0152765FE /* Application/AppMateApp.swift */,
-				C132DC34710247253C2C4104 /* Application/VerificationView.swift */,
 				7E1814744B33849C5EC9325F /* Services/CredentialParser.swift */,
 				5D32500D0DC4CC98B7AC172B /* Services/OwnerAuthentication.swift */,
-				BFA38885211ADBBDEF2389B2 /* Persistence/EncryptedProbeStore.swift */,
+				BFA38885211ADBBDEF2389B2 /* Persistence/EncryptedBlobStore.swift */,
 				CCB32DA757F8CB91EA8A9F9D /* AppMate.entitlements */,
-				AF2BDBE1AA9B6EC1E2ADE1D6 /* Resources/sample.mobileprovision */,
 				AA1000000000000000000002 /* Resources/DesignAssets.xcassets */,
 			);
 			path = AppMate;
@@ -246,7 +240,6 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				3151368B61B05343A55C77DF /* Resources/sample.mobileprovision in Resources */,
 				AA1000000000000000000001 /* Resources/DesignAssets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -287,10 +280,9 @@
 				3490D0655DC60B16ADB47404 /* Features/CatalogView.swift in Sources */,
 				205FC0C6AD696D68E9D5AE01 /* Models/AppCatalog.swift in Sources */,
 				0B9177794691F3018677DFFA /* Application/AppMateApp.swift in Sources */,
-				21409CD07CBD9751EE632E3B /* Application/VerificationView.swift in Sources */,
 				8AAD9CB9833BC16230BD9766 /* Services/CredentialParser.swift in Sources */,
 				0222C866A7070CA9D77B371B /* Services/OwnerAuthentication.swift in Sources */,
-				B4D9566931CF573707CC0A1A /* Persistence/EncryptedProbeStore.swift in Sources */,
+				B4D9566931CF573707CC0A1A /* Persistence/EncryptedBlobStore.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

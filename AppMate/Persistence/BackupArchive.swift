@@ -114,7 +114,6 @@ struct BackupSnapshot: Codable, Sendable, Equatable {
     }
 
     func validate() throws {
-        try preferences?.validate()
         guard apps.allSatisfy({ ($0.note?.utf8.count ?? 0) <= 65536 }), credentials.allSatisfy({ ($0.note?.utf8.count ?? 0) <= 65536 }) else { throw BackupError.tooLarge }
         if version == 1 {
             guard preferences == nil, apps.allSatisfy({ $0.note == nil && $0.deletedAt == nil && $0.iconColor == nil && $0.iconImage == nil }), credentials.allSatisfy({ $0.note == nil && $0.deletedAt == nil && $0.revokedAt == nil }) else { throw BackupError.invalid }

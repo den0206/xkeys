@@ -81,7 +81,7 @@ struct AppleDeveloperImportView: View {
             }, session: session, verificationTitle: "取り込み先チームへの所属を確認").modelContainer(vault.context.container)
         }
         .sheet(isPresented: $showingImport, onDismiss: { files = []; lastActivity = .now }) {
-            CredentialImportView(app: nil, team: team, vault: vault, existing: (try? vault.records()) ?? [], initialFiles: files, onSaved: onSaved)
+            CredentialImportView(app: nil, team: team, vault: vault, initialFiles: files, onSaved: onSaved)
                 .modelContainer(vault.context.container)
         }
         .task { load() }

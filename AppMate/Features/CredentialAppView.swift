@@ -4,15 +4,13 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 enum CredentialDisplayState: Equatable {
-    case revoked, replaced, expired, withinDay, expiring(Int), valid, stored
+    case expired, withinDay, expiring(Int), valid, stored
 
     var needsRenewal: Bool {
         switch self { case .withinDay, .expiring: true; default: false }
     }
     var title: String {
         switch self {
-        case .revoked: "手動失効"
-        case .replaced: "置き換え済み"
         case .expired: "期限切れ"
         case .withinDay: "24時間以内"
         case .expiring(let days): "あと\(days)日"
@@ -38,8 +36,6 @@ extension StoredCredential {
     }
 
     func displayState(at now: Date) -> CredentialDisplayState {
-        if revokedAt != nil { return .revoked }
-        if replacedByID != nil { return .replaced }
         guard let expiresAt else { return .stored }
         let seconds = expiresAt.timeIntervalSince(now)
         if seconds <= 0 { return .expired }
@@ -53,18 +49,18 @@ struct CredentialStatusBadge: View {
     let state: CredentialDisplayState
     var foreground: Color {
         switch state {
-        case .expired, .revoked: AppMateStyle.dangerText
+        case .expired: AppMateStyle.dangerText
         case .withinDay, .expiring: AppMateStyle.warningText
         case .valid: AppMateStyle.successText
-        case .stored, .replaced: AppMateStyle.secondary
+        case .stored: AppMateStyle.secondary
         }
     }
     var background: Color {
         switch state {
-        case .expired, .revoked: AppMateStyle.dangerBackground
+        case .expired: AppMateStyle.dangerBackground
         case .withinDay, .expiring: AppMateStyle.warningBackground
         case .valid: AppMateStyle.successBackground
-        case .stored, .replaced: AppMateStyle.sidebar
+        case .stored: AppMateStyle.sidebar
         }
     }
     var body: some View {
@@ -90,7 +86,6 @@ struct CredentialAppView: View {
     @State private var droppedSources: [URL] = []
     @State private var clock = Date.now
     @State private var onlineImporting = false
-    @State private var showReplaced = false
     @State private var error: String?
     @State private var status = ""
     @State private var revealedPassword: String?
@@ -110,13 +105,12 @@ struct CredentialAppView: View {
     @State private var showingRenewalGuide = false
     @State private var inlineInspector = true
     @State private var showingInspector = false
-    @State private var showingIdentity = false
     @State private var listWidth: CGFloat = 600
     @State private var revealedAt = Date.distantPast
 
     private var visible: [StoredCredential] {
         records.filter { record in
-            purposeFilter.matches(record) && (targetFilter == nil || record.app?.id == targetFilter) && CredentialSearch.includes(record, scope: scope, app: app, query: search, type: typeFilter, showReplaced: showReplaced, at: clock) }
+            purposeFilter.matches(record) && (targetFilter == nil || record.app?.id == targetFilter) && CredentialSearch.includes(record, scope: scope, app: app, query: search, type: typeFilter, at: clock) }
             .sorted { ($0.fileExtension == "p8" ? 1 : 0) < ($1.fileExtension == "p8" ? 1 : 0) }
     }
     private var checkedRecords: [StoredCredential] { visible.filter { checkedIDs.contains($0.id) } }
@@ -147,26 +141,11 @@ struct CredentialAppView: View {
             }
         }
         .onGeometryChange(for: Bool.self) { $0.size.width >= 900 } action: { inlineInspector = $0 }
-        .sheet(isPresented: $showingIdentity) {
-            if let record = selectedRecord {
-                VStack(alignment: .leading, spacing: 14) {
-                    Text("ファイルの識別情報").font(.system(size: 18, weight: .bold))
-                    Text("ファイルSHA-256").foregroundStyle(AppMateStyle.secondary)
-                    Text(record.digest).monospaced().textSelection(.enabled)
-                    if let fingerprint = record.fingerprint {
-                        Text(record.fileExtension == "p8" ? "公開鍵SHA-256" : "証明書SHA-256").foregroundStyle(AppMateStyle.secondary)
-                        Text(fingerprint).monospaced().textSelection(.enabled)
-                    }
-                    Text("発行元の信頼性・オンライン失効は確認していません。").foregroundStyle(AppMateStyle.secondary)
-                    HStack { Spacer(); Button("閉じる") { showingIdentity = false }.buttonStyle(AppMateButtonStyle()) }
-                }.font(.system(size: 12)).padding(24).frame(width: 440).background(AppMateStyle.canvas)
-            }
-        }
         .font(.system(size: 13))
 
         .sheet(isPresented: $importing) {
             if let team {
-                CredentialImportView(app: app, team: team, vault: vault, existing: records, initialSources: droppedSources.isEmpty ? initialSources : droppedSources) { id in
+                CredentialImportView(app: app, team: team, vault: vault, initialSources: droppedSources.isEmpty ? initialSources : droppedSources) { id in
                     selected = id
                     status = "暗号化して保存しました。鍵・証明書はチームの一覧、プロファイルは対象アプリの一覧で確認できます。"
                 }
@@ -193,7 +172,7 @@ struct CredentialAppView: View {
             if let record = selectedRecord {
                 CredentialDeleteConfirmation(record: record) {
                     deleting = false
-                    manage(record, trash: true)
+                    trash(record)
                 }
             }
         }
@@ -220,7 +199,6 @@ struct CredentialAppView: View {
         .onChange(of: importing) { _, shown in if !shown { droppedSources = [] } }
         .onDisappear { lock() }
         .onChange(of: selected) { _, _ in access.lock(); revealedPassword = nil }
-        .onChange(of: showReplaced) { _, _ in selected = nil }
         .onChange(of: search) { _, _ in lock(dismissImport: false) }
         .onChange(of: typeFilter) { _, _ in lock(dismissImport: false) }
         .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { _ in
@@ -261,9 +239,7 @@ struct CredentialAppView: View {
                         Button("App情報") { selected = nil; showingInspector = true }
                         Button("アプリを編集…") { editingApp = true }
                         Button("アプリを削除…", role: .destructive) { deletingApp = true }.disabled(access.busy)
-                        Divider()
                     }
-                    Toggle("置き換え済みを表示", isOn: $showReplaced)
                 } label: { Image(systemName: "ellipsis") }
                     .menuStyle(.borderlessButton).menuIndicator(.hidden)
                     .frame(width: 28, height: 28).help("表示と管理").accessibilityLabel("表示と管理")
@@ -305,7 +281,7 @@ struct CredentialAppView: View {
                                 Text("証明書とプロファイルを更新する").font(.headline)
                                 Text("1. Apple Developerで新しい証明書やプロファイルを用意します。")
                                 Text("2. 「ファイルを追加」で新しいファイルを選びます。")
-                                Text("3. 「既存の資格情報を置き換える」で旧ファイルと保管先を確認します。旧ファイルは保持されます。")
+                                Text("3. 不要になった旧ファイルは削除します。")
                             }.font(.system(size: 13)).padding(20).frame(width: 340)
                         }
                 }.padding(.horizontal, 14).padding(.vertical, 10)
@@ -516,11 +492,6 @@ struct CredentialAppView: View {
                                 Text("メモ").foregroundStyle(AppMateStyle.secondary).frame(width: 96, alignment: .leading)
                                 Button("認証してメモを表示") { editingNote = true }.buttonStyle(AppMateButtonStyle(compact: true)).font(.system(size: 12))
                             }
-                            if let id = record.replacedByID {
-                                metadata("置き換え先", records.first { $0.id == id }?.name ?? "未確認")
-                                Button("認証して通常一覧に戻す") { restore(record) }.disabled(access.busy)
-                            }
-                            if let id = record.replacesCredentialID { metadata("置き換え元", records.first { $0.id == id }?.name ?? "未確認") }
                         }.buttonStyle(.borderless)
                         Text("表示・書き出し・コピーにはTouch IDまたはMacのパスワードで認証します。コピーした値は60秒後、内容が変わっていない場合だけ消去します。")
                             .font(.system(size: 11)).foregroundStyle(AppMateStyle.secondary)
@@ -529,12 +500,6 @@ struct CredentialAppView: View {
                         HStack {
                             Button("削除…", role: .destructive) { deleting = true }.foregroundStyle(AppMateStyle.dangerText)
                             Spacer()
-                            Menu {
-                                Button(record.revokedAt == nil ? "認証して手動失効にする" : "認証して手動失効を解除") { manage(record, trash: false) }
-                                Button("ファイルの識別情報…") { showingIdentity = true }
-                            } label: { Image(systemName: "ellipsis") }
-                                .menuStyle(.borderlessButton).menuIndicator(.hidden)
-                                .frame(width: 28, height: 28).accessibilityLabel("資格情報の管理")
                         }.font(.system(size: 12)).buttonStyle(.borderless).disabled(access.busy)
                     }.padding(22).frame(maxWidth: .infinity, minHeight: geometry.size.height, alignment: .topLeading)
                 }
@@ -585,7 +550,6 @@ struct CredentialAppView: View {
         deletionTargets = []
         deletingApp = false
         showingRenewalGuide = false
-        showingIdentity = false
         editingPurposes = false
         showingInspector = false
         if dismissImport { importing = false; onlineImporting = false }
@@ -616,26 +580,13 @@ struct CredentialAppView: View {
         }
     }
 
-    private func restore(_ record: StoredCredential) {
-        error = nil
+    private func trash(_ record: StoredCredential) {
         Task { @MainActor in
             do {
-                try await access.withKey(reason: "旧資格情報を通常一覧に戻します", allowCreation: false, vault: vault) { key in
-                    try vault.restoreToList(record, key: key)
+                try await access.withKey(reason: "資格情報を最近削除した項目へ移します", allowCreation: false, vault: vault) { key in
+                    try VaultManagement(vault: vault).trash(record, key: key)
                 }
-                status = "旧資格情報を通常一覧に戻しました。新旧どちらのファイルも保持しています。"
-            } catch { self.error = error.localizedDescription }
-        }
-    }
-
-    private func manage(_ record: StoredCredential, trash: Bool) {
-        Task { @MainActor in
-            do {
-                try await access.withKey(reason: trash ? "資格情報を最近削除した項目へ移します" : "手動失効の状態を変更します", allowCreation: false, vault: vault) { key in
-                    if trash { try VaultManagement(vault: vault).trash(record, key: key) }
-                    else { try VaultManagement(vault: vault).setRevoked(record, key: key) }
-                }
-                if trash { selected = nil }
+                selected = nil
             } catch { self.error = error.localizedDescription }
         }
     }
@@ -688,7 +639,6 @@ struct CredentialImportView: View {
     let vault: CredentialVault
     // 一覧のバックグラウンドロックで取り込み途中の内容を破棄しない。
     @State private var access = VaultAccess()
-    let existing: [StoredCredential]
     var initialSources: [URL] = []
     var initialFiles: [CredentialFile] = []
     var session: AppleDeveloperSession = .shared
@@ -713,9 +663,6 @@ struct CredentialImportView: View {
     @State private var purposes: Set<P8Purpose> = []
     @State private var keyID = ""
     @State private var issuerID = ""
-    @State private var replacing = false
-    @State private var targetID: UUID?
-    @State private var confirmReplacement = false
     @State private var reading = false
     @State private var parseID = UUID()
     @State private var lastActivity = Date.now
@@ -727,11 +674,6 @@ struct CredentialImportView: View {
     private var p8: P8Metadata? {
         guard isP8, !purposes.isEmpty else { return nil }
         return P8Metadata(purposes: Array(purposes), keyID: keyID, issuerID: issuerID)
-    }
-    private var replacementCandidates: [StoredCredential] {
-        guard let file else { return [] }
-        let ext = (file.name as NSString).pathExtension.lowercased()
-        return existing.filter { $0.team?.id == team.id && ($0.isTeamShared || (importApp != nil && $0.app?.id == importApp?.id)) && $0.deletedAt == nil && $0.replacedByID == nil && $0.fileExtension == ext && $0.keyPurpose == p8?.storedPurpose }
     }
     private var importApp: ManagedApp? {
         if let importTargetID, let target = team.apps.first(where: { $0.id == importTargetID && $0.deletedAt == nil }) { return target }
@@ -757,9 +699,8 @@ struct CredentialImportView: View {
     private var validationIssue: String? {
         guard let file, let parsed else { return nil }
         do {
-            if replacing && targetID == nil { return "置き換える旧資格情報を選んでください。" }
             try vault.validate(file: file, parsed: parsed, app: importApp, team: team, confirmUnknownTeam: confirmUnknownTeam,
-                               p8: p8, replacingID: replacing ? targetID : nil, confirmReplacement: confirmReplacement)
+                               p8: p8)
             return nil
         }
         catch { return error.localizedDescription }
@@ -845,7 +786,7 @@ struct CredentialImportView: View {
                     }
                     if let parsed {
                         if parsed.bundleID != nil {
-                            Picker("登録先ターゲット", selection: Binding(get: { importApp?.id }, set: { importTargetID = $0; targetID = nil; confirmReplacement = false; lastActivity = .now })) {
+                            Picker("登録先ターゲット", selection: Binding(get: { importApp?.id }, set: { importTargetID = $0; lastActivity = .now })) {
                                 Text("対象アプリを選択してください").tag(nil as UUID?)
                                 ForEach(profileTargets) { target in
                                     Text("\(target.name) · \(target.bundleID)").tag(Optional(target.id))
@@ -895,18 +836,6 @@ struct CredentialImportView: View {
                             Toggle(".p12のパスワードも暗号化して保存", isOn: $savePassword)
                             Text("証明書チェーンと秘密鍵を含む元の.p12全体を保存・書き出しします。証明書の選択は表示情報だけを変えます。")
                                 .font(.caption).foregroundStyle(.secondary)
-                        }
-                        Toggle("既存の資格情報を置き換える", isOn: $replacing)
-                        if replacing {
-                            Picker("置き換え元", selection: $targetID) {
-                                Text("旧資格情報を選択してください").tag(nil as UUID?)
-                                ForEach(replacementCandidates) { old in Text("\(old.name) ／ \(old.originalName)").tag(Optional(old.id)) }
-                            }
-                            if let old = replacementCandidates.first(where: { $0.id == targetID }) {
-                                Text("旧：\(old.name) → 新：\(p8?.title ?? parsed.name)（\(file?.name ?? "")）")
-                                Text(old.isTeamShared ? "保管先：チーム「\(team.name)」。実際の利用アプリは記録していません。" : "保管先：\(importApp?.name ?? "未選択")")
-                                Toggle("旧→新と保管先を確認しました。旧ファイルを保持して置き換えます", isOn: $confirmReplacement)
-                            }
                         }
                         Text("解析はローカルの内容の確認です。Apple発行元の信頼性・失効状態・秘密鍵との対応は検証していません。")
                             .font(.caption).foregroundStyle(.secondary)
@@ -962,12 +891,10 @@ struct CredentialImportView: View {
             } else if !initialSources.isEmpty { start(initialSources) }
         }
         .onChange(of: password) { _, _ in lastActivity = .now }
-        .onChange(of: selected) { _, _ in lastActivity = .now; confirmUnknownTeam = false; targetID = nil; confirmReplacement = false }
-        .onChange(of: purposes) { _, value in lastActivity = .now; if !value.contains(.appStoreConnect) { issuerID = "" }; targetID = nil; confirmReplacement = false }
-        .onChange(of: keyID) { _, _ in lastActivity = .now; confirmReplacement = false }
-        .onChange(of: issuerID) { _, _ in lastActivity = .now; confirmReplacement = false }
-        .onChange(of: targetID) { _, _ in lastActivity = .now; confirmReplacement = false }
-        .onChange(of: replacing) { _, _ in lastActivity = .now; targetID = nil; confirmReplacement = false }
+        .onChange(of: selected) { _, _ in lastActivity = .now; confirmUnknownTeam = false }
+        .onChange(of: purposes) { _, value in lastActivity = .now; if !value.contains(.appStoreConnect) { issuerID = "" } }
+        .onChange(of: keyID) { _, _ in lastActivity = .now }
+        .onChange(of: issuerID) { _, _ in lastActivity = .now }
         .onChange(of: confirmUnknownTeam) { _, _ in lastActivity = .now }
         .onChange(of: savePassword) { _, _ in lastActivity = .now }
         .onChange(of: access.generation) { _, _ in clear() }
@@ -989,9 +916,6 @@ struct CredentialImportView: View {
         purposes = []
         keyID = ""
         issuerID = ""
-        replacing = false
-        targetID = nil
-        confirmReplacement = false
     }
 
     private func chooseFile() {
@@ -1104,14 +1028,12 @@ struct CredentialImportView: View {
         let destination = importApp
         let confirmed = confirmUnknownTeam
         let metadata = p8
-        let replacingID = replacing ? targetID : nil
-        let replacementConfirmed = confirmReplacement
         Task { @MainActor in
             do {
-                try vault.validate(file: file, parsed: parsed, app: destination, team: team, confirmUnknownTeam: confirmed, p8: metadata, replacingID: replacingID, confirmReplacement: replacementConfirmed)
+                try vault.validate(file: file, parsed: parsed, app: destination, team: team, confirmUnknownTeam: confirmed, p8: metadata)
                 let canCreate = try vault.canCreateKey()
                 let id = try await access.withKey(reason: "資格情報を暗号化して保存します", allowCreation: canCreate, vault: vault) { key in
-                    try vault.importFile(file, parsed: parsed, app: destination, team: team, password: password, confirmUnknownTeam: confirmed, key: key, p8: metadata, replacingID: replacingID, confirmReplacement: replacementConfirmed)
+                    try vault.importFile(file, parsed: parsed, app: destination, team: team, password: password, confirmUnknownTeam: confirmed, key: key, p8: metadata)
                 }
                 lastSavedID = id
                 completedItems.append("保存済み：" + file.name)

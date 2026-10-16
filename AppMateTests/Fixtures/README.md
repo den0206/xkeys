@@ -6,7 +6,7 @@
 
 - sample.mobileprovision: 自己署名証明書でCMS署名したplist。期限2030-01-01 UTC、Team TESTTEAM01。
 - sample.cer: 同じ自己署名証明書のDER表現。
-- renewed.cer: 更新時の置き換え検証用の別の自己署名証明書。公開証明書のみを保持し、生成用秘密鍵は削除済み。
+- renewed.cer: 証明書更新時に新旧を保持する検証用の別の自己署名証明書。公開証明書のみを保持し、生成用秘密鍵は削除済み。
 - chain.p12: 架空のリーフ証明書・発行元証明書2件とテスト秘密鍵。候補選択の検証用。SecItemImportと互換性のあるOpenSSLのlegacy形式。パスワードは `fixture-only`。
 - sample.p12: 上のテスト証明書と生成したテスト秘密鍵。パスワードは `fixture-only`。
 

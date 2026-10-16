@@ -21,7 +21,7 @@ F5は `.vscode/launch.json` から通常のDebugビルドを実行する。CodeL
 
 | 場所 | 役割 |
 | --- | --- |
-| `AppMate/Application/` | ウィンドウと設定の構成。ヘルプから開く技術検証画面 |
+| `AppMate/Application/` | ウィンドウと設定の構成 |
 | `AppMate/Models/` | Team・Appモデルと登録時の検証 |
 | `AppMate/Features/` | 一覧・詳細、取り込み、編集・削除・メモ、バックアップ・復元、CIコピー、設定 |
 | `AppMate/Services/` | ファイル解析、所有者認証、検索、一括取り込みの探索、設定 |
@@ -30,7 +30,7 @@ F5は `.vscode/launch.json` から通常のDebugビルドを実行する。CodeL
 
 製品メタデータはSwiftData、暗号化blobはApplication Supportの `AppMateVault/blobs`、暗号鍵は端末専用Keychainへ保存する。保存先はApp Sandboxのコンテナ内。Bundle IDや署名Teamの変更時は既存データへのアクセスに注意する。
 
-技術検証画面・検証用モデルは実装が参照しているため保持する。暗号化ファイルと鍵は製品用と分け、検証用メタデータは同じSwiftDataストアのVerificationRecordへ保存する。検証データは製品バックアップには含めない。画面からの検証は必要な場合だけ架空データで行う。
+技術検証画面は削除した。既存ストアを開くため、VerificationRecordのモデル定義だけをSwiftDataの型一覧に残す。以前の検証で作られたKeychain項目（`probe-key-v1`）と暗号化ファイルは、利用者データとして自動では削除しない。
 
 ## 自動テスト
 
@@ -46,7 +46,7 @@ xcodebuild -project AppMate.xcodeproj -scheme AppMate \
 
 ## 確認状況
 
-2026-10-16時点で、全107件のXCTestと通常の署名付きDebugビルドが成功する。製品の暗号鍵・Keychain・実データ・実Apple Accountは自動テストで使わない。
+2026-10-16時点で、全105件のXCTestと通常の署名付きDebugビルドが成功する。製品の暗号鍵・Keychain・実データ・実Apple Accountは自動テストで使わない。
 
 | 対象 | 確認内容 |
 | --- | --- |

@@ -51,9 +51,8 @@ enum CredentialSearch {
     static func hasQuery(_ query: String) -> Bool { !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
 
     static func includes(_ record: StoredCredential, scope: CredentialScope, app: ManagedApp?, query: String,
-                         type: CredentialTypeFilter, showReplaced: Bool, at now: Date) -> Bool {
+                         type: CredentialTypeFilter, at now: Date) -> Bool {
         guard record.deletedAt == nil, record.app?.deletedAt == nil else { return false }
-        guard showReplaced || record.replacedByID == nil else { return false }
         guard type.matches(record), matches(record, query: query) else { return false }
         if hasQuery(query) { return true }
         switch scope {

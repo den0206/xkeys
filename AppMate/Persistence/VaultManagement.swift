@@ -109,12 +109,6 @@ struct VaultManagement {
         } catch { context.rollback(); throw error }
     }
 
-    func setRevoked(_ record: StoredCredential, key: SymmetricKey) throws {
-        guard record.modelContext === context else { throw VaultError.invalidAssociation }
-        _ = try vault.read(record, key: key)
-        try change { record.revokedAt = record.revokedAt == nil ? .now : nil }
-    }
-
     func trash(_ record: StoredCredential, key: SymmetricKey, at now: Date = .now) throws {
         try trash([record], key: key, at: now)
     }

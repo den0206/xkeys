@@ -23,7 +23,6 @@ final class OwnerAuthentication {
 }
 
 struct EncryptionKeychain {
-    static let verification = EncryptionKeychain(service: "com.example.AppMate.prototype.encryption", account: "probe-key-v1")
     static let vault = EncryptionKeychain(service: "com.example.AppMate.vault.encryption", account: "vault-key-v1")
     private let service: String
     private let account: String

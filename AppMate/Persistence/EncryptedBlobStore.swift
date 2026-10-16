@@ -42,6 +42,7 @@ struct EncryptedBlobStore {
     }
 }
 
+// Kept only so stores created by the removed verification screen still open; nothing writes it.
 @Model
 final class VerificationRecord {
     @Attribute(.unique) var id: UUID
@@ -52,34 +53,5 @@ final class VerificationRecord {
         self.id = id
         self.createdAt = .now
         self.digest = digest
-    }
-}
-
-struct EncryptedProbeStore {
-    let directory: URL
-
-    func save(_ data: Data, key: SymmetricKey, commit: (VerificationRecord) throws -> Void) throws {
-        let id = UUID()
-        let url = file(id)
-        try EncryptedBlobStore(directory: directory).write(data, id: id, key: key, authenticating: Data(id.uuidString.utf8))
-        do {
-            guard try read(id, key: key) == data else { throw ValidationError.invalidFile }
-            let digest = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
-            try commit(VerificationRecord(id: id, digest: digest))
-        } catch {
-            // The metadata commit failed, so this newly created blob has no owner.
-            try? FileManager.default.removeItem(at: url)
-            throw error
-        }
-    }
-
-    func read(_ id: UUID, key: SymmetricKey) throws -> Data {
-        try EncryptedBlobStore(directory: directory).read(id, key: key, authenticating: Data(id.uuidString.utf8))
-    }
-
-    func file(_ id: UUID) -> URL { directory.appendingPathComponent(id.uuidString + ".blob") }
-
-    func removeOrphans(keeping ids: Set<UUID>) throws {
-        try EncryptedBlobStore(directory: directory).removeOrphans(keeping: ids)
     }
 }

@@ -73,7 +73,7 @@ struct CatalogView: View {
         return BackupHistorySummary(changes: changes, checkpoint: checkpoint,
                                     hasStoredItems: !apps.isEmpty || !credentials.isEmpty).pendingCount
     }
-    private var active: [StoredCredential] { credentials.filter { $0.replacedByID == nil && $0.deletedAt == nil && $0.app?.deletedAt == nil } }
+    private var active: [StoredCredential] { credentials.filter { $0.deletedAt == nil && $0.app?.deletedAt == nil } }
 
     var body: some View {
         VStack(spacing: 0) {

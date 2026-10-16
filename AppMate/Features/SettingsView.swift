@@ -6,12 +6,9 @@ struct AppSettingsView: View {
     @State private var preferences = AppPreferences()
     @State private var error: String?
     @State private var loaded = false
-    @State private var selectedTemplate: UUID?
     @State private var apple = AppleDeveloperSession.shared
     @State private var section = "一般"
-    @State private var creatingBackup = false
-    @State private var restoringBackup = false
-    private let sections = ["一般", "セキュリティ", "CIテンプレート", "バックアップ"]
+    private let sections = ["一般", "セキュリティ"]
 
     init(container: ModelContainer, appleSession: AppleDeveloperSession = .shared, initialSection: String = "一般") {
         self.container = container
@@ -47,18 +44,9 @@ struct AppSettingsView: View {
                             settingsGroup("Apple Developer") {
                                 AppleDeveloperAccountView(session: apple).padding(14)
                             }
-
-                            settingsGroup("このMacの認証") {
-                                Label("Touch ID またはMacのパスワードで確認します", systemImage: "lock.shield").padding(14)
-                            }
-                            Text("秘密情報の操作は毎回認証します。5分間の無操作・スリープ・画面ロックで秘密表示を閉じます。")
+                            Text("秘密情報の操作はTouch IDまたはMacのパスワードで毎回認証します。5分間の無操作・スリープ・画面ロックで秘密表示を閉じます。")
                                 .foregroundStyle(AppMateStyle.secondary)
-                        case "CIテンプレート": templates
-                        default:
-                            Text("すべてのデータを1つのファイルにまとめます。別のMacへの移行にも使えます。")
-                                .foregroundStyle(AppMateStyle.secondary)
-                            Button("バックアップを作る…") { creatingBackup = true }.buttonStyle(AppMateButtonStyle(primary: true))
-                            Button("復元・移行…") { restoringBackup = true }.buttonStyle(AppMateButtonStyle())
+                        default: EmptyView()
                         }
                     }.frame(maxWidth: .infinity, alignment: .leading)
                 }
@@ -67,7 +55,6 @@ struct AppSettingsView: View {
                     Spacer()
                     Button("設定を保存") {
                         do { try PreferencesStore.save(preferences, in: container.mainContext); error = nil }
-                        catch BackupError.invalid { self.error = "テンプレートの名前と変数名（英字か_で始まる英数字・_、128文字以内）を確認してください。" }
                         catch { self.error = error.localizedDescription }
                     }.buttonStyle(AppMateButtonStyle(primary: true)).disabled(!loaded)
                 }
@@ -75,33 +62,11 @@ struct AppSettingsView: View {
         }
         .font(.system(size: 13)).foregroundStyle(AppMateStyle.text).background(AppMateStyle.canvas)
         .tint(AppMateStyle.accent).frame(width: 852, height: 592)
-        .sheet(isPresented: $creatingBackup) { BackupView(container: container) }
-        .sheet(isPresented: $restoringBackup) { BackupView(container: container, restoring: true) }
         .task {
             do { preferences = try PreferencesStore.read(in: container.mainContext); loaded = true }
             catch { self.error = error.localizedDescription }
         }
     }
-    private var templates: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text("CIコピーの変数名と値の種類を設定します。秘密値は保存しません。")
-            ForEach($preferences.templates) { $template in
-                VStack(alignment: .leading, spacing: 8) {
-                    TextField("名前", text: $template.name)
-                    TextField("変数名", text: $template.variable).font(.body.monospaced())
-                    HStack {
-                        // Team ID is never copied; keep it selectable only for templates saved by older versions.
-                        Picker("値", selection: $template.value) { ForEach(CIValue.allCases.filter { $0 != .teamID || template.value == .teamID }, id: \.self) { Text($0.title).tag($0) } }
-                        Button("削除", role: .destructive) { preferences.templates.removeAll { $0.id == template.id } }
-                    }
-                }.textFieldStyle(.roundedBorder).padding(14)
-                    .background(AppMateStyle.sidebar, in: RoundedRectangle(cornerRadius: 10))
-            }
-            Button("追加") { preferences.templates.append(CITemplate(name: "新しいテンプレート", variable: "NEW_SECRET", value: .base64)) }
-                .disabled(preferences.templates.count >= 100)
-        }
-    }
-
     private func settingsGroup<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(title).font(.system(size: 12, weight: .bold))

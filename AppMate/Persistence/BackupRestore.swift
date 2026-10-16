@@ -128,7 +128,7 @@ struct RestorePlan: Sendable {
             if let local, local != record {
                 if local.name != record.name || local.originalName != record.originalName { differences.append("名前") }
                 if local.note != record.note { differences.append("暗号化メモ（値は非表示）") }
-                if local.deletedAt != record.deletedAt || local.revokedAt != record.revokedAt { differences.append("削除・手動失効状態") }
+                if local.deletedAt != record.deletedAt { differences.append("削除状態") }
                 if local.password != record.password { differences.append("保存済みパスワード（値は非表示）") }
                 if local.replacesCredentialID != record.replacesCredentialID || local.replacedByID != record.replacedByID { differences.append("置き換え履歴") }
                 if local.keyID != record.keyID || local.issuerID != record.issuerID || local.keyPurpose != record.keyPurpose { differences.append("鍵の識別情報") }
@@ -142,7 +142,7 @@ struct RestorePlan: Sendable {
                               state: local == nil ? .added : local == record ? .duplicate : .conflict))
         }
         if let prefs = source.preferences {
-            items.append(Item(kind: .preferences, target: preferencesID, title: "アプリ設定", detail: "Dockバッジ・CIテンプレート", current: "このMacの設定（秘密値なし）", incoming: "バックアップの設定（秘密値なし）", state: prefs == (current.preferences ?? AppPreferences()) ? .duplicate : .conflict))
+            items.append(Item(kind: .preferences, target: preferencesID, title: "アプリ設定", detail: "Dockバッジ", current: "このMacの設定（秘密値なし）", incoming: "バックアップの設定（秘密値なし）", state: prefs == (current.preferences ?? AppPreferences()) ? .duplicate : .conflict))
         }
         let requiresSafetyBackup = !current.teams.isEmpty || !current.apps.isEmpty || !current.credentials.isEmpty
             || (current.preferences ?? AppPreferences()) != AppPreferences()

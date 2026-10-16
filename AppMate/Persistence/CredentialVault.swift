@@ -79,6 +79,7 @@ final class StoredCredential {
     var team: DeveloperTeam?
     var app: ManagedApp?
     var deletedAt: Date?
+    // Set only by older versions' manual revocation; kept for stores and backups, no longer shown.
     var revokedAt: Date?
     var blobID: UUID?
     var metadataVersion: Int = 1
@@ -194,7 +195,7 @@ struct CredentialPayload: Codable {
 
 enum VaultError: LocalizedError {
     case invalidAssociation, teamMismatch, bundleMismatch, confirmTeam, duplicate, unsupported, cancelled
-    case invalidKeyID, invalidIssuerID, missingPurpose, invalidReplacement, replacementConfirmation
+    case invalidKeyID, invalidIssuerID, missingPurpose
 
     var errorDescription: String? {
         switch self {
@@ -208,8 +209,6 @@ enum VaultError: LocalizedError {
         case .invalidKeyID: "Key IDは英大文字と数字の10文字で入力してください。"
         case .invalidIssuerID: "App Store Connect APIのIssuer IDをUUID形式で入力してください。"
         case .missingPurpose: ".p8の用途とKey IDを確認してください。App Store Connect APIはほかの用途と組み合わせられません。"
-        case .invalidReplacement: "同じTeam・共有範囲・形式・用途の、置き換えられていない資格情報を選んでください。"
-        case .replacementConfirmation: "旧→新と共有先を確認して、置き換えの確認をオンにしてください。"
         }
     }
 }
@@ -251,7 +250,7 @@ struct CredentialVault {
     }
 
     func validate(file: CredentialFile, parsed: ParsedCredential, app: ManagedApp?, team explicitTeam: DeveloperTeam? = nil, confirmUnknownTeam: Bool,
-                  p8: P8Metadata? = nil, replacingID: UUID? = nil, confirmReplacement: Bool = false) throws {
+                  p8: P8Metadata? = nil) throws {
         guard let team = explicitTeam ?? app?.team, team.modelContext === context else { throw VaultError.invalidAssociation }
         if let app {
             guard app.modelContext === context, app.deletedAt == nil, app.team?.id == team.id else { throw VaultError.invalidAssociation }
@@ -270,43 +269,26 @@ struct CredentialVault {
         }
         let candidate = StoredCredential(file: file, parsed: parsed, app: app, team: team, savePassword: false)
         guard try !records().contains(where: { $0.registrationKey == candidate.registrationKey }) else { throw VaultError.duplicate }
-        if let replacingID {
-            guard confirmReplacement else { throw VaultError.replacementConfirmation }
-            _ = try replacementTarget(replacingID, fileExtension: ext, purpose: p8?.storedPurpose, app: app, team: team)
-        }
-    }
-
-    private func replacementTarget(_ id: UUID, fileExtension ext: String, purpose: String?, app: ManagedApp?, team: DeveloperTeam) throws -> StoredCredential {
-        guard let old = try records().first(where: { $0.id == id }), old.team?.id == team.id, old.deletedAt == nil,
-              (old.isTeamShared || (app != nil && old.app?.id == app?.id)), old.replacedByID == nil,
-              old.fileExtension == ext, old.keyPurpose == purpose else { throw VaultError.invalidReplacement }
-        return old
     }
 
     @discardableResult
     func importFile(_ file: CredentialFile, parsed: ParsedCredential, app: ManagedApp?, team explicitTeam: DeveloperTeam? = nil, password: String?,
-                    confirmUnknownTeam: Bool, key: SymmetricKey, p8: P8Metadata? = nil,
-                    replacingID: UUID? = nil, confirmReplacement: Bool = false, beforeCommit: () throws -> Void = {}) throws -> UUID {
+                    confirmUnknownTeam: Bool, key: SymmetricKey, p8: P8Metadata? = nil, beforeCommit: () throws -> Void = {}) throws -> UUID {
         guard !context.hasChanges else { throw RestoreError.pendingChanges }
-        try validate(file: file, parsed: parsed, app: app, team: explicitTeam, confirmUnknownTeam: confirmUnknownTeam,
-                     p8: p8, replacingID: replacingID, confirmReplacement: confirmReplacement)
+        try validate(file: file, parsed: parsed, app: app, team: explicitTeam, confirmUnknownTeam: confirmUnknownTeam, p8: p8)
         guard let team = explicitTeam ?? app?.team else { throw VaultError.invalidAssociation }
         guard (password?.utf8.count ?? 0) <= 4096 else { throw ValidationError.tooLarge }
         context.autosaveEnabled = false
         let metadata = try p8?.validated()
-        let old = try replacingID.map { try replacementTarget($0, fileExtension: (file.name as NSString).pathExtension.lowercased(), purpose: metadata?.storedPurpose, app: app, team: team) }
-        if let old { _ = try read(old, key: key) }
         var writtenID: UUID?
         do {
             try BackupHistory.prepare(in: context)
             let record = StoredCredential(file: file, parsed: parsed, app: app, team: team, savePassword: password != nil, p8: metadata)
-            record.replacesCredentialID = old?.id
             let payload = CredentialPayload(original: file.data, password: record.hasSavedPassword ? password : nil)
             let bytes = try JSONEncoder().encode(payload)
             try blobs.write(bytes, id: record.id, key: key, authenticating: record.authenticatedData())
             writtenID = record.id
             context.insert(record)
-            old?.replacedByID = record.id
             BackupHistory.record(in: context)
             try beforeCommit()
             try context.save()
@@ -316,23 +298,6 @@ struct CredentialVault {
             if let writtenID { try? FileManager.default.removeItem(at: blobs.file(writtenID)) }
             throw error
         }
-    }
-
-    func restoreToList(_ record: StoredCredential, key: SymmetricKey) throws {
-        guard !context.hasChanges else { throw RestoreError.pendingChanges }
-        guard record.modelContext === context, let replacement = record.replacedByID,
-              let next = try records().first(where: { $0.id == replacement }), next.replacesCredentialID == record.id else {
-            throw VaultError.invalidReplacement
-        }
-        _ = try read(record, key: key)
-        _ = try read(next, key: key)
-        context.autosaveEnabled = false
-        do {
-            try BackupHistory.prepare(in: context)
-            record.replacedByID = nil
-            BackupHistory.record(in: context)
-            try context.save()
-        } catch { context.rollback(); throw error }
     }
 
     func read(_ record: StoredCredential, key: SymmetricKey) throws -> CredentialPayload {
