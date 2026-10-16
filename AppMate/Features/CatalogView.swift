@@ -713,7 +713,7 @@ struct OnboardingView: View {
                         .font(.system(size: 14)).lineSpacing(5).foregroundStyle(AppMateStyle.secondary).padding(.top, 12)
                     VStack(alignment: .leading, spacing: 14) {
                         feature("保管先で整理", detail: "鍵と証明書はチーム、プロファイルはアプリにまとめます", symbol: "sidebar.left", color: AppMateStyle.accent, background: AppMateStyle.selectedRow)
-                        feature("期限を一覧で確認", detail: "期限切れと30日以内をサイドバーに出します", symbol: "clock", color: AppMateStyle.warningText, background: AppMateStyle.warningBackground)
+                        feature("期限を一覧で確認", detail: "期限切れと30日以内を「対応が必要」にまとめます", symbol: "clock", color: AppMateStyle.warningText, background: AppMateStyle.warningBackground)
                         feature("このMacの中だけ", detail: "暗号化して保存。サーバーには送りません", symbol: "lock", color: AppMateStyle.successText, background: AppMateStyle.successBackground)
                     }.padding(.top, 22)
                 } else if step == 1 {
