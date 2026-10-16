@@ -240,3 +240,41 @@ struct CredentialDeleteConfirmation: View {
         }.padding(26).frame(width: 460).background(AppMateStyle.canvas).foregroundStyle(AppMateStyle.text)
     }
 }
+
+struct CredentialBatchDeleteConfirmation: View {
+    let records: [StoredCredential]
+    let onDelete: () -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("選択した\(records.count)件を削除しますか？").font(.headline)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    ForEach(records) { record in
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(record.name).fontWeight(.medium)
+                            Text([record.team?.name, record.originalName].compactMap { $0 }.joined(separator: " · "))
+                                .font(.caption).foregroundStyle(.secondary)
+                            if record.isTeamShared {
+                                Text("チーム「\(record.team?.name ?? "未設定")」の鍵・証明書の一覧から外れます。")
+                                    .font(.caption).foregroundStyle(AppMateStyle.dangerText)
+                            }
+                        }
+                    }
+                }.frame(maxWidth: .infinity, alignment: .leading)
+            }.frame(maxHeight: 240)
+            if records.contains(where: { ["p8", "p12"].contains($0.fileExtension) }) {
+                Label("鍵を再取得できない場合があります。ほかに控えがあることを確認してください。", systemImage: "exclamationmark.triangle")
+                    .foregroundStyle(AppMateStyle.dangerText)
+            }
+            Text("「最近削除した項目」へ移し、30日間は復元できます。元ファイル・Apple側の鍵・CIの設定は変更しません。")
+                .foregroundStyle(.secondary)
+            HStack {
+                Button("キャンセル") { dismiss() }.keyboardShortcut(.cancelAction)
+                Spacer()
+                Button("認証して\(records.count)件を削除", role: .destructive, action: onDelete)
+            }.buttonStyle(AppMateButtonStyle())
+        }.font(.system(size: 13)).padding(24).frame(width: 500).background(AppMateStyle.canvas)
+    }
+}

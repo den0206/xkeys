@@ -81,9 +81,18 @@ struct VaultManagement {
     }
 
     func trash(_ record: StoredCredential, key: SymmetricKey, at now: Date = .now) throws {
-        guard record.modelContext === context else { throw VaultError.invalidAssociation }
-        _ = try vault.read(record, key: key)
-        try change { record.deletedAt = now }
+        try trash([record], key: key, at: now)
+    }
+
+    func trash(_ records: [StoredCredential], key: SymmetricKey, at now: Date = .now) throws {
+        guard !records.isEmpty else { return }
+        for record in records {
+            guard record.modelContext === context else { throw VaultError.invalidAssociation }
+            _ = try vault.read(record, key: key)
+        }
+        try change {
+            for record in records { record.deletedAt = now }
+        }
     }
 
     func trash(_ app: ManagedApp, key: SymmetricKey, at now: Date = .now) throws {

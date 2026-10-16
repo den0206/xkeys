@@ -478,6 +478,38 @@ final class AppMateTests: XCTestCase {
     }
 
     @MainActor
+    func testBatchTrashValidatesEveryRecordBeforeChangingAnyAndCanBeRestored() throws {
+        let (vault, app, _, _) = try makeVault()
+        defer { try? FileManager.default.removeItem(at: vault.blobs.directory) }
+        let key = SymmetricKey(size: .bits256)
+        for ext in ["cer", "mobileprovision"] {
+            let file = CredentialFile(data: try fixture(ext), name: "sample." + ext)
+            _ = try vault.importFile(file, parsed: CredentialParser.parse(file.data, extension: ext), app: app,
+                                     password: nil, confirmUnknownTeam: true, key: key)
+        }
+        let records = try vault.records().sorted { $0.id.uuidString < $1.id.uuidString }
+        XCTAssertEqual(records.count, 2)
+        let last = try XCTUnwrap(records.last)
+        let blob = vault.blobs.file(last.blobID ?? last.id)
+        let bytes = try Data(contentsOf: blob)
+        try Data([0]).write(to: blob)
+        let manager = VaultManagement(vault: vault)
+        XCTAssertThrowsError(try manager.trash(records, key: key))
+        XCTAssertTrue(records.allSatisfy { $0.deletedAt == nil })
+        XCTAssertFalse(vault.context.hasChanges)
+        try bytes.write(to: blob)
+        let now = Date.now
+        try manager.trash(records, key: key, at: now)
+        XCTAssertTrue(records.allSatisfy { $0.deletedAt == now })
+        XCTAssertFalse(vault.context.hasChanges)
+        for record in records {
+            try manager.restore(record)
+            XCTAssertNil(record.deletedAt)
+            XCTAssertFalse(try vault.read(record, key: key).original.isEmpty)
+        }
+    }
+
+    @MainActor
     func testAppTrashRetainsSharedKeysAndRestoresOnlyItsOwnDeletedProfiles() throws {
         let (vault, app, sibling, _) = try makeVault()
         let key = SymmetricKey(size: .bits256)

@@ -93,6 +93,10 @@ struct CredentialAppView: View {
     @State private var targetFilter: UUID?
     @State private var copyingCI = false
     @State private var deleting = false
+    @State private var selectingForDeletion = false
+    @State private var checkedIDs: Set<UUID> = []
+    @State private var deletionTargets: [StoredCredential] = []
+    @State private var deletingBatch = false
     @State private var deletingApp = false
     @State private var showingRenewalGuide = false
     @State private var inlineInspector = true
@@ -106,6 +110,7 @@ struct CredentialAppView: View {
             (targetFilter == nil || record.isTeamShared || record.app?.id == targetFilter) && CredentialSearch.includes(record, scope: scope, app: app, query: search, type: typeFilter, showReplaced: showReplaced, at: clock) }
             .sorted { ($0.fileExtension == "p8" ? 1 : 0) < ($1.fileExtension == "p8" ? 1 : 0) }
     }
+    private var checkedRecords: [StoredCredential] { visible.filter { checkedIDs.contains($0.id) } }
     private var selectedRecord: StoredCredential? { visible.first { $0.id == selected } }
     private var vault: CredentialVault {
         CredentialVault(context: container.mainContext, blobs: EncryptedBlobStore(directory: CredentialVault.directory))
@@ -174,6 +179,13 @@ struct CredentialAppView: View {
                 }
             }
         }
+        .sheet(isPresented: $deletingBatch) {
+            CredentialBatchDeleteConfirmation(records: deletionTargets) {
+                deletingBatch = false
+                deleteBatch(deletionTargets)
+            }
+        }
+        .onChange(of: visible.map(\.id)) { _, ids in checkedIDs.formIntersection(Set(ids)) }
         .confirmationDialog(app.map { "「\($0.name)」を削除しますか？" } ?? "アプリを削除しますか？", isPresented: $deletingApp, titleVisibility: .visible) {
             Button("認証してアプリを削除", role: .destructive) { deleteApp() }
             Button("キャンセル", role: .cancel) {}
@@ -221,6 +233,11 @@ struct CredentialAppView: View {
                 }
                 Spacer(minLength: 0)
                 Menu {
+                    Button("鍵・ファイルを一括削除…") {
+                        selectingForDeletion = true
+                        checkedIDs = []
+                    }.disabled(visible.isEmpty || access.busy)
+                    Divider()
                     if app != nil {
                         Button("ターゲットを追加…") { addingTarget = true }
                         Button("App情報") { selected = nil; showingInspector = true }
@@ -264,7 +281,27 @@ struct CredentialAppView: View {
                     .overlay(RoundedRectangle(cornerRadius: 10).stroke(AppMateStyle.warningBorder, lineWidth: 1))
                     .padding(.bottom, 16)
             }
+            if selectingForDeletion {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 12) {
+                        Button(checkedRecords.count == visible.count ? "選択を解除" : "すべて選択") {
+                            checkedIDs = checkedRecords.count == visible.count ? [] : Set(visible.map(\.id))
+                        }
+                        Spacer()
+                        Button("キャンセル") { selectingForDeletion = false; checkedIDs = [] }
+                    }
+                    HStack {
+                        Text("\(checkedRecords.count)件選択").foregroundStyle(AppMateStyle.secondary)
+                        Spacer()
+                        Button("削除…", role: .destructive) {
+                            deletionTargets = checkedRecords
+                            deletingBatch = true
+                        }.disabled(checkedRecords.isEmpty)
+                    }
+                }.buttonStyle(AppMateButtonStyle(compact: true)).disabled(access.busy).padding(.vertical, 8)
+            }
             HStack(spacing: 0) {
+                if selectingForDeletion { Spacer().frame(width: 28) }
                 Text("名前").frame(maxWidth: .infinity, alignment: .leading)
                 Text("種類").frame(width: typeWidth, alignment: .leading)
                 Text("期限").frame(width: expirationWidth, alignment: .leading)
@@ -337,28 +374,42 @@ struct CredentialAppView: View {
     }
 
     private func row(_ record: StoredCredential) -> some View {
-        Button { selected = record.id; if !inlineInspector { showingInspector = true } } label: {
-            HStack(spacing: 0) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(record.name).fontWeight(.medium).lineLimit(2)
-                    if app == nil {
-                        Text([record.team?.name, record.app?.name, record.app?.bundleID].compactMap { $0 }.joined(separator: " · "))
-                            .font(.system(size: 10)).foregroundStyle(AppMateStyle.secondary).lineLimit(2)
-                    }
-                }.frame(maxWidth: .infinity, alignment: .leading)
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(record.fileTypeTitle).font(.system(size: 12)).fixedSize(horizontal: false, vertical: true)
-                    Text("." + record.fileExtension).font(.system(size: 10, design: .monospaced))
-                }.foregroundStyle(AppMateStyle.secondary).frame(width: typeWidth, alignment: .leading)
-                Text(record.expiresAt?.formatted(.dateTime.year().month(.twoDigits).day(.twoDigits)) ?? "なし")
-                    .font(.system(size: 12)).frame(width: expirationWidth, alignment: .leading)
-                CredentialStatusBadge(state: record.displayState(at: clock)).frame(width: stateWidth, alignment: .trailing)
-            }.padding(.horizontal, 8).padding(.vertical, 8).frame(minHeight: 36)
-                .background(selected == record.id ? AppMateStyle.selectedRow : .clear)
-                .overlay(alignment: .bottom) { Rectangle().fill(AppMateStyle.rowBorder).frame(height: 1) }
-                .contentShape(Rectangle())
-        }.buttonStyle(.plain).accessibilityElement(children: .combine)
-            .accessibilityAddTraits(selected == record.id ? .isSelected : [])
+        HStack(spacing: 0) {
+            if selectingForDeletion {
+                Toggle("\(record.name)を選択", isOn: Binding(
+                    get: { checkedIDs.contains(record.id) },
+                    set: { if $0 { checkedIDs.insert(record.id) } else { checkedIDs.remove(record.id) } }
+                )).toggleStyle(.checkbox).labelsHidden().frame(width: 28).disabled(access.busy)
+            }
+            Button { selected = record.id; if !inlineInspector { showingInspector = true } } label: {
+                HStack(spacing: 0) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(record.name).fontWeight(.medium).lineLimit(2)
+                        if app == nil {
+                            Text([record.team?.name, record.app?.name, record.app?.bundleID].compactMap { $0 }.joined(separator: " · "))
+                                .font(.system(size: 10)).foregroundStyle(AppMateStyle.secondary).lineLimit(2)
+                        }
+                    }.frame(maxWidth: .infinity, alignment: .leading)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(record.fileTypeTitle).font(.system(size: 12)).fixedSize(horizontal: false, vertical: true)
+                        Text("." + record.fileExtension).font(.system(size: 10, design: .monospaced))
+                    }.foregroundStyle(AppMateStyle.secondary).frame(width: typeWidth, alignment: .leading)
+                    Text(record.expiresAt?.formatted(.dateTime.year().month(.twoDigits).day(.twoDigits)) ?? "なし")
+                        .font(.system(size: 12)).frame(width: expirationWidth, alignment: .leading)
+                    CredentialStatusBadge(state: record.displayState(at: clock)).frame(width: stateWidth, alignment: .trailing)
+                }.padding(.horizontal, 8).padding(.vertical, 8).frame(minHeight: 36)
+                    .background(selected == record.id ? AppMateStyle.selectedRow : .clear)
+                    .overlay(alignment: .bottom) { Rectangle().fill(AppMateStyle.rowBorder).frame(height: 1) }
+                    .contentShape(Rectangle())
+            }.buttonStyle(.plain).accessibilityElement(children: .combine)
+                .accessibilityAddTraits(selected == record.id ? .isSelected : [])
+                .contextMenu {
+                    Button("削除…", role: .destructive) {
+                        selected = record.id
+                        deleting = true
+                    }.disabled(access.busy)
+                }
+        }
     }
 
     @ViewBuilder private var inspector: some View {
@@ -481,6 +532,10 @@ struct CredentialAppView: View {
     private func lock(dismissImport: Bool = true) {
         access.lock()
         deleting = false
+        deletingBatch = false
+        selectingForDeletion = false
+        checkedIDs = []
+        deletionTargets = []
         deletingApp = false
         showingRenewalGuide = false
         showingIdentity = false
@@ -534,6 +589,22 @@ struct CredentialAppView: View {
                 }
                 if trash { selected = nil }
             } catch { self.error = error.localizedDescription }
+        }
+    }
+
+    private func deleteBatch(_ targets: [StoredCredential]) {
+        error = nil
+        Task { @MainActor in
+            do {
+                try await access.withKey(reason: "選択した\(targets.count)件の鍵・ファイルを最近削除した項目へ移します", allowCreation: false, vault: vault) { key in
+                    try VaultManagement(vault: vault).trash(targets, key: key)
+                }
+                checkedIDs = []
+                selectingForDeletion = false
+                if targets.contains(where: { $0.id == selected }) { selected = nil }
+                status = "\(targets.count)件を最近削除した項目へ移しました。30日間は復元できます。"
+            } catch { self.error = error.localizedDescription }
+            deletionTargets = []
         }
     }
 
