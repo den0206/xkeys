@@ -480,11 +480,14 @@ struct CredentialAppView: View {
                             if record.fileExtension == "p8" {
                                 HStack(alignment: .top, spacing: 12) {
                                     Text("用途").foregroundStyle(AppMateStyle.secondary).frame(width: 96, alignment: .leading)
-                                    VStack(alignment: .leading, spacing: 6) {
+                                    HStack(alignment: .top, spacing: 8) {
                                         Text(record.purposeTitle).frame(maxWidth: .infinity, alignment: .leading)
                                         let linked = record.replacesCredentialID != nil || record.replacedByID != nil
-                                        Button("用途を変更…") { editingPurposes = true }.disabled(access.busy || linked)
-                                            .help(linked ? "置き換え履歴のある鍵は用途を変更できません。" : "Apple Developer側の変更を反映します")
+                                        Button("変更…", systemImage: "pencil") { editingPurposes = true }
+                                            .buttonStyle(AppMateButtonStyle(compact: true)).font(.system(size: 12)).fixedSize()
+                                            .disabled(access.busy || linked)
+                                            .help(linked ? "置き換え履歴のある鍵は用途を変更できません。" : "用途を変更します。Apple Developer側の変更も取得できます")
+                                            .accessibilityLabel("用途を変更")
                                     }
                                 }
                             }
