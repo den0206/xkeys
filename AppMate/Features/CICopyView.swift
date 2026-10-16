@@ -102,7 +102,7 @@ struct CICopyView: View {
         case .base64: true
         case .keyID: record.keyID != nil
         case .issuerID: record.issuerID != nil
-        case .teamID: record.team != nil
+        case .teamID: false
         case .password: record.hasSavedPassword
         }
     }
@@ -116,7 +116,7 @@ struct CICopyView: View {
                     case .base64: secret = payload.original.base64EncodedString()
                     case .keyID: secret = record.keyID
                     case .issuerID: secret = record.issuerID
-                    case .teamID: secret = record.team?.teamID
+                    case .teamID: secret = nil
                     case .password: secret = payload.password
                     }
                     guard let secret else { throw ValidationError.invalidFile }

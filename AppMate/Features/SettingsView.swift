@@ -69,6 +69,7 @@ struct AppSettingsView: View {
                     Spacer()
                     Button("設定を保存") {
                         do { try PreferencesStore.save(preferences, in: container.mainContext); error = nil }
+                        catch BackupError.invalid { self.error = "テンプレートの名前と変数名（英字か_で始まる英数字・_、128文字以内）を確認してください。" }
                         catch { self.error = error.localizedDescription }
                     }.buttonStyle(AppMateButtonStyle(primary: true)).disabled(!loaded)
                 }
@@ -91,7 +92,8 @@ struct AppSettingsView: View {
                     TextField("名前", text: $template.name)
                     TextField("変数名", text: $template.variable).font(.body.monospaced())
                     HStack {
-                        Picker("値", selection: $template.value) { ForEach(CIValue.allCases, id: \.self) { Text($0.title).tag($0) } }
+                        // Team ID is never copied; keep it selectable only for templates saved by older versions.
+                        Picker("値", selection: $template.value) { ForEach(CIValue.allCases.filter { $0 != .teamID || template.value == .teamID }, id: \.self) { Text($0.title).tag($0) } }
                         Button("削除", role: .destructive) { preferences.templates.removeAll { $0.id == template.id } }
                     }
                 }.textFieldStyle(.roundedBorder).padding(14)

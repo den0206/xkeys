@@ -92,7 +92,8 @@ struct CatalogEditor: View {
             }
             if let error { Text(error).foregroundStyle(.red) }
             HStack {
-                Button("削除…", role: .destructive) { deleting = true }
+                // Teams are deleted only from TeamDeletionView, which explains why a team cannot be removed.
+                if app != nil { Button("削除…", role: .destructive) { deleting = true } }
                 Spacer()
                 Button("キャンセル") { dismiss() }.keyboardShortcut(.cancelAction)
                 Button("保存") {
@@ -118,20 +119,20 @@ struct CatalogEditor: View {
                 iconColor = app?.iconColor
                 iconImage = app?.iconImage
             }
-            .confirmationDialog(app == nil ? "空のTeamを削除しますか？" : "Appと配下のターゲット・専用ファイルを最近削除した項目へ移しますか？", isPresented: $deleting, titleVisibility: .visible) {
+            .confirmationDialog("Appと配下のターゲット・専用ファイルを最近削除した項目へ移しますか？", isPresented: $deleting, titleVisibility: .visible) {
                 Button("認証して削除", role: .destructive) {
+                    guard let app else { return }
                     Task { @MainActor in
                         do {
                             let create = try vault.canCreateKey()
                             try await access.withKey(reason: "登録を削除します", allowCreation: create, vault: vault) { key in
-                                if let app { try VaultManagement(vault: vault).trash(app, key: key) }
-                                else if let team { try VaultManagement(vault: vault).removeTeam(team) }
+                                try VaultManagement(vault: vault).trash(app, key: key)
                             }
                             dismiss()
                         } catch { self.error = error.localizedDescription }
                     }
                 }
-            } message: { Text("Appの共有鍵・証明書は残します。Appは30日間復元できます。TeamはAppや資格情報が残っていれば削除できません。") }
+            } message: { Text("チームの鍵・証明書は残します。Appは30日間復元できます。") }
             .onDisappear { access.lock() }
     }
 }

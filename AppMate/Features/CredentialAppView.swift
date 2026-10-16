@@ -273,7 +273,6 @@ struct CredentialAppView: View {
                 Picker("種類", selection: $typeFilter) {
                     ForEach(CredentialTypeFilter.allCases) { Text($0.title).tag($0) }
                 }.frame(maxWidth: 240)
-                    .onChange(of: typeFilter) { _, _ in lock(dismissImport: false) }
                 Picker("用途", selection: $purposeFilter) {
                     ForEach(CredentialPurposeFilter.allCases) { Text($0.title).tag($0) }
                 }.frame(maxWidth: 240)
@@ -731,7 +730,7 @@ struct CredentialImportView: View {
     private var unregisteredBundle: String? {
         guard let bundle = parsed?.bundleID, !bundle.contains("*"),
               parsed?.teamID == team.teamID,
-              !profileTargets.contains(where: { $0.bundleID == bundle }) else { return nil }
+              !team.apps.contains(where: { $0.bundleID.lowercased() == bundle.lowercased() }) else { return nil }
         return bundle
     }
     private var validationIssue: String? {
