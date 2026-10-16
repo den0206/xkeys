@@ -72,11 +72,13 @@ struct CredentialStatusBadge: View {
 
 struct CredentialAppView: View {
     let app: ManagedApp?
+    let team: DeveloperTeam?
+    let openTeam: (UUID) -> Void
     let scope: CredentialScope
     let container: ModelContainer
     @Binding var importing: Bool
     let search: String
-    let typeFilter: CredentialTypeFilter
+    @Binding var typeFilter: CredentialTypeFilter
     var initialSources: [URL] = []
     @Query(sort: \StoredCredential.name) private var records: [StoredCredential]
     @State private var access = VaultAccess()
@@ -90,6 +92,7 @@ struct CredentialAppView: View {
     @State private var editingNote = false
     @State private var editingApp = false
     @State private var addingTarget = false
+    @State private var purposeFilter: CredentialPurposeFilter = .all
     @State private var targetFilter: UUID?
     @State private var copyingCI = false
     @State private var deleting = false
@@ -107,7 +110,7 @@ struct CredentialAppView: View {
 
     private var visible: [StoredCredential] {
         records.filter { record in
-            (targetFilter == nil || record.isTeamShared || record.app?.id == targetFilter) && CredentialSearch.includes(record, scope: scope, app: app, query: search, type: typeFilter, showReplaced: showReplaced, at: clock) }
+            purposeFilter.matches(record) && (targetFilter == nil || record.app?.id == targetFilter) && CredentialSearch.includes(record, scope: scope, app: app, query: search, type: typeFilter, showReplaced: showReplaced, at: clock) }
             .sorted { ($0.fileExtension == "p8" ? 1 : 0) < ($1.fileExtension == "p8" ? 1 : 0) }
     }
     private var checkedRecords: [StoredCredential] { visible.filter { checkedIDs.contains($0.id) } }
@@ -156,10 +159,10 @@ struct CredentialAppView: View {
         .font(.system(size: 13))
 
         .sheet(isPresented: $importing) {
-            if let app {
-                CredentialImportView(app: app, vault: vault, existing: records, initialSources: droppedSources.isEmpty ? initialSources : droppedSources) { id in
+            if let team {
+                CredentialImportView(app: app, team: team, vault: vault, existing: records, initialSources: droppedSources.isEmpty ? initialSources : droppedSources) { id in
                     selected = id
-                    status = "資格情報を暗号化して保存しました。元ファイルは変更していません。"
+                    status = "暗号化して保存しました。鍵・証明書はチームの一覧、プロファイルは対象アプリの一覧で確認できます。"
                 }
             }
         }
@@ -226,9 +229,9 @@ struct CredentialAppView: View {
                         .frame(width: 40, height: 40).background(AppMateStyle.selectedRow, in: RoundedRectangle(cornerRadius: 10))
                 }
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(CredentialSearch.hasQuery(search) ? "横断検索の結果" : app?.name ?? scope.title)
+                    Text(CredentialSearch.hasQuery(search) ? "横断検索の結果" : app?.name ?? team.map { $0.name + " ／ " + scope.title } ?? scope.title)
                         .font(.system(size: 20, weight: .bold)).lineLimit(2)
-                    Text("\(CredentialSearch.hasQuery(search) ? "すべてのTeam・App · " : app.map { $0.platform + "アプリ · " } ?? "")鍵とファイル \(visible.count)件")
+                    Text("\(CredentialSearch.hasQuery(search) ? "すべてのTeam・App · " : app.map { $0.platform + "アプリ · " } ?? "")\(app == nil ? "鍵とファイル" : "専用ファイル") \(visible.count)件")
                         .font(.system(size: 12)).foregroundStyle(AppMateStyle.secondary)
                 }
                 Spacer(minLength: 0)
@@ -251,6 +254,20 @@ struct CredentialAppView: View {
                     .menuStyle(.borderlessButton).menuIndicator(.hidden)
                     .frame(width: 28, height: 28).help("表示と管理").accessibilityLabel("表示と管理")
             }.padding(.bottom, 16)
+            if app == nil, let team, !CredentialSearch.hasQuery(search) {
+                Label("保管先：チーム「\(team.name)」。アプリでの利用状況は記録していません。", systemImage: "person.2")
+                    .font(.system(size: 12)).foregroundStyle(AppMateStyle.secondary).padding(.bottom, 12)
+            }
+            HStack {
+                Picker("種類", selection: $typeFilter) {
+                    ForEach(CredentialTypeFilter.allCases) { Text($0.title).tag($0) }
+                }.frame(maxWidth: 240)
+                    .onChange(of: typeFilter) { _, _ in lock(dismissImport: false) }
+                Picker("用途", selection: $purposeFilter) {
+                    ForEach(CredentialPurposeFilter.allCases) { Text($0.title).tag($0) }
+                }.frame(maxWidth: 240)
+                    .onChange(of: purposeFilter) { _, _ in lock(dismissImport: false) }
+            }.font(.system(size: 12)).padding(.bottom, 8)
             if let app, app.parentAppID == nil, app.targets.count > 1 {
                 Picker("ターゲット", selection: $targetFilter) {
                     Text("すべてのターゲット").tag(nil as UUID?)
@@ -273,7 +290,7 @@ struct CredentialAppView: View {
                                 Text("証明書とプロファイルを更新する").font(.headline)
                                 Text("1. Apple Developerで新しい証明書やプロファイルを用意します。")
                                 Text("2. 「ファイルを追加」で新しいファイルを選びます。")
-                                Text("3. 「既存の資格情報を置き換える」で旧ファイルと共有先を確認します。旧ファイルは保持されます。")
+                                Text("3. 「既存の資格情報を置き換える」で旧ファイルと保管先を確認します。旧ファイルは保持されます。")
                             }.font(.system(size: 13)).padding(20).frame(width: 340)
                         }
                 }.padding(.horizontal, 14).padding(.vertical, 10)
@@ -310,15 +327,15 @@ struct CredentialAppView: View {
             Divider()
             if visible.isEmpty {
                 ContentUnavailableView {
-                    Label(!CredentialSearch.hasQuery(search) && typeFilter == .all ? "鍵やファイルがありません" : "条件に一致する項目がありません", systemImage: "magnifyingglass")
+                    Label(!CredentialSearch.hasQuery(search) && typeFilter == .all && purposeFilter == .all ? (app == nil ? "鍵やファイルがありません" : "このアプリ専用のファイルはありません") : "条件に一致する項目がありません", systemImage: "magnifyingglass")
                 } description: {
-                    Text(CredentialSearch.hasQuery(search) || typeFilter != .all ? "検索語や種類を変えて確認してください。" : app == nil ? "該当する資格情報はありません。" : "このアプリで使う鍵や証明書をここにドラッグ＆ドロップして追加できます。")
+                    Text(CredentialSearch.hasQuery(search) || typeFilter != .all || purposeFilter != .all ? "検索語・種類・用途を変えて確認してください。" : app == nil ? "チームで保管する鍵・証明書を追加できます。" : "このアプリ専用のプロファイルを追加できます。鍵・証明書はチームの一覧で保管します。")
                 } actions: {
-                    if app != nil { Button("ファイルを追加…") { importing = true } }
+                    if team != nil && !CredentialSearch.hasQuery(search) { Button("ファイルを追加…") { importing = true } }
                 }.frame(maxWidth: .infinity, maxHeight: .infinity)
                     .contentShape(Rectangle())
                     .dropDestination(for: URL.self) { urls, _ in
-                        guard let app, app.deletedAt == nil, !CredentialSearch.hasQuery(search),
+                        guard team != nil, app?.deletedAt == nil, !CredentialSearch.hasQuery(search),
                               !urls.isEmpty, !access.busy, !importing else { return false }
                         droppedSources = urls
                         importing = true
@@ -332,14 +349,7 @@ struct CredentialAppView: View {
                             ForEach(visible.filter { !$0.isTeamShared }) { record in row(record) }
                         }
                         if visible.contains(where: \.isTeamShared) {
-                            HStack(spacing: 6) {
-                                Text("チームで共通").fontWeight(.bold)
-                                if let count = app?.team?.apps.filter({ $0.deletedAt == nil }).count {
-                                    Text("\(count)アプリで共有").foregroundStyle(AppMateStyle.accent)
-                                        .padding(.horizontal, 7).padding(.vertical, 2)
-                                        .background(AppMateStyle.selectedRow, in: Capsule())
-                                }
-                            }.font(.system(size: 12)).padding(.horizontal, 8).padding(.top, 18).padding(.bottom, 6)
+                            groupHeading("チームの鍵・証明書")
                             ForEach(visible.filter(\.isTeamShared)) { record in row(record) }
                         }
                     }
@@ -350,6 +360,16 @@ struct CredentialAppView: View {
                         let index = visible.firstIndex { $0.id == selected } ?? (direction == .down ? -1 : visible.count)
                         selected = visible[min(max(index + (direction == .down ? 1 : -1), 0), visible.count - 1)].id
                     }
+            }
+            if let app, let owner = app.team {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("チームの鍵・証明書").fontWeight(.semibold)
+                    Text("\(owner.name)で保管しています。このアプリでの利用状況は記録していません。")
+                        .foregroundStyle(AppMateStyle.secondary)
+                    Button("チームの鍵・証明書を開く", systemImage: "arrow.right") { openTeam(owner.id) }
+                        .buttonStyle(.borderless).foregroundStyle(AppMateStyle.accent)
+                }.font(.system(size: 12)).padding(14).frame(maxWidth: .infinity, alignment: .leading)
+                    .background(AppMateStyle.selectedRow, in: RoundedRectangle(cornerRadius: 10)).padding(.vertical, 12)
             }
             if access.busy { ProgressView("認証しています…").font(.caption).padding(.vertical, 10) }
             if let error { Label(error, systemImage: "exclamationmark.triangle").foregroundStyle(.red).font(.caption).textSelection(.enabled).padding(.vertical, 10) }
@@ -386,7 +406,7 @@ struct CredentialAppView: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(record.name).fontWeight(.medium).lineLimit(2)
                         if app == nil {
-                            Text([record.team?.name, record.app?.name, record.app?.bundleID].compactMap { $0 }.joined(separator: " · "))
+                            Text([record.team.map { "チーム：" + $0.name }, record.app.map { "アプリ：" + $0.name }, record.app?.bundleID].compactMap { $0 }.joined(separator: " · "))
                                 .font(.system(size: 10)).foregroundStyle(AppMateStyle.secondary).lineLimit(2)
                         }
                     }.frame(maxWidth: .infinity, alignment: .leading)
@@ -418,7 +438,7 @@ struct CredentialAppView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("\(record.fileTypeTitle)（.\(record.fileExtension)） · \(record.isTeamShared ? "チームで共通" : "このアプリ専用")")
+                            Text("\(record.fileTypeTitle)（.\(record.fileExtension)） · \(record.isTeamShared ? "チームで保管" : "このアプリ専用")")
                                 .font(.system(size: 12)).foregroundStyle(AppMateStyle.secondary)
                             Text(record.name).font(.system(size: 20, weight: .bold))
                             Text(record.isIntermediateCA ? "署名用証明書の発行元となる中間CA証明書です。アプリへの署名に使う個人の証明書とは異なります。" : record.fileExtension == "p12" ? "アプリへの署名に使う証明書と秘密鍵です" : record.fileExtension == "p8" ? "Appleのサービスへの認証に使います" : record.isTeamShared ? "アプリへの署名に使う証明書です" : "このアプリの署名と配布に使います")
@@ -635,7 +655,8 @@ struct CredentialAppView: View {
 }
 
 struct CredentialImportView: View {
-    let app: ManagedApp
+    let app: ManagedApp?
+    let team: DeveloperTeam
     let vault: CredentialVault
     // 一覧のバックグラウンドロックで取り込み途中の内容を破棄しない。
     @State private var access = VaultAccess()
@@ -679,19 +700,26 @@ struct CredentialImportView: View {
     private var replacementCandidates: [StoredCredential] {
         guard let file else { return [] }
         let ext = (file.name as NSString).pathExtension.lowercased()
-        return existing.filter { $0.isVisible(in: importApp) && $0.replacedByID == nil && $0.fileExtension == ext && $0.keyPurpose == p8?.purpose.rawValue }
+        return existing.filter { $0.team?.id == team.id && ($0.isTeamShared || (importApp != nil && $0.app?.id == importApp?.id)) && $0.deletedAt == nil && $0.replacedByID == nil && $0.fileExtension == ext && $0.keyPurpose == p8?.purpose.rawValue }
     }
-    private var importApp: ManagedApp {
-        let targets = app.product.targets
-        if let importTargetID, let target = targets.first(where: { $0.id == importTargetID }) { return target }
-        if let bundle = parsed?.bundleID {
-            if let target = app.target(forProfileBundleID: bundle) { return target }
+    private var importApp: ManagedApp? {
+        if let importTargetID, let target = team.apps.first(where: { $0.id == importTargetID && $0.deletedAt == nil }) { return target }
+        guard let app else {
+            if let bundle = parsed?.bundleID {
+                let matches = team.apps.filter { $0.deletedAt == nil && CredentialVault.profileMatches(bundle, bundleID: $0.bundleID) }
+                return matches.count == 1 ? matches[0] : nil
+            }
+            return nil
         }
+        if let bundle = parsed?.bundleID, let target = app.target(forProfileBundleID: bundle) { return target }
         return app
     }
+    private var profileTargets: [ManagedApp] {
+        app?.product.targets ?? team.apps.filter { $0.deletedAt == nil }.sorted { $0.name < $1.name }
+    }
     private var unregisteredBundle: String? {
-        guard let bundle = parsed?.bundleID, !bundle.contains("*"),
-              parsed?.teamID == app.team?.teamID,
+        guard let app, let bundle = parsed?.bundleID, !bundle.contains("*"),
+              parsed?.teamID == team.teamID,
               !app.product.targets.contains(where: { $0.bundleID == bundle }) else { return nil }
         return bundle
     }
@@ -699,7 +727,7 @@ struct CredentialImportView: View {
         guard let file, let parsed else { return nil }
         do {
             if replacing && targetID == nil { return "置き換える旧資格情報を選んでください。" }
-            try vault.validate(file: file, parsed: parsed, app: importApp, confirmUnknownTeam: confirmUnknownTeam,
+            try vault.validate(file: file, parsed: parsed, app: importApp, team: team, confirmUnknownTeam: confirmUnknownTeam,
                                p8: p8, replacingID: replacing ? targetID : nil, confirmReplacement: confirmReplacement)
             return nil
         }
@@ -710,7 +738,7 @@ struct CredentialImportView: View {
         VStack(alignment: .leading, spacing: 16) {
             Text(finished ? "ファイルの処理が完了しました" : isP8 ? ".p8の情報を入力" : currentName.isEmpty ? "ファイルを追加" : "\(completedItems.count + queue.count + 1)件のファイルを追加します")
                 .font(.system(size: 18, weight: .bold))
-            Text(finished ? "処理結果を確認して閉じてください。元ファイルは変更していません。" : "内容と追加先を確認してください。\(app.name) ／ \(app.team?.name ?? "チーム未設定")").foregroundStyle(AppMateStyle.secondary)
+            Text(finished ? "処理結果を確認して閉じてください。元ファイルは変更していません。" : "内容と保管先を確認してください。チーム：\(team.name)").foregroundStyle(AppMateStyle.secondary)
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     if finished {
@@ -756,7 +784,7 @@ struct CredentialImportView: View {
                                 Text(file.name).font(.system(size: 12, design: .monospaced)).frame(maxWidth: .infinity, alignment: .leading)
                                 Text(parsed?.kind ?? "確認中").frame(width: 100, alignment: .leading)
                                 Text(parsed?.expiresAt?.formatted(.dateTime.year().month(.twoDigits).day(.twoDigits)) ?? "なし・未確認").frame(width: 100, alignment: .leading)
-                                Text(parsed?.bundleID == nil ? "チームで共通" : importApp.name).foregroundStyle(AppMateStyle.accent).frame(width: 100, alignment: .leading)
+                                Text(parsed?.bundleID == nil ? "チーム：" + team.name : importApp?.name ?? "アプリを選択").foregroundStyle(AppMateStyle.accent).frame(width: 100, alignment: .leading)
                             }.padding(.vertical, 10)
                             Divider()
                             ForEach(queue, id: \.self) { url in
@@ -786,9 +814,10 @@ struct CredentialImportView: View {
                     }
                     if let parsed {
                         if parsed.bundleID != nil {
-                            Picker("登録先ターゲット", selection: Binding(get: { importApp.id }, set: { importTargetID = $0; targetID = nil; confirmReplacement = false; lastActivity = .now })) {
-                                ForEach(app.product.targets) { target in
-                                    Text("\(target.name) · \(target.bundleID)").tag(target.id)
+                            Picker("登録先ターゲット", selection: Binding(get: { importApp?.id }, set: { importTargetID = $0; targetID = nil; confirmReplacement = false; lastActivity = .now })) {
+                                Text("対象アプリを選択してください").tag(nil as UUID?)
+                                ForEach(profileTargets) { target in
+                                    Text("\(target.name) · \(target.bundleID)").tag(Optional(target.id))
                                 }
                             }
                             if let bundle = unregisteredBundle {
@@ -806,13 +835,13 @@ struct CredentialImportView: View {
                                         ForEach(P8Purpose.allCases, id: \.self) { Text($0.title).tag(Optional($0)) }
                                     }.labelsHidden()
                                 }
-                                GridRow { Text("登録先チーム"); Text("\(app.team?.name ?? "")（\(app.team?.teamID ?? "")）") }
+                                GridRow { Text("登録先チーム"); Text("\(team.name)（\(team.teamID)）") }
                                 GridRow { Text("Key ID"); TextField("英大文字・数字10文字", text: $keyID).labelsHidden() }
                                 if purpose == .appStoreConnect {
                                     GridRow { Text("Issuer ID"); TextField("App Store ConnectのIssuer ID", text: $issuerID).labelsHidden() }
                                 }
                             }.textFieldStyle(.roundedBorder).controlSize(.large)
-                            Text("このチームの全アプリに自動表示します。用途と識別情報はApple Developerの登録内容を確認してください。")
+                            Text("この鍵はチームの一覧に保管します。用途は鍵の登録情報で、共有先アプリの指定ではありません。")
                                 .font(.system(size: 12)).padding(14).frame(maxWidth: .infinity, alignment: .leading)
                                 .background(AppMateStyle.warningBackground, in: RoundedRectangle(cornerRadius: 9))
                         }
@@ -826,10 +855,10 @@ struct CredentialImportView: View {
                             }
                         }
                         if !isP8 && !parsed.isIntermediateCA && parsed.teamID == nil {
-                            Toggle("Team IDを判別できないため、\(app.team?.name ?? "選択中のTeam")に割り当てることを確認しました", isOn: $confirmUnknownTeam)
+                            Toggle("Team IDを判別できないため、\(team.name)に割り当てることを確認しました", isOn: $confirmUnknownTeam)
                         }
                         let isP12 = (file?.name as NSString?)?.pathExtension.lowercased() == "p12"
-                        Text(parsed.isIntermediateCA ? "中間CA証明書には個人のTeam IDはありません。選択中のTeamを保管先として保存します。" : parsed.bundleID == nil ? "同じTeamのすべてのAppに表示されます。" : "「\(importApp.name)」専用のプロファイルとして保存します。")
+                        Text(parsed.isIntermediateCA ? "中間CA証明書には個人のTeam IDはありません。選択中のTeamを保管先として保存します。" : parsed.bundleID == nil ? "チーム「\(team.name)」の鍵・証明書の一覧に保管します。" : "「\(importApp?.name ?? "未選択")」専用のプロファイルとして保存します。")
                         if isP12 {
                             Toggle(".p12のパスワードも暗号化して保存", isOn: $savePassword)
                             Text("証明書チェーンと秘密鍵を含む元の.p12全体を保存・書き出しします。証明書の選択は表示情報だけを変えます。")
@@ -843,10 +872,8 @@ struct CredentialImportView: View {
                             }
                             if let old = replacementCandidates.first(where: { $0.id == targetID }) {
                                 Text("旧：\(old.name) → 新：\(p8?.purpose.title ?? parsed.name)（\(file?.name ?? "")）")
-                                Text("影響するApp：" + (old.isTeamShared
-                                    ? (app.team?.apps.map { "\($0.name)（\($0.bundleID)）" }.sorted().joined(separator: "、") ?? app.name)
-                                    : "\(importApp.name)（\(importApp.bundleID)）"))
-                                Toggle("旧→新と共有先を確認しました。旧ファイルを保持して置き換えます", isOn: $confirmReplacement)
+                                Text(old.isTeamShared ? "保管先：チーム「\(team.name)」。実際の利用アプリは記録していません。" : "保管先：\(importApp?.name ?? "未選択")")
+                                Toggle("旧→新と保管先を確認しました。旧ファイルを保持して置き換えます", isOn: $confirmReplacement)
                             }
                         }
                         Text("解析はローカルの内容の確認です。Apple発行元の信頼性・失効状態・秘密鍵との対応は検証していません。")
@@ -884,7 +911,7 @@ struct CredentialImportView: View {
         .padding(.horizontal, 26).padding(.vertical, 24).frame(width: isP8 ? 600 : 720, height: 620)
         .font(.system(size: 13)).buttonStyle(AppMateButtonStyle()).background(AppMateStyle.canvas).tint(AppMateStyle.accent)
         .sheet(isPresented: $addingTarget) {
-            if let bundle = unregisteredBundle {
+            if let bundle = unregisteredBundle, let app {
                 let parent = app.product
                 RegistrationForm(container: vault.context.container, teams: parent.team.map { [$0] } ?? [], initialTeam: parent.team?.id, isTeam: false, parentApp: parent, initialBundleID: bundle, initialName: parsed?.name ?? "") { id in
                     importTargetID = id
@@ -1029,10 +1056,10 @@ struct CredentialImportView: View {
         let replacementConfirmed = confirmReplacement
         Task { @MainActor in
             do {
-                try vault.validate(file: file, parsed: parsed, app: destination, confirmUnknownTeam: confirmed, p8: metadata, replacingID: replacingID, confirmReplacement: replacementConfirmed)
+                try vault.validate(file: file, parsed: parsed, app: destination, team: team, confirmUnknownTeam: confirmed, p8: metadata, replacingID: replacingID, confirmReplacement: replacementConfirmed)
                 let canCreate = try vault.canCreateKey()
                 let id = try await access.withKey(reason: "資格情報を暗号化して保存します", allowCreation: canCreate, vault: vault) { key in
-                    try vault.importFile(file, parsed: parsed, app: destination, password: password, confirmUnknownTeam: confirmed, key: key, p8: metadata, replacingID: replacingID, confirmReplacement: replacementConfirmed)
+                    try vault.importFile(file, parsed: parsed, app: destination, team: team, password: password, confirmUnknownTeam: confirmed, key: key, p8: metadata, replacingID: replacingID, confirmReplacement: replacementConfirmed)
                 }
                 lastSavedID = id
                 completedItems.append("保存済み：" + file.name)

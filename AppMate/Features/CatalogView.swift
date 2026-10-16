@@ -4,7 +4,7 @@ import UserNotifications
 import UniformTypeIdentifiers
 
 enum CredentialScope: Hashable {
-    case all, expired, expiring, trash, credential(UUID), app(UUID), shared(P8Purpose)
+    case all, expired, expiring, trash, credential(UUID), app(UUID), team(UUID)
 
     var title: String {
         switch self {
@@ -14,7 +14,7 @@ enum CredentialScope: Hashable {
         case .expired: "期限切れ"
         case .expiring: "30日以内に期限"
         case .app: "App"
-        case .shared(let purpose): purpose.title + " の鍵"
+        case .team: "チームの鍵・証明書"
         }
     }
 }
@@ -51,6 +51,10 @@ struct CatalogView: View {
         guard case .app(let id) = selection else { return nil }
         return apps.first { $0.id == id }
     }
+    private var credentialTeam: DeveloperTeam? {
+        guard case .team(let id) = selection else { return selectedApp?.team }
+        return teams.first { $0.id == id }
+    }
     private var rootApps: [ManagedApp] { apps.filter { $0.deletedAt == nil && $0.parentAppID == nil } }
     private var sidebarApps: [ManagedApp] {
         rootApps.flatMap { collapsedApps.contains($0.id) ? [$0] : $0.targets }
@@ -80,7 +84,7 @@ struct CatalogView: View {
             onboarding = !onboardingCompleted && ProcessInfo.processInfo.environment["APP_MATE_TESTING"] != "1"
         }
         .onReceive(Timer.publish(every: 60, on: .main, in: .common).autoconnect()) { _ in clock = .now }
-        .onChange(of: selection) { _, _ in search = "" }
+        .onChange(of: selection) { _, _ in search = ""; typeFilter = .all }
         .onChange(of: selectedApp?.deletedAt) { _, deletedAt in
             if deletedAt != nil { selection = .all }
         }
@@ -91,9 +95,8 @@ struct CatalogView: View {
         }
         .sheet(isPresented: $onboarding, onDismiss: {
             guard !onboardingSources.isEmpty else { return }
-            if teams.isEmpty { addingTeam = true }
-            else if let app = apps.first(where: { $0.deletedAt == nil }) { selection = .app(app.id); addingFile = true }
-            else { addingApp = true }
+            if let team = teams.first { selection = .team(team.id); addingFile = true }
+            else { addingTeam = true }
         }) {
             OnboardingView { sources in
                 onboardingSources = sources
@@ -116,17 +119,17 @@ struct CatalogView: View {
             }
         }
         .sheet(isPresented: $addingTeam, onDismiss: {
-            if !onboardingSources.isEmpty && selectedTeam != nil { addingApp = true } else { onboardingSources = [] }
+            if !onboardingSources.isEmpty, let selectedTeam { selection = .team(selectedTeam); addingFile = true } else { onboardingSources = [] }
         }) {
             RegistrationForm(container: container, teams: teams, initialTeam: selectedTeam, isTeam: true) { id in
                 selectedTeam = id
-                selection = .all
+                selection = .team(id)
             }
         }
         .sheet(isPresented: $addingApp, onDismiss: {
             if !onboardingSources.isEmpty && selectedApp != nil { addingFile = true } else { onboardingSources = [] }
         }) {
-            RegistrationForm(container: container, teams: teams, initialTeam: selectedApp?.team?.id ?? selectedTeam, isTeam: false) { id in
+            RegistrationForm(container: container, teams: teams, initialTeam: credentialTeam?.id ?? selectedTeam, isTeam: false) { id in
                 selection = .app(id)
             }
         }
@@ -156,8 +159,8 @@ struct CatalogView: View {
                 .menuStyle(.borderlessButton).frame(width: 24).help("種類で絞り込む・チームを管理")
             Button("ファイルを追加", systemImage: "plus") { addingFile = true }
                 .buttonStyle(AppMateButtonStyle(primary: true))
-                .disabled(selectedApp == nil || CredentialSearch.hasQuery(search))
-                .help("左側で追加先のアプリを選択してください")
+                .disabled(credentialTeam == nil || CredentialSearch.hasQuery(search))
+                .help("左側で保管先のチームまたはアプリを選択してください")
         }.padding(.horizontal, 16).frame(height: 52).background(AppMateStyle.sidebar)
     }
 
@@ -180,27 +183,27 @@ struct CatalogView: View {
                     sidebarItem("すべて", symbol: "circle", scope: .all, count: active.count)
                     sidebarItem("最近削除した項目", symbol: "trash", scope: .trash,
                                 count: credentials.filter { $0.deletedAt != nil }.count + apps.filter { $0.deletedAt != nil }.count)
-                    sidebarHeading("アプリ").padding(.top, 10)
-                    ForEach(rootApps) { root in
-                        VStack(alignment: .leading, spacing: 2) {
-                            sidebarApp(root)
-                            if !collapsedApps.contains(root.id) {
-                                ForEach(root.targets.dropFirst()) { target in
-                                    sidebarApp(target).padding(.leading, 40)
+                    ForEach(teams) { team in
+                        sidebarHeading(team.name).padding(.top, 10)
+                        sidebarItem("チームの鍵・証明書", symbol: "key", scope: .team(team.id),
+                                    count: active.filter { $0.isTeamShared && $0.team?.id == team.id }.count)
+                        ForEach(rootApps.filter { $0.team?.id == team.id }) { root in
+                            VStack(alignment: .leading, spacing: 2) {
+                                sidebarApp(root)
+                                if !collapsedApps.contains(root.id) {
+                                    ForEach(root.targets.dropFirst()) { target in sidebarApp(target).padding(.leading, 40) }
                                 }
-                            }
-                        }.padding(.bottom, 6)
+                            }.padding(.bottom, 6)
+                        }
                     }
-                    sidebarHeading("複数のアプリで使う鍵").padding(.top, 10)
-                    sidebarItem("App Store Connect の鍵", symbol: "lock", scope: .shared(.appStoreConnect))
-                    sidebarItem("プッシュ通知の鍵", symbol: "lock", scope: .shared(.apns))
-                    sidebarItem("Sign in with Apple の鍵", symbol: "lock", scope: .shared(.signInWithApple))
 
                 }.font(.system(size: 13)).buttonStyle(.borderless).padding(.horizontal, 10).padding(.top, 14)
             }
             .focusable().focusEffectDisabled()
             .onMoveCommand { direction in
-                let scopes: [CredentialScope] = (expiredCount > 0 ? [.expired] : []) + (expiringCount > 0 ? [.expiring] : []) + [.all, .trash] + sidebarApps.map { .app($0.id) } + [.shared(.appStoreConnect), .shared(.apns), .shared(.signInWithApple)]
+                let scopes: [CredentialScope] = (expiredCount > 0 ? [.expired] : []) + (expiringCount > 0 ? [.expiring] : []) + [.all, .trash] + teams.flatMap { team in
+                    [.team(team.id)] + sidebarApps.filter { $0.team?.id == team.id }.map { .app($0.id) }
+                }
                 guard direction == .up || direction == .down else { return }
                 let index = scopes.firstIndex { $0 == selection } ?? (direction == .down ? -1 : scopes.count)
                 selection = scopes[min(max(index + (direction == .down ? 1 : -1), 0), scopes.count - 1)]
@@ -246,7 +249,7 @@ struct CatalogView: View {
         let isRoot = app.parentAppID == nil
         let grouped = isRoot && app.targets.count > 1
         let relevant = active.filter { record in
-            isRoot ? app.targets.contains { record.isVisible(in: $0) } : record.isVisible(in: app)
+            !record.isTeamShared && (isRoot ? app.targets.contains { record.isVisible(in: $0) } : record.isVisible(in: app))
         }
         let expired = relevant.contains { $0.displayState(at: clock) == .expired }
         let attention = relevant.contains { $0.displayState(at: clock).needsRenewal }
@@ -333,14 +336,8 @@ struct CatalogView: View {
             } description: {
                 Text("Apple Developerのチームを登録して、アプリと鍵を管理しましょう。")
             } actions: { Button("チームを追加") { addingTeam = true } }
-        } else if apps.filter({ $0.deletedAt == nil }).isEmpty && active.isEmpty {
-            ContentUnavailableView {
-                Label("アプリを追加しましょう", systemImage: "app.dashed")
-            } description: {
-                Text("名前・Bundle ID・プラットフォームを登録すると、ファイルを追加できます。")
-            } actions: { Button("アプリを追加") { addingApp = true } }
         } else {
-            CredentialAppView(app: CredentialSearch.hasQuery(search) ? nil : selectedApp, scope: selection ?? .all, container: container, importing: $addingFile, search: search, typeFilter: typeFilter, initialSources: onboardingSources)
+            CredentialAppView(app: CredentialSearch.hasQuery(search) ? nil : selectedApp, team: CredentialSearch.hasQuery(search) ? nil : credentialTeam, openTeam: { id in selection = .team(id) }, scope: selection ?? .all, container: container, importing: $addingFile, search: search, typeFilter: $typeFilter, initialSources: onboardingSources)
                 .id(selection)
         }
     }
@@ -445,7 +442,7 @@ struct RegistrationForm: View {
                 Text("Team IDは10文字の英大文字・数字です。Apple IDのパスワードは不要です。")
                     .font(.system(size: 12)).foregroundStyle(AppMateStyle.secondary)
             }
-            Text(isTeam ? "同じチームの証明書と鍵は、チーム内のすべてのアプリに表示します。アプリが0件でも鍵は保管します。" : "チームで共通の証明書と鍵は、このアプリにも自動で表示されます。")
+            Text(isTeam ? "証明書と鍵は、チームの一覧で保管します。アプリが0件でも追加できます。" : "このアプリのプロファイルはアプリの一覧に、鍵と証明書はチームの一覧に保管します。")
                 .font(.system(size: 12)).padding(14).frame(maxWidth: .infinity, alignment: .leading)
                 .background(isTeam ? AppMateStyle.warningBackground : AppMateStyle.selectedRow, in: RoundedRectangle(cornerRadius: 9))
             if let error { Label(error, systemImage: "exclamationmark.triangle").foregroundStyle(.red).textSelection(.enabled) }
@@ -603,10 +600,10 @@ struct OnboardingView: View {
                 Text("STEP \(step + 1) / 3").font(.system(size: 12, weight: .bold)).tracking(1).foregroundStyle(AppMateStyle.accent)
                 Text(titles[step]).font(.system(size: step == 0 ? 30 : 28, weight: .heavy)).lineSpacing(3).padding(.top, 8)
                 if step == 0 {
-                    Text("App Store に出すための鍵と証明書を、アプリごとに1か所で保管します。")
+                    Text("鍵と証明書はチームで、プロファイルはアプリごとに保管します。")
                         .font(.system(size: 14)).lineSpacing(5).foregroundStyle(AppMateStyle.secondary).padding(.top, 12)
                     VStack(alignment: .leading, spacing: 14) {
-                        feature("アプリごとに整理", detail: "どの鍵がどのアプリ用か、もう迷いません", symbol: "sidebar.left", color: AppMateStyle.accent, background: AppMateStyle.selectedRow)
+                        feature("保管先で整理", detail: "鍵と証明書はチーム、プロファイルはアプリにまとめます", symbol: "sidebar.left", color: AppMateStyle.accent, background: AppMateStyle.selectedRow)
                         feature("期限前にお知らせ", detail: "Macの通知許可後、期限前にお知らせします", symbol: "clock", color: AppMateStyle.warningText, background: AppMateStyle.warningBackground)
                         feature("このMacの中だけ", detail: "暗号化して保存。サーバーには送りません", symbol: "lock", color: AppMateStyle.successText, background: AppMateStyle.successBackground)
                     }.padding(.top, 22)

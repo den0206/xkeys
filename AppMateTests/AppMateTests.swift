@@ -231,11 +231,12 @@ final class AppMateTests: XCTestCase {
         let catalog = AppCatalog(context: vault.context)
         try catalog.setParent(nil, for: app, name: "Example App Store", platform: app.platform)
         try catalog.setParent(app.id, for: child, name: "Example Share App Store Extension", platform: child.platform)
-        let directory = URL(fileURLWithPath: "/tmp/app-mate-sidebar-check")
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("app-mate-sidebar-check", isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        for target in [app, child] {
+        let screens: [(String, CredentialScope)] = [("team", .team(try XCTUnwrap(app.team?.id))), ("app", .app(app.id)), ("target", .app(child.id))]
+        for (screen, scope) in screens {
             let navigation = AppNavigation()
-            navigation.scope = .app(target.id)
+            navigation.scope = scope
             for size in [NSSize(width: 1280, height: 800), NSSize(width: 960, height: 640)] {
                 let view = NSHostingView(rootView: CatalogView(container: vault.context.container, navigation: navigation).modelContainer(vault.context.container).preferredColorScheme(.dark))
                 let window = NSWindow(contentRect: NSRect(origin: .zero, size: size), styleMask: [.titled, .resizable], backing: .buffered, defer: false)
@@ -248,9 +249,9 @@ final class AppMateTests: XCTestCase {
                 let bitmap = try XCTUnwrap(view.bitmapImageRepForCachingDisplay(in: view.bounds))
                 view.cacheDisplay(in: view.bounds, to: bitmap)
                 let png = try XCTUnwrap(bitmap.representation(using: .png, properties: [:]))
-                try png.write(to: directory.appendingPathComponent("catalog-\(target.id == app.id ? "app" : "target")-\(Int(size.width)).png"))
+                try png.write(to: directory.appendingPathComponent("catalog-\(screen)-\(Int(size.width)).png"))
                 let attachment = XCTAttachment(data: png, uniformTypeIdentifier: "public.png")
-                attachment.name = "catalog-\(target.id == app.id ? "app" : "target")-\(Int(size.width))"
+                attachment.name = "catalog-\(screen)-\(Int(size.width))"
                 attachment.lifetime = .keepAlways
                 add(attachment)
                 XCTAssertGreaterThan(png.count, 1000)
@@ -307,8 +308,8 @@ final class AppMateTests: XCTestCase {
             ("backup", NSSize(width: 600, height: 620), AnyView(BackupView(container: container).modelContainer(container))),
             ("restore", NSSize(width: 640, height: 300), AnyView(BackupView(container: container, restoring: true))),
             ("ci-copy", NSSize(width: 600, height: 620), AnyView(CICopyView(vault: vault, record: try XCTUnwrap(sample)))),
-            ("import", NSSize(width: 720, height: 620), AnyView(CredentialImportView(app: app, vault: vault, existing: [], onSaved: { _ in }))),
-            ("p8-metadata", NSSize(width: 720, height: 620), AnyView(CredentialImportView(app: app, vault: vault, existing: [], initialSources: [importURL], onSaved: { _ in }))),
+            ("import", NSSize(width: 720, height: 620), AnyView(CredentialImportView(app: app, team: team, vault: vault, existing: [], onSaved: { _ in }))),
+            ("p8-metadata", NSSize(width: 720, height: 620), AnyView(CredentialImportView(app: app, team: team, vault: vault, existing: [], initialSources: [importURL], onSaved: { _ in }))),
             ("delete", NSSize(width: 460, height: 380), AnyView(CredentialDeleteConfirmation(record: try XCTUnwrap(sample), onDelete: {}))),
             ("trash", NSSize(width: 996, height: 700), AnyView(TrashView(vault: vault)))
         ]
@@ -717,18 +718,17 @@ final class AppMateTests: XCTestCase {
 
 
     @MainActor
-    func testSearchUsesMetadataAcrossTeamAppsWithoutOpeningSecrets() throws {
+    func testSearchUsesStoredOwnerMetadataWithoutOpeningSecrets() throws {
         let (_, first, sibling, other) = try makeVault()
         first.name = "写真カメラ"
         let record = StoredCredential(file: CredentialFile(data: Data("private-key-byte-sentinel".utf8), name: "AuthKey_FIXTURE.p8"),
                                       parsed: ParsedCredential(name: "開発用キー", kind: "APNs", teamID: nil, bundleID: nil, expiresAt: nil),
                                       app: first, team: try XCTUnwrap(first.team), savePassword: false,
                                       p8: P8Metadata(purpose: .apns, keyID: "DUMMYKEY01", issuerID: nil))
-        for query in ["", "  \n　", "dummykey01", "AUTHKEY_fixture", "Fixture Team", "TESTTEAM01", "写真", sibling.bundleID,
-                      "写真 dummykey01", "TESTTEAM01　apns"] {
+        for query in ["", "  \n　", "dummykey01", "AUTHKEY_fixture", "Fixture Team", "TESTTEAM01", "TESTTEAM01　apns"] {
             XCTAssertTrue(CredentialSearch.matches(record, query: query), query)
         }
-        for query in ["private-key-byte-sentinel", "ForeignOrganization", "TESTTEAM02", "写真 missing-value", other.id.uuidString] {
+        for query in ["private-key-byte-sentinel", "ForeignOrganization", "TESTTEAM02", "写真", sibling.bundleID, "写真 dummykey01", "写真 missing-value", other.id.uuidString] {
             XCTAssertFalse(CredentialSearch.matches(record, query: query), query)
         }
         XCTAssertTrue(record.isVisible(in: sibling))
@@ -748,6 +748,78 @@ final class AppMateTests: XCTestCase {
                 XCTAssertEqual(filter.matches(record), filter == .all || filter == expected)
             }
         }
+    }
+
+    @MainActor
+    func testTeamScopeIncludesAllSharedFormatsAndExcludesAppProfilesAndOtherTeams() throws {
+        let (_, app, sibling, other) = try makeVault()
+        let team = try XCTUnwrap(app.team)
+        for ext in ["cer", "p12", "p8", "mobileprovision"] {
+            let record = StoredCredential(file: CredentialFile(data: Data(ext.utf8), name: "sample." + ext),
+                parsed: ParsedCredential(name: ext, kind: "テスト", teamID: team.teamID, bundleID: nil, expiresAt: nil),
+                app: app, team: team, savePassword: false)
+            func includes(_ scope: CredentialScope, app: ManagedApp? = nil) -> Bool {
+                CredentialSearch.includes(record, scope: scope, app: app, query: "", type: .all, showReplaced: false, at: .now)
+            }
+            XCTAssertEqual(includes(.team(team.id)), ext != "mobileprovision")
+            XCTAssertFalse(includes(.team(try XCTUnwrap(other.team?.id))))
+            XCTAssertEqual(includes(.app(app.id), app: app), ext == "mobileprovision")
+            XCTAssertFalse(includes(.app(sibling.id), app: sibling))
+        }
+    }
+
+    @MainActor
+    func testPurposeFiltersSeparateSigningCAAndAllP8Purposes() throws {
+        let (_, app, _, _) = try makeVault()
+        let team = try XCTUnwrap(app.team)
+        for purpose in P8Purpose.allCases {
+            let record = StoredCredential(file: CredentialFile(data: Data([1]), name: "key.p8"),
+                parsed: ParsedCredential(name: "key", kind: "鍵", teamID: nil, bundleID: nil, expiresAt: nil),
+                app: nil, team: team, savePassword: false, p8: P8Metadata(purpose: purpose, keyID: "DUMMYKEY01", issuerID: nil))
+            XCTAssertTrue(CredentialPurposeFilter.all.matches(record))
+            let expected: CredentialPurposeFilter = switch purpose {
+            case .appStoreConnect: .appStoreConnect
+            case .apns: .apns
+            case .signInWithApple: .signInWithApple
+            }
+            XCTAssertEqual(CredentialPurposeFilter.allCases.filter { $0 != .all && $0.matches(record) }, [expected])
+            record.keyPurpose = nil
+            XCTAssertTrue(CredentialPurposeFilter.unspecified.matches(record))
+        }
+        let ca = StoredCredential(file: CredentialFile(data: Data([1]), name: "ca.cer"),
+            parsed: ParsedCredential(name: "CA", kind: ParsedCredential.intermediateCAKind, teamID: nil, bundleID: nil, expiresAt: nil),
+            app: nil, team: team, savePassword: false)
+        XCTAssertTrue(CredentialPurposeFilter.intermediateCA.matches(ca))
+        XCTAssertFalse(CredentialPurposeFilter.signing.matches(ca))
+    }
+
+    @MainActor
+    func testTeamImportNeedsNoAppsAndPreservesDuplicateAndReplacementValidation() throws {
+        let (vault, app, _, other) = try makeVault()
+        defer { try? FileManager.default.removeItem(at: vault.blobs.directory) }
+        let team = DeveloperTeam(name: "Empty Team", teamID: "EMPTYTEAM1")
+        vault.context.insert(team)
+        try vault.context.save()
+        XCTAssertTrue(team.apps.isEmpty)
+        let key = SymmetricKey(size: .bits256)
+        let file = p8File()
+        let parsed = try CredentialParser.parse(file.data, extension: "p8")
+        let metadata = P8Metadata(purpose: .apns, keyID: "DUMMYKEY01", issuerID: nil)
+        let id = try vault.importFile(file, parsed: parsed, app: nil, team: team, password: nil, confirmUnknownTeam: false, key: key, p8: metadata)
+        let record = try XCTUnwrap(vault.records().first { $0.id == id })
+        XCTAssertNil(record.app)
+        XCTAssertEqual(record.team?.id, team.id)
+        XCTAssertEqual(try vault.read(record, key: key).original, file.data)
+        XCTAssertThrowsError(try vault.importFile(file, parsed: parsed, app: nil, team: team, password: nil, confirmUnknownTeam: false, key: key, p8: metadata))
+        XCTAssertThrowsError(try vault.validate(file: file, parsed: parsed, app: app, team: team, confirmUnknownTeam: false, p8: metadata))
+        let next = p8File()
+        let nextParsed = try CredentialParser.parse(next.data, extension: "p8")
+        XCTAssertThrowsError(try vault.validate(file: next, parsed: nextParsed, app: nil, team: try XCTUnwrap(other.team), confirmUnknownTeam: false, p8: metadata, replacingID: id, confirmReplacement: true))
+        let nextID = try vault.importFile(next, parsed: nextParsed, app: nil, team: team, password: nil, confirmUnknownTeam: false, key: key, p8: metadata, replacingID: id, confirmReplacement: true)
+        XCTAssertEqual(record.replacedByID, nextID)
+        XCTAssertTrue(team.apps.isEmpty)
+        let profile = CredentialFile(data: try fixture("mobileprovision"), name: "sample.mobileprovision")
+        XCTAssertThrowsError(try vault.validate(file: profile, parsed: CredentialParser.parse(profile.data, extension: "mobileprovision"), app: nil, team: try XCTUnwrap(app.team), confirmUnknownTeam: true))
     }
 
     @MainActor

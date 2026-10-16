@@ -61,7 +61,7 @@ final class StoredCredential {
     var replacesCredentialID: UUID?
     var replacedByID: UUID?
 
-    init(file: CredentialFile, parsed: ParsedCredential, app: ManagedApp, team: DeveloperTeam, savePassword: Bool, p8: P8Metadata? = nil) {
+    init(file: CredentialFile, parsed: ParsedCredential, app: ManagedApp?, team: DeveloperTeam, savePassword: Bool, p8: P8Metadata? = nil) {
         let ext = (file.name as NSString).pathExtension.lowercased()
         let shared = ext == "cer" || ext == "p12" || ext == "p8"
         let hash = SHA256.hash(data: file.data).map { String(format: "%02x", $0) }.joined()
@@ -80,7 +80,7 @@ final class StoredCredential {
         hasSavedPassword = ext == "p12" && savePassword
         self.team = team
         self.app = shared ? nil : app
-        registrationKey = "\(team.id)|\(shared ? "team" : app.id.uuidString)|\(hash)"
+        registrationKey = "\(team.id)|\(shared ? "team" : app?.id.uuidString ?? "")|\(hash)"
         metadataVersion = 2
         keyPurpose = p8?.purpose.rawValue
         keyID = p8?.keyID
@@ -223,9 +223,12 @@ struct CredentialVault {
         try blobs.removeOrphans(keeping: Set(records.map { $0.blobID ?? $0.id } + (try context.fetch(FetchDescriptor<ManagedApp>())).compactMap(\.noteBlobID)))
     }
 
-    func validate(file: CredentialFile, parsed: ParsedCredential, app: ManagedApp, confirmUnknownTeam: Bool,
+    func validate(file: CredentialFile, parsed: ParsedCredential, app: ManagedApp?, team explicitTeam: DeveloperTeam? = nil, confirmUnknownTeam: Bool,
                   p8: P8Metadata? = nil, replacingID: UUID? = nil, confirmReplacement: Bool = false) throws {
-        guard let team = app.team, app.modelContext === context, app.deletedAt == nil else { throw VaultError.invalidAssociation }
+        guard let team = explicitTeam ?? app?.team, team.modelContext === context else { throw VaultError.invalidAssociation }
+        if let app {
+            guard app.modelContext === context, app.deletedAt == nil, app.team?.id == team.id else { throw VaultError.invalidAssociation }
+        }
         let ext = (file.name as NSString).pathExtension.lowercased()
         guard ["cer", "p12", "p8", "mobileprovision", "provisionprofile"].contains(ext) else { throw VaultError.unsupported }
         if ext == "p8" {
@@ -236,34 +239,35 @@ struct CredentialVault {
             guard sourceTeam == team.teamID else { throw VaultError.teamMismatch }
         } else if ext != "p8" && !(ext == "cer" && parsed.isIntermediateCA) && !confirmUnknownTeam { throw VaultError.confirmTeam }
         if ext == "mobileprovision" || ext == "provisionprofile" {
-            guard let bundle = parsed.bundleID, Self.profileMatches(bundle, bundleID: app.bundleID) else { throw VaultError.bundleMismatch }
+            guard let app, let bundle = parsed.bundleID, Self.profileMatches(bundle, bundleID: app.bundleID) else { throw VaultError.bundleMismatch }
         }
         let candidate = StoredCredential(file: file, parsed: parsed, app: app, team: team, savePassword: false)
         guard try !records().contains(where: { $0.registrationKey == candidate.registrationKey }) else { throw VaultError.duplicate }
         if let replacingID {
             guard confirmReplacement else { throw VaultError.replacementConfirmation }
-            _ = try replacementTarget(replacingID, fileExtension: ext, purpose: p8?.purpose.rawValue, app: app)
+            _ = try replacementTarget(replacingID, fileExtension: ext, purpose: p8?.purpose.rawValue, app: app, team: team)
         }
     }
 
-    private func replacementTarget(_ id: UUID, fileExtension ext: String, purpose: String?, app: ManagedApp) throws -> StoredCredential {
-        guard let old = try records().first(where: { $0.id == id }), old.isVisible(in: app), old.replacedByID == nil,
+    private func replacementTarget(_ id: UUID, fileExtension ext: String, purpose: String?, app: ManagedApp?, team: DeveloperTeam) throws -> StoredCredential {
+        guard let old = try records().first(where: { $0.id == id }), old.team?.id == team.id, old.deletedAt == nil,
+              (old.isTeamShared || (app != nil && old.app?.id == app?.id)), old.replacedByID == nil,
               old.fileExtension == ext, old.keyPurpose == purpose else { throw VaultError.invalidReplacement }
         return old
     }
 
     @discardableResult
-    func importFile(_ file: CredentialFile, parsed: ParsedCredential, app: ManagedApp, password: String?,
+    func importFile(_ file: CredentialFile, parsed: ParsedCredential, app: ManagedApp?, team explicitTeam: DeveloperTeam? = nil, password: String?,
                     confirmUnknownTeam: Bool, key: SymmetricKey, p8: P8Metadata? = nil,
                     replacingID: UUID? = nil, confirmReplacement: Bool = false, beforeCommit: () throws -> Void = {}) throws -> UUID {
         guard !context.hasChanges else { throw RestoreError.pendingChanges }
-        try validate(file: file, parsed: parsed, app: app, confirmUnknownTeam: confirmUnknownTeam,
+        try validate(file: file, parsed: parsed, app: app, team: explicitTeam, confirmUnknownTeam: confirmUnknownTeam,
                      p8: p8, replacingID: replacingID, confirmReplacement: confirmReplacement)
-        guard let team = app.team else { throw VaultError.invalidAssociation }
+        guard let team = explicitTeam ?? app?.team else { throw VaultError.invalidAssociation }
         guard (password?.utf8.count ?? 0) <= 4096 else { throw ValidationError.tooLarge }
         context.autosaveEnabled = false
         let metadata = try p8?.validated()
-        let old = try replacingID.map { try replacementTarget($0, fileExtension: (file.name as NSString).pathExtension.lowercased(), purpose: metadata?.purpose.rawValue, app: app) }
+        let old = try replacingID.map { try replacementTarget($0, fileExtension: (file.name as NSString).pathExtension.lowercased(), purpose: metadata?.purpose.rawValue, app: app, team: team) }
         if let old { _ = try read(old, key: key) }
         var writtenID: UUID?
         do {

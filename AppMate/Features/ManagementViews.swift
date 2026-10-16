@@ -223,12 +223,11 @@ struct CredentialDeleteConfirmation: View {
                     .background(AppMateStyle.dangerBackground.opacity(0.6), in: RoundedRectangle(cornerRadius: 10))
             }
             if record.isTeamShared {
-                let apps = record.team?.apps.filter { $0.deletedAt == nil } ?? []
-                Label(apps.isEmpty ? "チームで共通の資格情報です" : apps.map(\.name).sorted().joined(separator: "・") + " の\(apps.count)アプリで使っています", systemImage: "sidebar.left")
+                Label("保管先：チーム「\(record.team?.name ?? "未設定")」。実際の利用アプリは記録していません。", systemImage: "person.2")
                     .font(.system(size: 13)).padding(12).frame(maxWidth: .infinity, alignment: .leading)
                     .background(AppMateStyle.sidebar, in: RoundedRectangle(cornerRadius: 10))
             }
-            Text("\(record.isTeamShared ? "すべての共有先の一覧から外れます。" : "このアプリの専用ファイルを削除します。")Apple側の鍵やCIの設定は変更しません。30日間は元に戻せます。")
+            Text("\(record.isTeamShared ? "チームの鍵・証明書の一覧から外れます。" : "このアプリの専用ファイルを削除します。")Apple側の鍵やCIの設定は変更しません。30日間は元に戻せます。")
                 .font(.system(size: 12)).foregroundStyle(AppMateStyle.secondary)
             HStack(spacing: 8) {
                 Spacer()
