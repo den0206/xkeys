@@ -1,6 +1,6 @@
 # App Mate 仕様
 
-現在の実装に対応する動作と保存形式。開発手順・確認状況は[IMPLEMENTATION.md](IMPLEMENTATION.md)、外観の参照は[画面モック](mockups/index.html)にまとめる。
+現在の実装に対応する動作と保存形式。開発手順・確認状況は[IMPLEMENTATION.md](IMPLEMENTATION.md)にまとめる。
 
 ## 対応環境と範囲
 
@@ -130,4 +130,4 @@ CIコピーは.p8 / .p12のbase64、Key ID、Issuer ID、Team ID、保存済み.
 
 システムフォント、ID等は等幅、アクセントは `#0A64D6`。状態は色と文言で示す。標準コントロールとアクセシビリティラベルを使うが、全操作のキーボード・VoiceOver確認は未完了。
 
-[画面モック](mockups/index.html)の14画面と状態見本をデザイン参照として保持する。固定寸法・入力値・件数は架空の比較用で、実装と完全一致する保証ではない。設計時は利用者指定の[tana](https://github.com/den0206/tana)と[ai-m-thinking](https://github.com/den0206/ai-m-thinking)を参考にした。コード・画像は複製していない。
+設計時は利用者指定の[tana](https://github.com/den0206/tana)と[ai-m-thinking](https://github.com/den0206/ai-m-thinking)を参考にした。コード・画像は複製していない。
