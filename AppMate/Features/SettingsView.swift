@@ -50,8 +50,6 @@ struct AppSettingsView: View {
 
                             settingsGroup("このMacの認証") {
                                 Label("Touch ID またはMacのパスワードで確認します", systemImage: "lock.shield").padding(14)
-                                Divider()
-                                LabeledContent("自動ロック", value: "5分後").padding(14)
                             }
                             Text("秘密情報の操作は毎回認証します。5分間の無操作・スリープ・画面ロックで秘密表示を閉じます。")
                                 .foregroundStyle(AppMateStyle.secondary)

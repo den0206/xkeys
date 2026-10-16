@@ -264,7 +264,6 @@ struct CredentialAppView: View {
                         Divider()
                     }
                     Toggle("置き換え済みを表示", isOn: $showReplaced)
-                    Button("ロック", systemImage: "lock") { lock() }
                 } label: { Image(systemName: "ellipsis") }
                     .menuStyle(.borderlessButton).menuIndicator(.hidden)
                     .frame(width: 28, height: 28).help("表示と管理").accessibilityLabel("表示と管理")
@@ -533,7 +532,6 @@ struct CredentialAppView: View {
                             Menu {
                                 Button(record.revokedAt == nil ? "認証して手動失効にする" : "認証して手動失効を解除") { manage(record, trash: false) }
                                 Button("ファイルの識別情報…") { showingIdentity = true }
-                                Button("ロック", systemImage: "lock") { lock() }
                             } label: { Image(systemName: "ellipsis") }
                                 .menuStyle(.borderlessButton).menuIndicator(.hidden)
                                 .frame(width: 28, height: 28).accessibilityLabel("資格情報の管理")
@@ -577,6 +575,7 @@ struct CredentialAppView: View {
         }
     }
 
+    // Discards selections and revealed values on sleep, screen lock and view changes; every secret operation authenticates anew.
     private func lock(dismissImport: Bool = true) {
         access.lock()
         deleting = false
@@ -593,7 +592,7 @@ struct CredentialAppView: View {
         selected = nil
         revealedPassword = nil
         error = nil
-        status = "ロックしました。書き出すときは再認証します。"
+        status = ""
     }
 
     private func export(_ record: StoredCredential, revealInFinder: Bool = false) {

@@ -715,9 +715,9 @@ struct OnboardingView: View {
                         feature("Macの認証で守る", detail: "Touch ID またはMacのパスワードで確認します", symbol: "touchid", color: AppMateStyle.accent, background: AppMateStyle.selectedRow)
                             .padding(12).background(AppMateStyle.sidebar, in: RoundedRectangle(cornerRadius: 14))
                         HStack {
-                            feature("自動ロック", detail: "しばらく操作がないとロックします", symbol: "lock", color: AppMateStyle.secondary, background: AppMateStyle.search)
+                            feature("表示を自動で閉じる", detail: "パスワードやメモの表示は、操作がないと閉じます", symbol: "eye.slash", color: AppMateStyle.secondary, background: AppMateStyle.search)
                             Spacer(minLength: 0)
-                            Text("5分後").font(.system(size: 12))
+                            Text("5分").font(.system(size: 12))
                         }.padding(12).background(AppMateStyle.sidebar, in: RoundedRectangle(cornerRadius: 14))
                     }.padding(.top, 18)
                 }
