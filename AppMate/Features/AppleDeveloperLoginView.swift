@@ -10,10 +10,15 @@ struct AppleDeveloperLoginView: View {
     @State private var session: AppleDeveloperSession
     @State private var account = ""
     @State private var password = ""
+    @State private var showPassword = false
     @State private var code = ""
     @State private var selection: String?
     @State private var error: String?
+    @State private var showCodeHelp = false
     @State private var work: Task<Void, Never>?
+    @FocusState private var focus: Field?
+
+    private enum Field { case account, password, code }
 
     init(onTeam: ((RemoteDeveloperTeam) throws -> Void)? = nil,
          onVerified: (() throws -> Void)? = nil,
@@ -23,90 +28,23 @@ struct AppleDeveloperLoginView: View {
         _session = State(initialValue: session)
     }
 
-    private var selectedTeamIsRegistered: Bool {
-        registeredTeams.contains { $0.teamID == selection }
+    private var trimmedAccount: String { account.trimmingCharacters(in: .whitespacesAndNewlines) }
+    private var selectedTeamIsRegistered: Bool { registeredTeams.contains { $0.teamID == selection } }
+    private var primaryTitle: String {
+        if onTeam == nil { return "所属を確認" }
+        return selectedTeamIsRegistered ? "このチームを開く" : "チームを追加"
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text(onTeam == nil ? "復元するチームへの所属を確認" : "チームを追加")
-                .font(.system(size: 18, weight: .bold))
-            if session.connected {
-                Text(onTeam == nil ? "Apple Developerの所属チーム" : "追加するチームを選択してください")
-                if onTeam != nil {
-                    Text("登録済みのチームを選ぶと、そのチームを開きます。")
-                        .font(.caption).foregroundStyle(AppMateStyle.secondary)
-                }
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 8) {
-                        ForEach(session.teams) { team in
-                            if onTeam != nil {
-                                Button { selection = team.id } label: { teamRow(team) }
-                                    .buttonStyle(.plain)
-                                    .accessibilityLabel("\(team.name)、Team ID \(team.teamID)")
-                                    .accessibilityValue(registeredTeams.contains { $0.teamID == team.id } ? "登録済み" : "未登録")
-                                    .accessibilityAddTraits(selection == team.id ? .isSelected : [])
-                            } else {
-                                teamRow(team)
-                            }
-                        }
-                    }
-                }.frame(maxHeight: 240)
-                Button("所属チームを更新") { run { try await session.resume() } }.disabled(session.busy)
-                Button("別のApple Accountでログイン…") {
-                    session.useAnotherAccount(); selection = nil; error = nil
-                }
-            } else if case let .waitingForSecondFactor(option, options, _) = session.authentication {
-                Text(secondFactorLabel(option)).foregroundStyle(AppMateStyle.secondary)
-                if option != .smsPendingChoice {
-                    SecureField("確認コード", text: $code).onSubmit { submitCode() }
-                    Button("確認コードを送信", action: submitCode).disabled(code.isEmpty || session.busy)
-                }
-                if let phones = options.trustedPhoneNumbers {
-                    ForEach(phones) { phone in
-                        Button("\(phone.numberWithDialCode)にSMSを送信") {
-                            run { try await session.sendSMS(phone) }
-                        }.disabled(session.busy)
-                    }
-                }
-                Button("ログインからやり直す") { session.useAnotherAccount(); code = ""; error = nil }
-            } else {
-                Text("所属チームを取得して登録します。証明書やプロファイルの取り込みは行いません。")
-                    .foregroundStyle(AppMateStyle.secondary)
-                TextField("Apple Account", text: $account).textContentType(.username)
-                SecureField("パスワード", text: $password).textContentType(.password).onSubmit { login() }
-                Text("パスワードは保存しません。接続情報はこのMacのKeychainに保存し、次回も利用します。")
-                    .font(.caption).foregroundStyle(AppMateStyle.secondary)
-                Button("Apple Developerにログイン", action: login)
-                    .disabled(account.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || password.isEmpty || session.busy)
-                Button("保存済みの接続で再試行") { run { try await session.resume() } }.disabled(session.busy)
+        VStack(alignment: .leading, spacing: 18) {
+            if session.connected { teams } else if case let .waitingForSecondFactor(option, options, _) = session.authentication { verification(option, options) } else { signIn }
+            if session.busy, session.connected || session.authentication != .unauthenticated {
+                HStack(spacing: 8) { ProgressView().controlSize(.small); Text("Appleに接続しています…") }.foregroundStyle(AppMateStyle.secondary)
             }
-            if session.busy { HStack { ProgressView().controlSize(.small); Text("Appleに接続しています…") } }
             if let error { Text(error).foregroundStyle(.red).textSelection(.enabled) }
-            Link("Apple Developerのアカウントを確認", destination: URL(string: "https://developer.apple.com/account/")!)
-                .font(.caption)
-            Divider()
-            HStack {
-                Button("接続を解除") {
-                    work?.cancel()
-                    do { try session.disconnect(); error = nil } catch { self.error = AppleDeveloperError.message(for: error) }
-                }.disabled(session.busy)
-                Spacer()
-                Button("キャンセル") { dismiss() }.keyboardShortcut(.cancelAction)
-                Button(onTeam == nil ? "所属を確認" : selectedTeamIsRegistered ? "このチームを開く" : "このチームを登録") {
-                    do {
-                        if let onTeam, let team = session.teams.first(where: { $0.id == selection }) { try onTeam(team) }
-                        else if let onVerified { try onVerified() }
-                        else { return }
-                        dismiss()
-                    } catch { self.error = AppleDeveloperError.message(for: error) }
-                }.buttonStyle(AppMateButtonStyle(primary: true))
-                    .disabled(!session.connected || session.busy || (onTeam != nil && selection == nil))
-            }
         }
-        .font(.system(size: 13)).textFieldStyle(.roundedBorder)
-        .buttonStyle(AppMateButtonStyle()).padding(24).frame(width: 540)
-        .background(AppMateStyle.canvas).foregroundStyle(AppMateStyle.text)
+        .font(.system(size: 13)).padding(32).frame(width: 440)
+        .background(AppMateStyle.canvas).foregroundStyle(AppMateStyle.text).tint(AppMateStyle.accent)
         .task {
             guard !session.connected else { return }
             run {
@@ -118,38 +56,205 @@ struct AppleDeveloperLoginView: View {
         .onChange(of: session.generation) { _, _ in password = ""; code = "" }
     }
 
+    private var signIn: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "apple.logo").font(.system(size: 36)).padding(.top, 8)
+            Text("Apple Developer にサインイン").font(.system(size: 20, weight: .bold))
+            Text("所属しているチームを読み込みます。\n証明書やプロファイルは取り込みません。")
+                .multilineTextAlignment(.center).foregroundStyle(AppMateStyle.secondary)
+            VStack(spacing: 0) {
+                if showPassword {
+                    Button { showPassword = false; password = ""; focus = .account } label: {
+                        Text(account).frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 14)
+                    }.buttonStyle(.plain).frame(height: 44)
+                    Divider()
+                    HStack(spacing: 6) {
+                        SecureField("パスワード", text: $password).textFieldStyle(.plain).textContentType(.password)
+                            .focused($focus, equals: .password).onSubmit(login)
+                        continueButton(enabled: !password.isEmpty, action: login)
+                    }.padding(.leading, 14).frame(height: 44)
+                } else {
+                    HStack(spacing: 6) {
+                        TextField("Apple Account", text: $account).textFieldStyle(.plain).textContentType(.username)
+                            .focused($focus, equals: .account).onSubmit(revealPassword)
+                        continueButton(enabled: !trimmedAccount.isEmpty, action: revealPassword)
+                    }.padding(.leading, 14).frame(height: 44)
+                }
+            }
+            .background(AppMateStyle.canvas, in: RoundedRectangle(cornerRadius: 10))
+            .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(focus == nil ? AppMateStyle.border : AppMateStyle.accent, lineWidth: focus == nil ? 1 : 2))
+            Link(showPassword ? "パスワードをお忘れの場合" : "Apple Account をお忘れの場合",
+                 destination: URL(string: showPassword ? "https://iforgot.apple.com/password/verify/appleid" : "https://iforgot.apple.com")!)
+            Text("パスワードは保存しません。サインイン後の接続情報はこのMacのキーチェーンに保存し、次回も使います。")
+                .font(.caption).foregroundStyle(AppMateStyle.secondary).multilineTextAlignment(.center)
+            HStack { Spacer(); Button("キャンセル") { dismiss() }.keyboardShortcut(.cancelAction).buttonStyle(AppMateButtonStyle()) }
+        }
+        .onAppear { focus = showPassword ? .password : .account }
+    }
+
+    private func verification(_ option: TwoFactorOption, _ options: AuthOptionsResponse) -> some View {
+        VStack(spacing: 16) {
+            Image(systemName: "apple.logo").font(.system(size: 36)).padding(.top, 8)
+            Text("2ファクタ認証").font(.system(size: 20, weight: .bold))
+            Text(secondFactorLabel(option)).multilineTextAlignment(.center).foregroundStyle(AppMateStyle.secondary)
+            if option == .smsPendingChoice {
+                if let phones = options.trustedPhoneNumbers {
+                    ForEach(phones) { phone in
+                        Button("\(phone.numberWithDialCode)にSMSを送信") { run { try await session.sendSMS(phone) } }
+                            .buttonStyle(AppMateButtonStyle()).disabled(session.busy)
+                    }
+                }
+            } else if option != .securityKey {
+                codeBoxes
+                Button("確認コードが届かない場合") { showCodeHelp = true }
+                    .buttonStyle(.borderless).foregroundStyle(AppMateStyle.accent)
+                    .popover(isPresented: $showCodeHelp, arrowEdge: .bottom) { codeHelp(options) }
+            }
+            HStack { Spacer(); Button("戻る") { session.useAnotherAccount(); showPassword = true; focus = .password }.buttonStyle(AppMateButtonStyle()) }
+        }
+        .onAppear { if option != .smsPendingChoice { focus = .code } }
+    }
+
+    private var codeBoxes: some View {
+        ZStack {
+            TextField("", text: $code).textFieldStyle(.plain).focused($focus, equals: .code)
+                .frame(width: 1, height: 1).opacity(0.01)
+                .onChange(of: code) { _, new in
+                    let digits = String(new.filter(\.isNumber).prefix(6))
+                    if digits != new { code = digits; return }
+                    if digits.count == 6, !session.busy { submitCode() }
+                }
+            HStack(spacing: 8) {
+                ForEach(0..<6, id: \.self) { index in
+                    if index == 3 { Spacer().frame(width: 8) }
+                    Text(code.count > index ? String(code[code.index(code.startIndex, offsetBy: index)]) : "")
+                        .font(.system(size: 22, weight: .semibold)).frame(width: 40, height: 50)
+                        .background(AppMateStyle.canvas, in: RoundedRectangle(cornerRadius: 8))
+                        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(code.count == index ? AppMateStyle.accent : AppMateStyle.border, lineWidth: code.count == index ? 2 : 1))
+                }
+            }.allowsHitTesting(false)
+        }
+        .frame(height: 50).contentShape(Rectangle()).onTapGesture { focus = .code }
+        .accessibilityElement(children: .ignore).accessibilityLabel("確認コード").accessibilityValue("\(code.count)桁入力済み")
+    }
+
+    private func codeHelp(_ options: AuthOptionsResponse) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            if let phones = options.trustedPhoneNumbers, !phones.isEmpty {
+                ForEach(phones) { phone in
+                    Button("\(phone.numberWithDialCode)にSMSを送信") {
+                        showCodeHelp = false
+                        run { try await session.sendSMS(phone) }
+                    }.buttonStyle(AppMateButtonStyle())
+                }
+            } else {
+                Text("信頼済みのApple端末に表示されたコードを確認してください。")
+                    .foregroundStyle(AppMateStyle.secondary)
+            }
+        }.padding(16).frame(width: 280)
+    }
+
+    private var teams: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 10) {
+                Text(trimmedAccount.first.map { String($0).uppercased() } ?? "A")
+                    .font(.system(size: 11, weight: .bold)).foregroundStyle(.white)
+                    .frame(width: 24, height: 24).background(Color.gray, in: Circle())
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(trimmedAccount.isEmpty ? "接続中" : trimmedAccount)
+                    Text("Apple Developer に接続中").font(.caption).foregroundStyle(AppMateStyle.secondary)
+                }
+                Spacer()
+                Menu("アカウント") {
+                    Button("チームを再読み込み") { run { try await session.resume() } }
+                    Button("別のApple Accountでサインイン") { switchAccount() }
+                    Divider()
+                    Button("サインアウト") {
+                        do { try session.disconnect(); switchAccount() } catch { self.error = AppleDeveloperError.message(for: error) }
+                    }
+                }.menuStyle(.borderlessButton).fixedSize()
+            }
+            Text(onTeam == nil ? "所属を確認" : "追加するチーム").font(.system(size: 20, weight: .bold))
+            Text(onTeam == nil ? "このアカウントで確認できるチームです。" : "このアカウントが所属するチームです。")
+                .foregroundStyle(AppMateStyle.secondary)
+            if session.teams.isEmpty {
+                Text("このApple Accountには所属チームがありません。").foregroundStyle(AppMateStyle.secondary)
+                Button("別のApple Accountでサインイン", action: switchAccount).buttonStyle(.borderless).foregroundStyle(AppMateStyle.accent)
+            } else {
+                ScrollView {
+                    VStack(spacing: 0) {
+                        ForEach(session.teams) { team in
+                            if onTeam != nil {
+                                Button { selection = team.id } label: { teamRow(team) }.buttonStyle(.plain)
+                                    .accessibilityLabel("\(team.name)、Team ID \(team.teamID)")
+                                    .accessibilityValue(registeredTeams.contains { $0.teamID == team.id } ? "登録済み" : "未登録")
+                                    .accessibilityAddTraits(selection == team.id ? .isSelected : [])
+                            } else { teamRow(team) }
+                        }
+                    }
+                }.frame(maxHeight: 240)
+                    .background(AppMateStyle.canvas, in: RoundedRectangle(cornerRadius: 10))
+                    .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(AppMateStyle.border))
+            }
+            Link("チームが表示されない場合", destination: URL(string: "https://developer.apple.com/account/")!)
+            HStack {
+                Spacer()
+                Button("キャンセル") { dismiss() }.keyboardShortcut(.cancelAction).buttonStyle(AppMateButtonStyle())
+                Button(primaryTitle, action: commit).buttonStyle(AppMateButtonStyle(primary: true)).keyboardShortcut(.defaultAction)
+                    .disabled(!session.connected || session.busy || session.teams.isEmpty || (onTeam != nil && selection == nil))
+            }
+        }
+    }
+
     private func teamRow(_ team: RemoteDeveloperTeam) -> some View {
         let registered = registeredTeams.contains { $0.teamID == team.id }
         let selected = onTeam != nil && selection == team.id
         return HStack(spacing: 12) {
             if onTeam != nil {
-                Image(systemName: selected ? "largecircle.fill.circle" : "circle")
-                    .foregroundStyle(selected ? AppMateStyle.accent : AppMateStyle.secondary)
+                Circle().strokeBorder(selected ? AppMateStyle.accent : AppMateStyle.secondary, lineWidth: selected ? 5 : 1.5).frame(width: 16, height: 16)
             }
-            VStack(alignment: .leading, spacing: 4) {
-                Text(team.name).fontWeight(.medium)
-                Text("Team ID: " + team.teamID).font(.system(.caption, design: .monospaced))
-                    .foregroundStyle(AppMateStyle.secondary)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(team.name).fontWeight(.semibold)
+                Text(team.teamID).font(.system(.caption, design: .monospaced)).foregroundStyle(AppMateStyle.secondary)
             }
             Spacer()
-            Label(registered ? "登録済み" : "未登録", systemImage: registered ? "checkmark.circle.fill" : "plus.circle")
-                .font(.caption).foregroundStyle(registered ? AppMateStyle.accent : AppMateStyle.secondary)
-                .padding(.horizontal, 8).padding(.vertical, 4)
-                .background(registered ? AppMateStyle.selectedRow : AppMateStyle.canvas, in: Capsule())
+            if registered { Text("登録済み").font(.caption).foregroundStyle(AppMateStyle.secondary) }
         }
-        .padding(12).frame(maxWidth: .infinity, alignment: .leading)
-        .background(selected ? AppMateStyle.selectedRow : AppMateStyle.canvas, in: RoundedRectangle(cornerRadius: 8))
-        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(selected ? AppMateStyle.accent : AppMateStyle.border, lineWidth: selected ? 2 : 1))
+        .padding(.horizontal, 14).padding(.vertical, 11).frame(maxWidth: .infinity, alignment: .leading)
+        .background(selected ? AppMateStyle.selectedRow : .clear)
+        .overlay(alignment: .bottom) { Divider().opacity(team.id == session.teams.last?.id ? 0 : 1) }
         .contentShape(Rectangle())
+    }
+
+    private func continueButton(enabled: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Group {
+                if session.busy { ProgressView().controlSize(.small) }
+                else { Image(systemName: "arrow.right").font(.system(size: 13, weight: .bold)) }
+            }
+            .foregroundStyle(.white).frame(width: 30, height: 30)
+            .background(enabled && !session.busy ? AppMateStyle.accent : AppMateStyle.border, in: Circle())
+        }.buttonStyle(.plain).disabled(!enabled || session.busy).padding(.trailing, 6)
     }
 
     private func secondFactorLabel(_ option: TwoFactorOption) -> String {
         switch option {
-        case .codeSent: "信頼済みのApple端末に表示された確認コードを入力してください。"
-        case .smsSent(let phone): "\(phone.numberWithDialCode)に届いた確認コードを入力してください。"
+        case .codeSent: "ほかのApple製デバイスに確認コードを送信しました。\n6桁のコードを入力してください。"
+        case .smsSent(let phone): "\(phone.numberWithDialCode)に確認コードを送信しました。\n6桁のコードを入力してください。"
         case .smsPendingChoice: "確認コードを受け取る電話番号を選んでください。"
         case .securityKey: "この認証方式にはまだ対応していません。"
         }
+    }
+
+    private func revealPassword() {
+        guard !trimmedAccount.isEmpty else { return }
+        showPassword = true
+        focus = .password
+    }
+    private func switchAccount() {
+        session.useAnotherAccount()
+        account = ""; password = ""; code = ""; showPassword = false; selection = nil; error = nil
+        focus = .account
     }
     private func login() {
         let secret = password
@@ -160,6 +265,14 @@ struct AppleDeveloperLoginView: View {
         let secret = code
         code = ""
         run { try await session.submit(code: secret) }
+    }
+    private func commit() {
+        do {
+            if let onTeam, let team = session.teams.first(where: { $0.id == selection }) { try onTeam(team) }
+            else if let onVerified { try onVerified() }
+            else { return }
+            dismiss()
+        } catch { self.error = AppleDeveloperError.message(for: error) }
     }
     private func run(_ action: @escaping @MainActor () async throws -> Void) {
         guard !session.busy else { return }
