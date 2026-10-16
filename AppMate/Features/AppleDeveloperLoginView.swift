@@ -13,10 +13,12 @@ struct AppleDeveloperLoginView: View {
     @State private var account = ""
     @State private var password = ""
     @State private var showPassword = false
+    @State private var passwordVisible = false
     @State private var code = ""
     @State private var selection: String?
     @State private var error: String?
     @State private var showCodeHelp = false
+    @State private var running = false
     @State private var work: Task<Void, Never>?
     @FocusState private var focus: Field?
 
@@ -33,6 +35,7 @@ struct AppleDeveloperLoginView: View {
         _session = State(initialValue: session)
     }
 
+    private var busy: Bool { running || session.busy }
     private var trimmedAccount: String { account.trimmingCharacters(in: .whitespacesAndNewlines) }
     private var selectedTeamIsRegistered: Bool { registeredTeams.contains { $0.teamID == selection } }
     private var primaryTitle: String {
@@ -53,22 +56,22 @@ struct AppleDeveloperLoginView: View {
         VStack(alignment: .leading, spacing: 18) {
             LoginSteps(current: step)
             if session.connected {
-                teams
+                teams.disabled(busy)
             } else if case .authenticated = session.authentication {
                 VStack(alignment: .leading, spacing: 16) {
                     Text("Apple Developer にサインイン済み").font(.system(size: 20, weight: .bold))
-                    if !session.busy {
+                    if !busy {
                         Button("再読み込み") { run { try await session.resume() } }
                             .buttonStyle(AppMateButtonStyle(primary: true))
                     }
                     Button("キャンセル") { dismiss() }.buttonStyle(AppMateButtonStyle())
                 }
             } else if case let .waitingForSecondFactor(option, options, _) = session.authentication {
-                verification(option, options)
+                verification(option, options).disabled(busy)
             } else {
                 signIn
             }
-            if session.busy, session.connected || session.authentication != .unauthenticated {
+            if busy, step != 2 {
                 HStack(spacing: 8) { ProgressView().controlSize(.small); Text("Appleに接続しています…") }.foregroundStyle(AppMateStyle.secondary)
             }
             if let error { Text(error).foregroundStyle(.red).textSelection(.enabled) }
@@ -82,8 +85,8 @@ struct AppleDeveloperLoginView: View {
                 catch AppleDeveloperError.loginRequired { }
             }
         }
-        .onDisappear { work?.cancel(); password = ""; code = ""; session.cancelAttempt() }
-        .onChange(of: session.generation) { _, _ in password = ""; code = "" }
+        .onDisappear { work?.cancel(); password = ""; passwordVisible = false; code = ""; session.cancelAttempt() }
+        .onChange(of: session.generation) { _, _ in password = ""; passwordVisible = false; code = "" }
     }
 
     private var signIn: some View {
@@ -99,8 +102,16 @@ struct AppleDeveloperLoginView: View {
                     }.buttonStyle(.plain).frame(height: 44)
                     Divider()
                     HStack(spacing: 6) {
-                        SecureField("パスワード", text: $password).textFieldStyle(.plain).textContentType(.password)
+                        Group {
+                            if passwordVisible { TextField("パスワード", text: $password) }
+                            else { SecureField("パスワード", text: $password) }
+                        }.textFieldStyle(.plain).textContentType(.password)
                             .focused($focus, equals: .password).onSubmit(login)
+                        Button { passwordVisible.toggle(); focus = .password } label: {
+                            Image(systemName: passwordVisible ? "eye.slash" : "eye").frame(width: 24, height: 24)
+                        }.buttonStyle(.plain)
+                            .help(passwordVisible ? "パスワードを隠す" : "パスワードを表示")
+                            .accessibilityLabel(passwordVisible ? "パスワードを隠す" : "パスワードを表示")
                         continueButton(enabled: !password.isEmpty, action: login)
                     }.padding(.leading, 14).frame(height: 44)
                 } else {
@@ -111,6 +122,7 @@ struct AppleDeveloperLoginView: View {
                     }.padding(.leading, 14).frame(height: 44)
                 }
             }
+            .disabled(busy)
             .background(AppMateStyle.canvas, in: RoundedRectangle(cornerRadius: 10))
             .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(focus == nil ? AppMateStyle.border : AppMateStyle.accent, lineWidth: focus == nil ? 1 : 2))
             Link(showPassword ? "パスワードをお忘れの場合" : "Apple Account をお忘れの場合",
@@ -126,19 +138,24 @@ struct AppleDeveloperLoginView: View {
         VStack(spacing: 16) {
             Image(systemName: "apple.logo").font(.system(size: 36)).padding(.top, 8)
             Text("2ファクタ認証").font(.system(size: 20, weight: .bold))
-            Text(secondFactorLabel(option)).multilineTextAlignment(.center).foregroundStyle(AppMateStyle.secondary)
-            if option == .smsPendingChoice {
-                if let phones = options.trustedPhoneNumbers {
-                    ForEach(phones) { phone in
-                        Button("\(phone.numberWithDialCode)にSMSを送信") { run { try await session.sendSMS(phone) } }
-                            .buttonStyle(AppMateButtonStyle()).disabled(session.busy)
+            if busy {
+                ProgressView("Appleに認証情報を確認しています…")
+                    .frame(maxWidth: .infinity, minHeight: 120)
+            } else {
+                Text(secondFactorLabel(option)).multilineTextAlignment(.center).foregroundStyle(AppMateStyle.secondary)
+                if option == .smsPendingChoice {
+                    if let phones = options.trustedPhoneNumbers {
+                        ForEach(phones) { phone in
+                            Button("\(phone.numberWithDialCode)にSMSを送信") { run { try await session.sendSMS(phone) } }
+                                .buttonStyle(AppMateButtonStyle()).disabled(busy)
+                        }
                     }
+                } else if option != .securityKey {
+                    codeBoxes
+                    Button("確認コードが届かない場合") { showCodeHelp = true }
+                        .buttonStyle(.borderless).foregroundStyle(AppMateStyle.accent)
+                        .popover(isPresented: $showCodeHelp, arrowEdge: .bottom) { codeHelp(options) }
                 }
-            } else if option != .securityKey {
-                codeBoxes
-                Button("確認コードが届かない場合") { showCodeHelp = true }
-                    .buttonStyle(.borderless).foregroundStyle(AppMateStyle.accent)
-                    .popover(isPresented: $showCodeHelp, arrowEdge: .bottom) { codeHelp(options) }
             }
             HStack { Spacer(); Button("戻る") { session.useAnotherAccount(); showPassword = true; focus = .password }.buttonStyle(AppMateButtonStyle()) }
         }
@@ -152,7 +169,7 @@ struct AppleDeveloperLoginView: View {
                 .onChange(of: code) { _, new in
                     let digits = String(new.filter(\.isNumber).prefix(6))
                     if digits != new { code = digits; return }
-                    if digits.count == 6, !session.busy { submitCode() }
+                    if digits.count == 6, !busy { submitCode() }
                 }
             HStack(spacing: 8) {
                 ForEach(0..<6, id: \.self) { index in
@@ -231,7 +248,7 @@ struct AppleDeveloperLoginView: View {
                 Spacer()
                 Button("キャンセル") { dismiss() }.keyboardShortcut(.cancelAction).buttonStyle(AppMateButtonStyle())
                 Button(primaryTitle, action: commit).buttonStyle(AppMateButtonStyle(primary: true)).keyboardShortcut(.defaultAction)
-                    .disabled(!session.connected || session.busy || session.teams.isEmpty || (onTeam != nil && selection == nil))
+                    .disabled(!session.connected || busy || session.teams.isEmpty || (onTeam != nil && selection == nil))
             }
         }
     }
@@ -259,12 +276,12 @@ struct AppleDeveloperLoginView: View {
     private func continueButton(enabled: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Group {
-                if session.busy { ProgressView().controlSize(.small) }
+                if busy { ProgressView().controlSize(.small) }
                 else { Image(systemName: "arrow.right").font(.system(size: 13, weight: .bold)) }
             }
             .foregroundStyle(.white).frame(width: 30, height: 30)
-            .background(enabled && !session.busy ? AppMateStyle.accent : AppMateStyle.border, in: Circle())
-        }.buttonStyle(.plain).disabled(!enabled || session.busy).padding(.trailing, 6)
+            .background(enabled && !busy ? AppMateStyle.accent : AppMateStyle.border, in: Circle())
+        }.buttonStyle(.plain).disabled(!enabled || busy).padding(.trailing, 6)
     }
 
     private func secondFactorLabel(_ option: TwoFactorOption) -> String {
@@ -279,19 +296,23 @@ struct AppleDeveloperLoginView: View {
     private func revealPassword() {
         guard !trimmedAccount.isEmpty else { return }
         showPassword = true
+        passwordVisible = false
         focus = .password
     }
     private func switchAccount() {
         session.useAnotherAccount()
-        account = ""; password = ""; code = ""; showPassword = false; selection = nil; error = nil
+        account = ""; password = ""; passwordVisible = false; code = ""; showPassword = false; selection = nil; error = nil
         focus = .account
     }
     private func login() {
+        guard !busy, !password.isEmpty else { return }
         let secret = password
+        passwordVisible = false
         password = ""
         run { try await session.login(account: account, password: secret) }
     }
     private func submitCode() {
+        guard !busy, code.count == 6 else { return }
         let secret = code
         code = ""
         run { try await session.submit(code: secret) }
@@ -305,9 +326,12 @@ struct AppleDeveloperLoginView: View {
         } catch { self.error = AppleDeveloperError.message(for: error) }
     }
     private func run(_ action: @escaping @MainActor () async throws -> Void) {
-        guard !session.busy else { return }
+        guard !busy else { return }
         work?.cancel(); error = nil
+        running = true
+        focus = nil
         work = Task { @MainActor in
+            defer { running = false }
             do { try await action() }
             catch { if !Task.isCancelled { self.error = AppleDeveloperError.message(for: error) } }
         }
