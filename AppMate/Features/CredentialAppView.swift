@@ -84,6 +84,8 @@ struct CredentialAppView: View {
     @State private var access = VaultAccess()
     @State private var selected: UUID?
     @State private var droppedSources: [URL] = []
+    @State private var panelSources: [URL] = []
+    @State private var dropTargeted = false
     @State private var clock = Date.now
     @State private var onlineImporting = false
     @State private var error: String?
@@ -222,10 +224,33 @@ struct CredentialAppView: View {
         .onChange(of: targetFilter) { _, _ in lock(dismissImport: false) }
         .dropDestination(for: URL.self) { urls, _ in
             guard team != nil, app?.deletedAt == nil, !CredentialSearch.hasQuery(search),
-                  !urls.isEmpty, !access.busy, !importing else { return false }
-            droppedSources = urls
-            importing = true
+                  !urls.isEmpty, !access.busy, !importing, panelSources.isEmpty else { return false }
+            panelSources = urls
             return true
+        } isTargeted: { dropTargeted = $0 && team != nil && app?.deletedAt == nil && !CredentialSearch.hasQuery(search) }
+        .overlay {
+            if dropTargeted {
+                VStack(spacing: 10) {
+                    Image(systemName: "square.and.arrow.down").font(.system(size: 28)).foregroundStyle(AppMateStyle.accent)
+                    Text("離すと \(app?.name ?? "鍵と証明書") に追加します").font(.system(size: 17, weight: .bold))
+                    Text("証明書と鍵は「鍵と証明書」に入ります").font(.system(size: 12)).foregroundStyle(AppMateStyle.secondary)
+                }.frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(AppMateStyle.selectedRow.opacity(0.94), in: RoundedRectangle(cornerRadius: 14))
+                    .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(AppMateStyle.accent, style: StrokeStyle(lineWidth: 2, dash: [7, 5])))
+                    .padding(10).allowsHitTesting(false)
+            }
+        }
+        .overlay(alignment: .bottomTrailing) {
+            if !panelSources.isEmpty, let team {
+                DropImportPanel(sources: panelSources, app: app, team: team, vault: vault, openSheet: { urls in
+                    panelSources = []
+                    droppedSources = urls
+                    importing = true
+                }, close: { id in
+                    panelSources = []
+                    if let id { selected = id }
+                }).padding(20).id(panelSources)
+            }
         }
     }
 
