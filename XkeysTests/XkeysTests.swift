@@ -65,6 +65,8 @@ final class XkeysTests: XCTestCase {
         context.insert(first); context.insert(sibling); context.insert(other)
         try context.save()
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent("XkeysTests", isDirectory: true).appendingPathComponent(UUID().uuidString)
+        // Registered here so every caller cleans up, including makeIsolatedVault's Quarantine folder next to its blobs.
+        addTeardownBlock { try? FileManager.default.removeItem(at: directory) }
         return (CredentialVault(context: context, blobs: EncryptedBlobStore(directory: directory)), first, sibling, other)
     }
 

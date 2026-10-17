@@ -44,6 +44,7 @@ extension XkeysTests {
     func testFolderImportDoesNotFollowSymlinksOrDuplicateFiles() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("XkeysTests/" + UUID().uuidString)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
         let file = root.appendingPathComponent("a.cer")
         try Data([1]).write(to: file)
         try Data([2]).write(to: root.appendingPathComponent("ignore.txt"))

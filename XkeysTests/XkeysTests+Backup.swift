@@ -428,6 +428,7 @@ extension XkeysTests {
         let approvalPlan1 = try await restoreAuthorization(for: plan)
         XCTAssertThrowsError(try restore.merge(plan, choices: [:], authorization: approvalPlan1, key: key, replacingAll: true))
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("XkeysTests/" + UUID().uuidString + ".xkeysbackup")
+        defer { try? FileManager.default.removeItem(at: url) }
         let archive = try BackupArchive.encode(current, password: nil)
         XCTAssertThrowsError(try SafetyBackup.export(Data([0]), password: nil, snapshot: current, to: url))
         let proof = try SafetyBackup.export(archive, password: nil, snapshot: current, to: url)
