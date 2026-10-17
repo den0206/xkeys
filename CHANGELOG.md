@@ -6,6 +6,10 @@ The format follows Keep a Changelog conventions and releases use semantic versio
 
 ## [Unreleased]
 
+### Changed
+
+- Added English and Japanese READMEs, separate usage documentation, and a pre-publication documentation security review.
+
 ## [0.1.0] — 2026-10-17
 
 ### Added

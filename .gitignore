@@ -5,3 +5,6 @@ DerivedData/
 xcuserdata/
 
 .env
+
+# Local security review artifacts
+/CLAUDE-SECURITY-*/

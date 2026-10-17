@@ -1,87 +1,126 @@
+<p align="center">
+  <img src="Xkeys/Resources/DesignAssets.xcassets/AppIcon.appiconset/icon_128x128@2x.png" width="128" alt="Xkeys">
+</p>
+
 # Xkeys
 
-Apple開発者向けの鍵・証明書・プロビジョニングプロファイル管理アプリ。**macOS 26.0以降**に対応し、SwiftUIとSwiftDataで実装しています。データをこのMacに暗号化保存し、期限は一覧とDockバッジで確認します。Apple Developerへのログイン・所属チームの確認時に外部通信を行います。iCloud同期・自動起動は行いません。
+[![Release](https://github.com/den0206/xkeys/actions/workflows/release.yml/badge.svg)](https://github.com/den0206/xkeys/actions/workflows/release.yml)
 
-Apple Developer認証には[XcodesLoginKit](https://github.com/XcodesOrg/XcodesLoginKit)を使用します。信頼済み端末・SMSの確認コードに対応します。フェデレーション認証とセキュリティキーは今回の対象外です。Team IDの手入力はありません。
+**English** | [日本語](README_JP.md)
 
-ログインセッションはこのMac専用のKeychain項目に保存し、再起動・画面ロック・スリープ後も再利用します。Apple Accountのパスワードや確認コードは保存しません。「設定 → セキュリティ → Apple Developer → ログアウト」で削除できます。セッションの期限切れ時には再ログインが必要です。
+A macOS app for managing Apple Developer keys, certificates, and provisioning profiles. Organize credentials by team, app, and target, keep the original files encrypted on your Mac, and track expiry dates in the app and Dock badge.
 
-未登録Team IDを含むバックアップは、すべての対象チームへの所属確認が必要です。脱退などで確認できない場合は復元できません。登録済みTeamだけならオフラインで復元できます。チームの「鍵・証明書」画面にある「Apple Developerから取り込む…」で、証明書・プロファイルを選択して取り込めます。ダウンロード済みの.p8と証明書の秘密鍵は取得できません。
+## Requirements
 
-## 起動
+- macOS 26.0 or later
+- Apple Developer team membership to register teams and import credentials online
+- For development: Xcode 27.0 / Swift 6.4 and Apple Development signing
+
+## Install
+
+Release builds are distributed through [this repository’s GitHub Releases](https://github.com/den0206/xkeys/releases). When a release is available, download `Xkeys-X.Y.Z.dmg`, open it, and move `Xkeys.app` to `/Applications`.
+
+The release workflow signs the app with Developer ID and notarizes the DMG. Xkeys is not distributed through the Mac App Store.
+
+## Features
+
+- Import `.p8`, `.cer`, `.p12`, `.mobileprovision`, and `.provisionprofile` files, individually or in batches
+- Sign in to Apple Developer to register teams and download certificates and provisioning profiles
+- Group a main app, extensions, and widgets by their Bundle IDs
+- View expiry dates, search across teams, and filter by credential type
+- Keep encrypted notes and optionally save `.p12` passwords
+- Copy credential values or export original files after authentication
+- Create CI secret files in `.env` format
+- Restore deleted items for 30 days
+- Create password-protected backups and restore with conflict review
+- Japanese and English UI, following the system language
+
+To get started, sign in to Apple Developer, choose a team, add your apps, and import files. Keys and certificates are shared within a team; provisioning profiles belong to individual app targets.
+
+Detailed instructions (Japanese): [User guide](docs/USAGE.md).
+
+## Privacy and security
+
+- Original credential files, notes, and saved `.p12` passwords are encrypted locally with AES-GCM. The encryption key is stored in this Mac’s device-only Keychain. Credential metadata, such as names, identifiers, and expiry dates, is stored separately in SwiftData.
+- Sensitive operations require Touch ID or your Mac password. There is no iCloud sync or automatic launch at login.
+- Apple Developer connections use [XcodesLoginKit](https://github.com/XcodesOrg/XcodesLoginKit). Apple Account passwords and verification codes are not saved. Session cookies are stored in this Mac’s Keychain and removed on logout.
+- Network requests go to Apple (`idmsa.apple.com`, `developer.apple.com`, and `appstoreconnect.apple.com`) for sign-in, team verification, online imports, and key service lookup. There are no analytics, advertising, or tracking services.
+- Exported original files, unprotected backups, and CI `.env` files are outside the vault’s encryption protection. Store backups safely and delete exported secret files after registering their values in CI.
+
+Online integration uses Apple’s private web APIs and may need updates when Apple changes them. Trusted-device and SMS verification codes are supported; federated authentication and security keys are not supported. Xkeys cannot retrieve previously downloaded `.p8` files or certificate private keys, and does not check online revocation status.
+
+Restoring a backup containing unregistered teams requires verification of membership in every such team. If membership cannot be verified, those backups cannot be restored. Backups containing only registered teams can be restored offline.
+
+Details (Japanese): [Design and storage format](docs/DESIGN.md).
+
+## Development
+
+### Xcode
+
+Open `Xkeys.xcodeproj`, select the **Xkeys** scheme and **My Mac**, and run. In **Signing & Capabilities**, select your development team for both **Xkeys** and **XkeysTests** and ensure the dedicated Keychain Sharing group is configured. Sensitive storage requires Apple Development signing; ad hoc signing is not supported.
 
 ### VS Code / Cursor
 
-1. リポジトリを開き、推奨拡張機能 **CodeLLDB** をインストールする。
-2. 「実行とデバッグ」で **Run Xkeys Debug.app** を選び、**F5** を押す。
+1. Install the recommended **CodeLLDB** extension.
+2. Open the repository root.
+3. Select **Run Xkeys Debug.app** in Run and Debug, then press **F5**.
 
-ビルドだけなら **⇧⌘B**。通常ビルドの出力先は `.build/xcode/Build/Products/Debug/Xkeys Dev.app` です。
+The debug build is named **Xkeys Dev** and uses a separate container and encryption key from the release app.
 
-### Xcodeと署名
+### Command line
 
-`Xkeys.xcodeproj` を開き、scheme **Xkeys**、実行先 **My Mac** で実行します。開発環境はXcode 27.0 / Swift 6.4です。
+```sh
+xcodebuild -project Xkeys.xcodeproj -scheme Xkeys \
+  -configuration Debug -destination 'platform=macOS' \
+  -derivedDataPath .build/xcode build
 
-秘密情報の保管にはApple Development署名が必要です。別の開発環境では **Signing & Capabilities** で利用するTeamを選び、Keychain Sharingの専用グループが設定されていることを確認してください。アドホック署名では使えません。
+xcodebuild -project Xkeys.xcodeproj -scheme Xkeys \
+  -destination 'platform=macOS,arch=arm64' \
+  -derivedDataPath /tmp/xkeys-tests test
+```
 
-F5で `No Account for Team` / `No profiles` が出る場合は、最初に次の設定を行ってください。
+The test scheme uses `XKEYS_TESTING=1`, in-memory storage, temporary files, and injected keys. Do not use production credentials or backups for tests.
 
-1. Xcode → **Settings → Accounts** で開発用Apple Accountを追加する。登録済みなら再認証する。
-2. `Xkeys.xcodeproj` を開き、ターゲット **Xkeys → Signing & Capabilities** で **Automatically manage signing** を有効にし、利用できる **Team** を選ぶ。現在のXkeysターゲットの指定は `4KJFNVZ8R6`。テストを実行する場合は **XkeysTests** のTeamも合わせる。
-3. Xcodeで **Xkeys / My Mac** を一度ビルドし、署名エラーが解消してからF5を実行する。
+Signing troubleshooting and verification scope (Japanese): [Development guide](docs/IMPLEMENTATION.md).
 
-F5のビルドはプロビジョニングプロファイルの自動更新を許可しますが、Apple Accountの追加・再認証はXcodeで行う必要があります。
+## Release
 
-Bundle IDはRelease `com.yuuki.xkeys`、Debug `com.yuuki.xkeys.dev`。Debugはアプリ名を「Xkeys Dev」にし、アイコンに「DEBUG」のリボンを付けているので、DockやFinder、メニューバーで配布版と区別できます。開発ビルドは配布版とコンテナ・暗号鍵を共有しません。Bundle IDや署名Teamを変更すると、既存のコンテナ・暗号鍵をそのまま利用できない場合があります。データの移行にはバックアップを使用してください。
+Pushing a `release/Ver_X.Y.Z` branch runs the Release workflow: validate the version, release notes, and required secrets; run tests; build and sign the app and DMG; notarize the DMG; publish it to GitHub Releases; and move the English `[Unreleased]` notes in `CHANGELOG.md` into the released version on `main`.
 
-ReleaseはDeveloper ID Applicationと手動管理のプロファイル `Xkeys Developer ID` で署名します。配布版はGitHub ActionsがビルドするのでF5の開発には影響しません。手元でReleaseをビルドする場合は、XcodeのSettings → Accountsで「Download Manual Profiles」を実行してください。
+Distribution runs through GitHub Actions. Signing credentials belong in GitHub Actions Secrets; never commit their values or exported `.env` files.
 
-## アプリとターゲット
+Details (Japanese): [Release guide](docs/RELEASE.md).
 
-本体・Share Extension・Widgetなど、Bundle IDが異なるターゲットを1つのアプリにまとめて管理できます。既存のAppはそのまま本体ターゲットになります。
+## Documentation
 
-- 追加：サイドバーのアプリを右クリック、またはアプリ画面右上の「…」から **ターゲットを追加…**。
-- 登録済みのAppをまとめる：拡張側の **App・ターゲットを編集… → 所属アプリ** で本体を選んで保存。「独立したアプリ（本体）」で解除できます。
-- アプリを選ぶと配下のプロファイルをまとめて表示。サイドバーにはアプリだけを1行ずつ出し、ターゲットはアプリ画面上部のボタンで絞り込みます。証明書・.p8は引き続きTeamで共有し、「鍵と証明書」に表示します。
-- プロファイル取り込み：一致するBundle IDのターゲットを選択します。未登録なら **このアプリにターゲットを追加…** から登録できます。Bundle IDが似ているだけでは自動でグループ化しません。
-- アプリ画面はターゲットごとに表示します。各ターゲット行の「…」→「ターゲットとプロファイルを削除…」で、登録と配下のプロファイルをまとめて削除します。本体の「アプリと全ターゲットを削除…」はアプリ全体が対象です。確認画面に名前・Bundle ID・件数を表示します。
-- 本体の削除は配下のターゲットも対象です。アプリを選んでバックアップすると、配下のターゲットも含みます。
+The detailed guides below are in Japanese; the changelog is in English.
 
-## 主な操作
+- [User guide](docs/USAGE.md)
+- [Design and storage format](docs/DESIGN.md)
+- [Development and verification](docs/IMPLEMENTATION.md)
+- [Release guide](docs/RELEASE.md)
+- [Documentation security review](docs/SECURITY_REVIEW.md)
+- [Changelog](CHANGELOG.md)
 
-| 操作 | 使い方 |
-| --- | --- |
-| アプリアイコン | 登録・編集画面で色または1MB以下のPNG・JPEG・SVG画像を選択 |
-| Apple Developerログイン | パスワード欄の目のボタンで入力中の文字を表示・非表示に切り替え。送信時に入力内容を消去 |
-| 登録・編集 | Apple Developerにログインして所属Teamを選択し、Appの名前・Bundle ID・プラットフォームを追加。登録画面の点線の枠にプロファイルをドロップするか、枠をクリックして選ぶと、名前・Bundle ID・Teamを自動で入力し、登録後にそのプロファイルの取り込み画面を開く（Bundle IDを書き換えた場合は開かない）。サイドバー上部のチーム切り替えで表示するチームを選択。同じメニューの「登録済みチームを管理…」から全チームの名前・Team IDを確認し、編集・削除 |
-| 取り込み | 「鍵と証明書」の「Apple Developer から取り込む」でオンライン一覧から選択、または「ファイルを追加」。アプリや「鍵と証明書」の画面にファイルをドロップすると、取り込み画面を開かずに追加できます（.p8 など確認が必要なものは取り込み画面を開きます）。確認が終わった全件を Touch ID 1回で保存。鍵・証明書はチーム、プロファイルは対象Appに保管 |
-| .p12 | 選択後にだけパスワード欄を表示。目のボタンで入力中の文字を表示・非表示。パスワードの暗号化保存は任意 |
-| .p8 | 用途を選択（Maps・WeatherKitなど複数可）。Key IDはダウンロード時のファイル名から自動入力。ログイン中なら「Apple Developerから用途を取得」で有効なサービスを反映。App Store Connect APIの場合はIssuer IDも入力 |
-| 更新 | 新しいファイルを「ファイルを追加」で取り込み、不要になった旧ファイルは削除する |
-| 詳細 | 一覧の行を選ぶと、行の中に「コピー」「書き出す」と「…」メニュー、詳細を表示。元形式で書き出し、暗号化メモ、.p8の用途の確認・変更（Apple側の変更は自動では反映しない）、保存済みパスワードの表示、「コピー」で元ファイルのbase64・Key ID・Issuer ID・保存済み.p12パスワードをコピー |
-| 削除・復元 | ターゲットは行の「…」から配下のプロファイルとまとめて削除。ファイルだけを削除する場合は詳細の「…」→「このプロファイルだけを削除…」、または一覧右上の「…」→「ファイルだけを一括削除…」。登録は残ります。「最近削除した項目」で登録と配下のプロファイルをまとめて復元できます。チーム共有の鍵・証明書は独立して削除・復元。30日経過後は次回起動・認証時に整理 |
-| バックアップ | サイドバー下部の「バックアップが必要／バックアップ済み · 前回」を押してバックアップ画面を開き、書き出し。全体またはAppを選択でき、初期値はパスワード保護あり |
-| 復元 | 未登録Team IDがある場合はApple Developerで所属を確認し、差分と競合を確認してマージ。全体置き換えでは現在の全データの事前退避が必須（データが空で設定も初期値なら不要） |
-| CI用Secretファイル | アプリ画面右上の「…」→「CI 用の Secret ファイルを作成…」。プロファイル・.p12・ASCの.p8などを自動で選び（ほかの用途の.p8は用途のアイコン付きで選択可能）、変数名を必要に応じて編集して .env 形式で書き出す。ファイル名は保存時に変更可能。各 CI の Secrets 設定に貼り付けて登録する。書き出したファイルは暗号化されないため、登録後に削除する |
-| 検索 | 全Team・Appのメタデータを複数語で検索。種別フィルターと併用可能。⌘Fで検索欄へ移動 |
-| 設定 | サイドバー右下の歯車から開き、Dockバッジの表示を変更して保存 |
-| アカウント | サイドバー下部にApple Developerのログイン中のアカウントを表示。押すとログイン・再ログイン・ログアウトを選択。チームが未登録のときは代わりに「チームを追加」を表示し、前回のログインが残っていればそのアカウントの所属チームから選べる |
+## Project layout
 
-証明書・秘密鍵はチームの一覧で保管し、プロファイルはApp専用です。App画面からチームの一覧へ移動できます。一覧は種類別のセクションに分かれ、見出しで開閉できます。証明書には、それを使っているアプリとターゲットを表示します。一覧は種類ごとに色分けしたカードで、名前・Bundle ID／使っているアプリ／用途・期限の列をそろえて表示します。複数の証明書を含む.p12は、基準にしなかった証明書を「同梱の証明書」として表示し、プロファイルとのつながりにも使います。鍵を実際に利用するAppは記録しません。Apple側の所属確認は、チーム登録・未登録チームを含むバックアップの復元・オンライン取り込みの時に行います。Appを削除しても共有鍵は残ります。元ファイルは変更・削除しません。Apple側の失効状態は照会しません。
+```text
+Xkeys/Application/      App entry point and windows
+Xkeys/Features/         Screens and user workflows
+Xkeys/Models/           Teams, apps, and validation
+Xkeys/Services/         Parsing, authentication, search, and preferences
+Xkeys/Persistence/      Encrypted storage, backups, and restore
+Xkeys/Resources/        Assets and localization
+XkeysTests/             XCTest and synthetic fixtures
+scripts/                Notarization script
+.github/workflows/      Release workflow
+docs/                   User, design, development, and release guides
+```
 
-秘密情報の操作はTouch IDまたはMacのパスワードで毎回認証します。バックアップは元ファイル・メモ・保存済みパスワード等を含むため、安全な場所で保管してください。パスワードなしの書き出しには再確認が必要です。
+## Status
 
-## プライバシー
+The scope of completed checks and remaining on-device checks is tracked in the [Development guide](docs/IMPLEMENTATION.md). These records do not mean that every production workflow has been verified.
 
-- 鍵・証明書・プロファイル・メモ・.p12パスワードはこのMacにだけ保存し、AES-GCMで暗号化します。暗号鍵はこのMac専用のKeychainにあり、iCloud同期やほかの端末への移行はしません。
-- 通信先はApple（`idmsa.apple.com`・`developer.apple.com`・`appstoreconnect.apple.com`）だけです。ログイン・チーム確認・オンライン取り込み・.p8の用途取得の時に通信します。開発者や第三者のサーバーへは送信しません。
-- Apple Accountのパスワードと確認コードは保存しません。ログインセッションのCookieはこのMac専用のKeychainに保存し、ログアウトで削除します。
-- 解析・広告・トラッキングの仕組みはありません。
+## License
 
-## ドキュメント
-
-- [仕様と保存形式](docs/DESIGN.md)：実装に対応する動作・制約・安全設計
-- [開発と確認状況](docs/IMPLEMENTATION.md)：コード構成、テスト手順、未確認項目
-- [リリース手順](docs/RELEASE.md)：バージョンの付け方、GitHub ActionsでのDeveloper ID署名・公証・DMG作成とSecrets
-- [変更履歴](CHANGELOG.md)
-
-画面の確認範囲は[開発と確認状況](docs/IMPLEMENTATION.md)に記載しています。
+This repository does not currently include a license for its original code. Public availability alone does not grant permission to reuse or redistribute it. Third-party dependencies retain their own licenses.

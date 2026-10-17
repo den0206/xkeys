@@ -1,6 +1,6 @@
 # 開発と確認状況
 
-操作は[README](../README.md)、動作と保存形式は[DESIGN.md](DESIGN.md)にまとめる。
+操作は[操作ガイド](USAGE.md)、動作と保存形式は[DESIGN.md](DESIGN.md)にまとめる。
 
 ## 開発環境
 
@@ -16,6 +16,33 @@ swift --version
 ```
 
 F5は `.vscode/launch.json` から通常のDebugビルドを実行する。CodeLLDBが必要で、出力先は `.build/xcode`。署名設定はXcodeプロジェクトを使用する。テストホストの追加権限を持つアプリをF5から起動しない。
+
+## ビルド・実行
+
+### VS Code / Cursor
+
+1. リポジトリを開き、推奨拡張機能 **CodeLLDB** をインストールする。
+2. 「実行とデバッグ」で **Run Xkeys Debug.app** を選び、**F5** を押す。
+
+ビルドだけなら **⇧⌘B**。通常ビルドの出力先は `.build/xcode/Build/Products/Debug/Xkeys Dev.app` です。
+
+### Xcodeと署名
+
+`Xkeys.xcodeproj` を開き、scheme **Xkeys**、実行先 **My Mac** で実行します。開発環境はXcode 27.0 / Swift 6.4です。
+
+秘密情報の保管にはApple Development署名が必要です。別の開発環境では **Signing & Capabilities** で利用するTeamを選び、Keychain Sharingの専用グループが設定されていることを確認してください。アドホック署名では使えません。
+
+F5で `No Account for Team` / `No profiles` が出る場合は、最初に次の設定を行ってください。
+
+1. Xcode → **Settings → Accounts** で開発用Apple Accountを追加する。登録済みなら再認証する。
+2. `Xkeys.xcodeproj` を開き、ターゲット **Xkeys → Signing & Capabilities** で **Automatically manage signing** を有効にし、利用できる **Team** を選ぶ。テストを実行する場合は **XkeysTests** のTeamも合わせる。
+3. Xcodeで **Xkeys / My Mac** を一度ビルドし、署名エラーが解消してからF5を実行する。
+
+F5のビルドはプロビジョニングプロファイルの自動更新を許可しますが、Apple Accountの追加・再認証はXcodeで行う必要があります。
+
+Bundle IDはRelease `com.yuuki.xkeys`、Debug `com.yuuki.xkeys.dev`。Debugはアプリ名を「Xkeys Dev」にし、アイコンに「DEBUG」のリボンを付けているので、DockやFinder、メニューバーで配布版と区別できます。開発ビルドは配布版とコンテナ・暗号鍵を共有しません。Bundle IDや署名Teamを変更すると、既存のコンテナ・暗号鍵をそのまま利用できない場合があります。データの移行にはバックアップを使用してください。
+
+ReleaseはDeveloper ID Applicationと手動管理のプロファイル `Xkeys Developer ID` で署名します。配布版はGitHub ActionsがビルドするのでF5の開発には影響しません。手元でReleaseをビルドする場合は、XcodeのSettings → Accountsで「Download Manual Profiles」を実行してください。
 
 ## コード構成
 
