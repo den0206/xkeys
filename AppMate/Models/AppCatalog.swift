@@ -64,14 +64,14 @@ enum RegistrationError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .invalidParent: "同じTeam内の、削除されていないアプリを選んでください。ターゲットを持つアプリは別のアプリの配下へ移動できません。"
-        case .nameRequired: "表示名を入力してください。"
-        case .invalidTeamID: "Team IDは英大文字と数字の10文字で入力してください。"
-        case .duplicateTeam: "このTeam IDは登録済みです。既存のTeamを選択してください。"
-        case .invalidBundleID: "Bundle IDは英数字・ハイフン・ピリオドで入力してください（例：com.example.app）。ワイルドカードは使えません。"
-        case .duplicateApp: "このTeamには同じBundle IDのAppが登録されています。"
-        case .invalidPlatform: "プラットフォームを選択してください。"
-        case .teamMissing: "登録先のTeamを選択してください。"
+        case .invalidParent: String(localized: "同じTeam内の、削除されていないアプリを選んでください。ターゲットを持つアプリは別のアプリの配下へ移動できません。")
+        case .nameRequired: String(localized: "表示名を入力してください。")
+        case .invalidTeamID: String(localized: "Team IDは英大文字と数字の10文字で入力してください。")
+        case .duplicateTeam: String(localized: "このTeam IDは登録済みです。既存のTeamを選択してください。")
+        case .invalidBundleID: String(localized: "Bundle IDは英数字・ハイフン・ピリオドで入力してください（例：com.example.app）。ワイルドカードは使えません。")
+        case .duplicateApp: String(localized: "このTeamには同じBundle IDのAppが登録されています。")
+        case .invalidPlatform: String(localized: "プラットフォームを選択してください。")
+        case .teamMissing: String(localized: "登録先のTeamを選択してください。")
         }
     }
 }

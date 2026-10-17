@@ -21,18 +21,18 @@ enum AppleDeveloperError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .invalidResponse: "Appleからの応答を確認できません。時間をおいて再試行してください。"
-        case .noTeams: "このApple Accountで利用できるDeveloperチームがありません。"
-        case .loginRequired: "Apple Developerにログインしてください。保存済みの接続は無効になっています。"
-        case .permissionDenied: "このApple Accountには必要なアクセス権がありません。"
-        case .agreementRequired: "Apple DeveloperのWebサイトで規約などの確認を完了してください。"
-        case .unsupportedLogin: "この認証方式にはまだ対応していません。信頼済み端末またはSMSの確認コードを利用できるアカウントが必要です。"
-        case .rateLimited: "Appleへの接続が制限されています。しばらく待って再試行してください。"
-        case .sessionStorage: "接続情報をKeychainで保存・取得・削除できませんでした。再試行してください。"
-        case .membershipRequired: "未登録のすべてのTeam IDへの所属を確認してから復元してください。"
-        case .teamAccessRequired: "選択中のチームに所属するApple Accountでログインしてください。"
-        case .importLimit: "一度に200ファイル・合計32MBまで取り込めます。対象を分けてください。"
-        case .busy: "別のApple Developerへの接続操作が進行中です。完了してから再試行してください。"
+        case .invalidResponse: String(localized: "Appleからの応答を確認できません。時間をおいて再試行してください。")
+        case .noTeams: String(localized: "このApple Accountで利用できるDeveloperチームがありません。")
+        case .loginRequired: String(localized: "Apple Developerにログインしてください。保存済みの接続は無効になっています。")
+        case .permissionDenied: String(localized: "このApple Accountには必要なアクセス権がありません。")
+        case .agreementRequired: String(localized: "Apple DeveloperのWebサイトで規約などの確認を完了してください。")
+        case .unsupportedLogin: String(localized: "この認証方式にはまだ対応していません。信頼済み端末またはSMSの確認コードを利用できるアカウントが必要です。")
+        case .rateLimited: String(localized: "Appleへの接続が制限されています。しばらく待って再試行してください。")
+        case .sessionStorage: String(localized: "接続情報をKeychainで保存・取得・削除できませんでした。再試行してください。")
+        case .membershipRequired: String(localized: "未登録のすべてのTeam IDへの所属を確認してから復元してください。")
+        case .teamAccessRequired: String(localized: "選択中のチームに所属するApple Accountでログインしてください。")
+        case .importLimit: String(localized: "一度に200ファイル・合計32MBまで取り込めます。対象を分けてください。")
+        case .busy: String(localized: "別のApple Developerへの接続操作が進行中です。完了してから再試行してください。")
         }
     }
 
@@ -42,25 +42,25 @@ enum AppleDeveloperError: LocalizedError {
         if let error = error as? AuthenticationError {
             switch error {
             case .invalidUsernameOrPassword, .missingPasswordForNonFederatedAccount:
-                return "Apple Accountまたはパスワードを確認してください。"
-            case .incorrectSecurityCode: return "確認コードが正しくありません。もう一度入力してください。"
+                return String(localized: "Apple Accountまたはパスワードを確認してください。")
+            case .incorrectSecurityCode: return String(localized: "確認コードが正しくありません。もう一度入力してください。")
             case .appleIDAndPrivacyAcknowledgementRequired: return Self.agreementRequired.localizedDescription
-            case .accountLocked: return "Apple Accountがロックされています。AppleのWebサイトで確認してください。"
+            case .accountLocked: return String(localized: "Apple Accountがロックされています。AppleのWebサイトで確認してください。")
             case .notDeveloperAppleId: return Self.noTeams.localizedDescription
             case .federatedAuthenticationRequired, .accountUsesTwoStepAuthentication, .accountUsesUnknownAuthenticationKind:
                 return Self.unsupportedLogin.localizedDescription
-            default: return "Appleへの認証に失敗しました。接続状態を確認して再試行してください。"
+            default: return String(localized: "Appleへの認証に失敗しました。接続状態を確認して再試行してください。")
             }
         }
-        if error is CancellationError { return "接続操作をキャンセルしました。" }
-        return "Appleに接続できませんでした。ネットワークを確認して再試行してください。"
+        if error is CancellationError { return String(localized: "接続操作をキャンセルしました。") }
+        return String(localized: "Appleに接続できませんでした。ネットワークを確認して再試行してください。")
     }
 }
 
 struct AppleDeveloperAccount: Codable, Equatable, Sendable {
     let email: String?
     let name: String?
-    var label: String { email ?? name ?? "アカウント情報を取得できませんでした" }
+    var label: String { email ?? name ?? String(localized: "アカウント情報を取得できませんでした") }
 
     init(email: String?, name: String?) {
         self.email = email?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
@@ -373,7 +373,7 @@ struct RemoteDeveloperFile: Identifiable, Equatable, Sendable {
     enum Kind: String, CaseIterable, Identifiable, Sendable {
         case certificates, profiles
         var id: String { rawValue }
-        var title: String { self == .certificates ? "証明書" : "プロファイル" }
+        var title: String { self == .certificates ? String(localized: "証明書") : String(localized: "プロファイル") }
         var contentKey: String { self == .certificates ? "certificateContent" : "profileContent" }
     }
     let id: String

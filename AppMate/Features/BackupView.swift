@@ -40,9 +40,9 @@ struct BackupView: View {
     }
     @State private var showingPassword = false
     private var passwordStatus: String {
-        if password.count < 6 { return "6文字以上にしてください" }
-        if password != confirmation { return confirmation.isEmpty ? "確認のため、もう一度入力してください" : "2つが一致していません" }
-        return (password.count >= 20 ? "長いパスワードです" : "さらに長くすると強くなります") + " · 2つが一致しています"
+        if password.count < 6 { return String(localized: "6文字以上にしてください") }
+        if password != confirmation { return confirmation.isEmpty ? String(localized: "確認のため、もう一度入力してください") : String(localized: "2つが一致していません") }
+        return (password.count >= 20 ? String(localized: "長いパスワードです") : String(localized: "さらに長くすると強くなります")) + String(localized: " · 2つが一致しています")
     }
 
     private func passwordField(_ prompt: String, text: Binding<String>) -> some View {
@@ -101,8 +101,8 @@ struct BackupView: View {
                     VStack(alignment: .leading, spacing: 10) {
                         Text("パスワードで守る").font(.system(size: 12, weight: .bold)).foregroundStyle(AppMateStyle.text.opacity(0.75))
                         Grid(alignment: .leading, horizontalSpacing: 14, verticalSpacing: 10) {
-                            GridRow { Text("パスワード").frame(width: 100, alignment: .leading); passwordField("6文字以上", text: $password) }
-                            GridRow { Text("もう一度"); passwordField("確認用パスワード", text: $confirmation) }
+                            GridRow { Text("パスワード").frame(width: 100, alignment: .leading); passwordField(String(localized: "6文字以上"), text: $password) }
+                            GridRow { Text("もう一度"); passwordField(String(localized: "確認用パスワード"), text: $confirmation) }
                             GridRow {
                                 Color.clear.frame(width: 1, height: 1)
                                 Text(passwordStatus).font(.system(size: 12))
@@ -194,7 +194,7 @@ struct BackupView: View {
         date.dateFormat = "yyyyMMdd_HHmmss"
         date.locale = Locale(identifier: "en_US_POSIX")
         panel.nameFieldStringValue = "AppMate_\(date.string(from: .now)).appmatebackup"
-        panel.message = "新しいファイルとして保存します。既存のファイルは上書きしません。"
+        panel.message = String(localized: "新しいファイルとして保存します。既存のファイルは上書きしません。")
         let response = panel.runModal()
         access.presentingPanel = false
         guard response == .OK, let destination = panel.url else { return }
@@ -208,7 +208,7 @@ struct BackupView: View {
             defer { working = false; work = nil }
             do {
                 let canCreate = try vault.canCreateKey()
-                let (snapshot, watermark) = try await access.withKey(reason: "すべての資格情報をバックアップします", allowCreation: canCreate, vault: vault) { key in
+                let (snapshot, watermark) = try await access.withKey(reason: String(localized: "すべての資格情報をバックアップします"), allowCreation: canCreate, vault: vault) { key in
                     try BackupHistory.bootstrap(in: vault.context)
                     let full = try BackupSnapshot.capture(vault: vault, key: key)
                     let snapshot = selectedOnly ? try full.selecting(appIDs: selectedApps) : full
@@ -243,8 +243,8 @@ struct BackupTabs: View {
 
     var body: some View {
         HStack(spacing: 2) {
-            tab("バックアップを作る", selected: creating)
-            tab("バックアップから戻す", selected: !creating)
+            tab(String(localized: "バックアップを作る"), selected: creating)
+            tab(String(localized: "バックアップから戻す"), selected: !creating)
         }.padding(3).background(AppMateStyle.search, in: RoundedRectangle(cornerRadius: 10))
     }
 

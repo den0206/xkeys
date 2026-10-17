@@ -29,17 +29,17 @@ enum ValidationError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .invalidFile: "ファイルを解析できません。形式と内容を確認してください。"
-        case .tooLarge: "ファイルは16MB以下を選んでください。"
-        case .multipleCertificates: "複数の証明書を含む.p12は、解析対象を選んでください。"
-        case .unsupported: "プロファイル・.cer・.p12・.p8に対応しています。"
+        case .invalidFile: String(localized: "ファイルを解析できません。形式と内容を確認してください。")
+        case .tooLarge: String(localized: "ファイルは16MB以下を選んでください。")
+        case .multipleCertificates: String(localized: "複数の証明書を含む.p12は、解析対象を選んでください。")
+        case .unsupported: String(localized: "プロファイル・.cer・.p12・.p8に対応しています。")
         case .signingRequired:
-            "Keychainを使用するための開発用署名が必要です。XcodeでApple Development証明書とTeamを設定してから、F5で再ビルドしてください。"
+            String(localized: "Keychainを使用するための開発用署名が必要です。XcodeでApple Development証明書とTeamを設定してから、F5で再ビルドしてください。")
         case .security(let status):
             status == errSecMissingEntitlement
                 ? ValidationError.signingRequired.localizedDescription
-                : "セキュリティ処理に失敗しました（\(status)）。パスワードとアクセス許可を確認してください。"
-        case .missingKey: "保存済みデータの暗号鍵を取得できません。新しい鍵で上書きしません。"
+                : String(localized: "セキュリティ処理に失敗しました（\(status)）。パスワードとアクセス許可を確認してください。")
+        case .missingKey: String(localized: "保存済みデータの暗号鍵を取得できません。新しい鍵で上書きしません。")
         }
     }
 }

@@ -39,7 +39,7 @@ struct NoteEditor: View {
         Task { @MainActor in
             do {
                 let create = try vault.canCreateKey()
-                try await access.withKey(reason: save ? "メモを暗号化して保存します" : "暗号化メモを表示します", allowCreation: create, vault: vault) { key in
+                try await access.withKey(reason: save ? String(localized: "メモを暗号化して保存します") : String(localized: "暗号化メモを表示します"), allowCreation: create, vault: vault) { key in
                     let management = VaultManagement(vault: vault)
                     if let app {
                         if save { try management.saveNote(note, app: app, key: key) }
@@ -127,7 +127,7 @@ struct CatalogEditor: View {
                         Task { @MainActor in
                             do {
                                 let create = try vault.canCreateKey()
-                                try await access.withKey(reason: "登録と配下のプロファイルを削除します", allowCreation: create, vault: vault) { key in
+                                try await access.withKey(reason: String(localized: "登録と配下のプロファイルを削除します"), allowCreation: create, vault: vault) { key in
                                     try VaultManagement(vault: vault).trash(app, key: key)
                                 }
                                 dismiss()
@@ -183,7 +183,7 @@ struct TeamManagementView: View {
                             if loggedIn {
                                 Button("取り込む…") { importing = team }
                                     .disabled(appleSession.busy)
-                                    .accessibilityLabel(team.name + "の証明書・プロファイルを取り込む")
+                                    .accessibilityLabel(String(localized: "\(team.name)の証明書・プロファイルを取り込む"))
                                 Button("ログアウト") {
                                     do { try appleSession.disconnect(); error = nil }
                                     catch { self.error = AppleDeveloperError.message(for: error) }
@@ -194,8 +194,8 @@ struct TeamManagementView: View {
                                     loggingIn = team
                                 }.disabled(appleSession.busy)
                             }
-                            Button("編集…") { editing = team }.accessibilityLabel(team.name + "を編集")
-                            Button("削除…", role: .destructive) { deleting = team }.accessibilityLabel(team.name + "を削除")
+                            Button("編集…") { editing = team }.accessibilityLabel(String(localized: "\(team.name)を編集"))
+                            Button("削除…", role: .destructive) { deleting = team }.accessibilityLabel(String(localized: "\(team.name)を削除"))
                         }.padding(12).frame(maxWidth: .infinity, alignment: .leading)
                             .background(AppMateStyle.sidebar, in: RoundedRectangle(cornerRadius: 8))
                     }
@@ -229,7 +229,7 @@ struct TeamManagementView: View {
                 guard appleSession.teams.contains(where: { $0.teamID == team.teamID }) else {
                     throw AppleDeveloperError.teamAccessRequired
                 }
-            }, session: appleSession, verificationTitle: team.name + "にログイン", restoreSavedSession: false)
+            }, session: appleSession, verificationTitle: String(localized: "\(team.name)にログイン"), restoreSavedSession: false)
                 .onChange(of: appleSession.connected) { _, connected in
                     if connected && appleSession.teams.contains(where: { $0.teamID == team.teamID }) {
                         loggingIn = nil
@@ -304,7 +304,7 @@ struct TeamDeletionView: View {
         Task { @MainActor in
             do {
                 let create = try vault.canCreateKey()
-                try await access.withKey(reason: "チーム「\(team.name)」の登録を削除します", allowCreation: create, vault: vault) { _ in
+                try await access.withKey(reason: String(localized: "チーム「\(team.name)」の登録を削除します"), allowCreation: create, vault: vault) { _ in
                     try VaultManagement(vault: vault).removeTeam(team)
                 }
                 onDeleted()
@@ -346,13 +346,13 @@ struct TrashView: View {
                             let includedApps = [app] + (app.parentAppID == nil ? deletedApps.filter { $0.parentAppID == app.id && $0.deletedAt == app.deletedAt } : [])
                             let profiles = records.filter { record in record.deletedAt == app.deletedAt && includedApps.contains { record.app?.id == $0.id } }.count
                             let targets = includedApps.count - 1
-                            trashRow(app.name, detail: "アプリ" + (targets > 0 || profiles > 0 ? "（ターゲット \(targets)・プロファイル \(profiles) を含む）" : "") + " · " + (app.team?.name ?? ""),
+                            trashRow(app.name, detail: String(localized: "アプリ") + (targets > 0 || profiles > 0 ? String(localized: "（ターゲット \(targets)・プロファイル \(profiles) を含む）") : "") + " · " + (app.team?.name ?? ""),
                                      deletedAt: app.deletedAt!) {
                                 perform { _ in try VaultManagement(vault: vault).restore(app) }
                             }
                         }
                         ForEach(deletedRecords) { record in
-                            trashRow(record.name, detail: record.fileTypeTitle + " · " + (record.isTeamShared ? "チーム共通" : record.app?.name ?? ""),
+                            trashRow(record.name, detail: record.fileTypeTitle + " · " + (record.isTeamShared ? String(localized: "チーム共通") : record.app?.name ?? ""),
                                      deletedAt: record.deletedAt!, disabled: record.app?.deletedAt != nil) {
                                 perform { _ in try VaultManagement(vault: vault).restore(record) }
                             }
@@ -390,7 +390,7 @@ struct TrashView: View {
         Task { @MainActor in
             do {
                 let create = try vault.canCreateKey()
-                try await access.withKey(reason: "最近削除した項目を変更します", allowCreation: create, vault: vault) { key in try operation(key) }
+                try await access.withKey(reason: String(localized: "最近削除した項目を変更します"), allowCreation: create, vault: vault) { key in try operation(key) }
                 error = nil
             } catch { self.error = error.localizedDescription }
         }
@@ -422,7 +422,7 @@ struct TargetDeleteConfirmation: View {
                             Text(item.name).fontWeight(.semibold)
                             Text(item.bundleID).font(.caption.monospaced()).foregroundStyle(.secondary)
                             ForEach(profiles.filter { $0.app?.id == item.id }) { record in
-                                Text("・" + record.name).font(.caption)
+                                Text("・\(record.name)").font(.caption)
                             }
                         }
                     }
@@ -448,7 +448,7 @@ struct CredentialDeleteConfirmation: View {
         VStack(alignment: .leading, spacing: 14) {
             Image(systemName: "trash").font(.system(size: 24)).foregroundStyle(AppMateStyle.dangerText)
                 .frame(width: 48, height: 48).background(AppMateStyle.dangerBackground, in: RoundedRectangle(cornerRadius: 12))
-            Text("「\(record.name)」を\(record.isTeamShared ? "チーム全体から" : "")削除しますか？")
+            Text("「\(record.name)」を\(record.isTeamShared ? String(localized: "チーム全体から") : "")削除しますか？")
                 .font(.system(size: 17, weight: .bold))
             if ["p8", "p12"].contains(record.fileExtension) {
                 Label(record.fileExtension == "p8" ? "鍵はAppleからもう一度ダウンロードできません。ほかに控えがなければ、鍵を作り直してCIの設定も更新する必要があります。" : "秘密鍵の控えがなければ、証明書の再発行とCI設定の更新が必要になる場合があります。", systemImage: "exclamationmark.triangle")
@@ -457,11 +457,11 @@ struct CredentialDeleteConfirmation: View {
                     .background(AppMateStyle.dangerBackground.opacity(0.6), in: RoundedRectangle(cornerRadius: 10))
             }
             if record.isTeamShared {
-                Label("保管先：チーム「\(record.team?.name ?? "未設定")」。実際の利用アプリは記録していません。", systemImage: "person.2")
+                Label("保管先：チーム「\(record.team?.name ?? String(localized: "未設定"))」。実際の利用アプリは記録していません。", systemImage: "person.2")
                     .font(.system(size: 13)).padding(12).frame(maxWidth: .infinity, alignment: .leading)
                     .background(AppMateStyle.sidebar, in: RoundedRectangle(cornerRadius: 10))
             }
-            Text("\(record.isTeamShared ? "チームの鍵・証明書の一覧から外れます。" : "このプロファイルだけを削除し、アプリ・ターゲット登録は残します。")Apple側の鍵やCIの設定は変更しません。30日間は元に戻せます。")
+            Text("\(record.isTeamShared ? String(localized: "チームの鍵・証明書の一覧から外れます。") : String(localized: "このプロファイルだけを削除し、アプリ・ターゲット登録は残します。"))Apple側の鍵やCIの設定は変更しません。30日間は元に戻せます。")
                 .font(.system(size: 12)).foregroundStyle(AppMateStyle.secondary)
             HStack(spacing: 8) {
                 Spacer()
@@ -490,7 +490,7 @@ struct CredentialBatchDeleteConfirmation: View {
                             Text([record.team?.name, record.originalName].compactMap { $0 }.joined(separator: " · "))
                                 .font(.caption).foregroundStyle(.secondary)
                             if record.isTeamShared {
-                                Text("チーム「\(record.team?.name ?? "未設定")」の鍵・証明書の一覧から外れます。")
+                                Text("チーム「\(record.team?.name ?? String(localized: "未設定"))」の鍵・証明書の一覧から外れます。")
                                     .font(.caption).foregroundStyle(AppMateStyle.dangerText)
                             }
                         }
@@ -532,7 +532,7 @@ struct P8PurposeToggles: View {
                         Image(systemName: item.symbol).font(.system(size: 17)).foregroundStyle(item.tint).frame(width: 22)
                         VStack(alignment: .leading, spacing: 1) {
                             Text(item.shortTitle).fontWeight(.semibold)
-                            Text(item == .appStoreConnect ? "単独でのみ選べます" : item.title).font(.system(size: 11)).foregroundStyle(AppMateStyle.secondary)
+                            Text(item == .appStoreConnect ? String(localized: "単独でのみ選べます") : item.displayTitle).font(.system(size: 11)).foregroundStyle(AppMateStyle.secondary)
                         }
                         Spacer(minLength: 0)
                         if on { Image(systemName: "checkmark.circle.fill").foregroundStyle(AppMateStyle.accent) }
@@ -540,7 +540,7 @@ struct P8PurposeToggles: View {
                         .background(on ? AppMateStyle.selectedRow : AppMateStyle.canvas, in: RoundedRectangle(cornerRadius: 10))
                         .overlay(RoundedRectangle(cornerRadius: 10).stroke(on ? AppMateStyle.accent : AppMateStyle.border, lineWidth: on ? 1.5 : 1))
                 }.buttonStyle(.plain)
-                    .accessibilityLabel(item.title).accessibilityAddTraits(on ? .isSelected : [])
+                    .accessibilityLabel(item.displayTitle).accessibilityAddTraits(on ? .isSelected : [])
             }
         }
     }
@@ -577,9 +577,9 @@ struct P8PurposeFetchButton: View {
                 guard !Task.isCancelled else { return }
                 if let key {
                     purposes = Set(key.purposes)
-                    message = "Apple Developerの鍵「\(key.name)」の有効なサービスから用途を設定しました。"
+                    message = String(localized: "Apple Developerの鍵「\(key.name)」の有効なサービスから用途を設定しました。")
                 } else {
-                    message = "Apple Developerの鍵一覧にこのKey IDは見つかりませんでした。App Store Connect APIの鍵の場合は手動で選んでください。"
+                    message = String(localized: "Apple Developerの鍵一覧にこのKey IDは見つかりませんでした。App Store Connect APIの鍵の場合は手動で選んでください。")
                 }
             } catch { if !Task.isCancelled { message = AppleDeveloperError.message(for: error) } }
         }
@@ -599,7 +599,7 @@ struct P8PurposeEditor: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("用途を変更").font(.title2.bold())
-            Text("\(record.name) · Key ID \(record.keyID ?? "未設定")").foregroundStyle(AppMateStyle.secondary).textSelection(.enabled)
+            Text("\(record.name) · Key ID \(record.keyID ?? String(localized: "未設定"))").foregroundStyle(AppMateStyle.secondary).textSelection(.enabled)
             P8PurposeToggles(purposes: $purposes)
             if let keyID = record.keyID, let teamID = record.team?.teamID {
                 P8PurposeFetchButton(keyID: keyID, teamID: teamID, session: session, purposes: $purposes)
@@ -634,7 +634,7 @@ struct P8PurposeEditor: View {
         error = nil
         Task { @MainActor in
             do {
-                try await access.withKey(reason: "鍵の用途を変更します", allowCreation: false, vault: vault) { key in
+                try await access.withKey(reason: String(localized: "鍵の用途を変更します"), allowCreation: false, vault: vault) { key in
                     try VaultManagement(vault: vault).updatePurposes(record, metadata: metadata, key: key)
                 }
                 dismiss()

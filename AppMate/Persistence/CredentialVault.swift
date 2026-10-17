@@ -19,6 +19,8 @@ enum P8Purpose: String, CaseIterable, Codable {
         case .other: "その他のサービス"
         }
     }
+    /// `title` is stored in metadata and authenticated data, so only the display is localized.
+    var displayTitle: String { self == .other ? String(localized: "その他のサービス") : title }
 
     /// Parses the canonical comma-separated form written by `P8Metadata.storedPurpose`.
     static func purposes(stored value: String) -> [P8Purpose]? {
@@ -212,16 +214,16 @@ enum VaultError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .invalidAssociation: "登録先のAppとTeamを確認できません。保存していません。"
-        case .teamMismatch: "ファイルのTeam IDと登録先のTeamが一致しません。"
-        case .bundleMismatch: "プロファイルのBundle IDがこのAppに一致しません。"
-        case .confirmTeam: "Team IDを取得できませんでした。選択中のTeamに割り当てることを確認してください。"
-        case .duplicate: "同じファイルはすでに登録されています。既存の資格情報を確認してください。"
-        case .unsupported: "現在は.cer・.p12・.p8・プロビジョニングプロファイルを取り込めます。"
-        case .cancelled: "ロックまたはキャンセルにより操作を中止しました。"
-        case .invalidKeyID: "Key IDは英大文字と数字の10文字で入力してください。"
-        case .invalidIssuerID: "App Store Connect APIのIssuer IDをUUID形式で入力してください。"
-        case .missingPurpose: ".p8の用途とKey IDを確認してください。App Store Connect APIはほかの用途と組み合わせられません。"
+        case .invalidAssociation: String(localized: "登録先のAppとTeamを確認できません。保存していません。")
+        case .teamMismatch: String(localized: "ファイルのTeam IDと登録先のTeamが一致しません。")
+        case .bundleMismatch: String(localized: "プロファイルのBundle IDがこのAppに一致しません。")
+        case .confirmTeam: String(localized: "Team IDを取得できませんでした。選択中のTeamに割り当てることを確認してください。")
+        case .duplicate: String(localized: "同じファイルはすでに登録されています。既存の資格情報を確認してください。")
+        case .unsupported: String(localized: "現在は.cer・.p12・.p8・プロビジョニングプロファイルを取り込めます。")
+        case .cancelled: String(localized: "ロックまたはキャンセルにより操作を中止しました。")
+        case .invalidKeyID: String(localized: "Key IDは英大文字と数字の10文字で入力してください。")
+        case .invalidIssuerID: String(localized: "App Store Connect APIのIssuer IDをUUID形式で入力してください。")
+        case .missingPurpose: String(localized: ".p8の用途とKey IDを確認してください。App Store Connect APIはほかの用途と組み合わせられません。")
         }
     }
 }

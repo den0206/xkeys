@@ -238,10 +238,10 @@ enum ManagementError: LocalizedError {
     case parentDeleted, teamNotEmpty, replacementInUse, purposeLocked
     var errorDescription: String? {
         switch self {
-        case .parentDeleted: "先に、所属するアプリを復元してください。"
-        case .teamNotEmpty: "Appまたは共有資格情報が残っているTeamは削除できません。最近削除した項目も確認してください。"
-        case .replacementInUse: "置き換え履歴で参照されています。新旧の関連項目を一緒に完全削除してください。"
-        case .purposeLocked: "置き換え履歴のある鍵は、バックアップとの整合性を保つため用途を変更できません。"
+        case .parentDeleted: String(localized: "先に、所属するアプリを復元してください。")
+        case .teamNotEmpty: String(localized: "Appまたは共有資格情報が残っているTeamは削除できません。最近削除した項目も確認してください。")
+        case .replacementInUse: String(localized: "置き換え履歴で参照されています。新旧の関連項目を一緒に完全削除してください。")
+        case .purposeLocked: String(localized: "置き換え履歴のある鍵は、バックアップとの整合性を保つため用途を変更できません。")
         }
     }
 }

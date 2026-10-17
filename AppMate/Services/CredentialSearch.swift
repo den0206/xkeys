@@ -5,11 +5,11 @@ enum CredentialTypeFilter: String, CaseIterable, Identifiable {
     var id: String { rawValue }
     var title: String {
         switch self {
-        case .all: "すべての種類"
-        case .key: "秘密鍵（.p8）"
-        case .certificate: "証明書（.cer）"
-        case .identity: "証明書＋秘密鍵（.p12）"
-        case .profile: "プロファイル"
+        case .all: String(localized: "すべての種類")
+        case .key: String(localized: "秘密鍵（.p8）")
+        case .certificate: String(localized: "証明書（.cer）")
+        case .identity: String(localized: "証明書＋秘密鍵（.p12）")
+        case .profile: String(localized: "プロファイル")
         }
     }
     func matches(_ record: StoredCredential) -> Bool {
@@ -29,11 +29,11 @@ enum CredentialPurposeFilter: Hashable, CaseIterable, Identifiable {
     var id: Self { self }
     var title: String {
         switch self {
-        case .all: "すべての用途"
-        case .signing: "署名"
-        case .key(let purpose): purpose.title
-        case .intermediateCA: "中間CA"
-        case .unspecified: "未設定"
+        case .all: String(localized: "すべての用途")
+        case .signing: String(localized: "署名")
+        case .key(let purpose): purpose.displayTitle
+        case .intermediateCA: String(localized: "中間CA")
+        case .unspecified: String(localized: "未設定")
         }
     }
     func matches(_ record: StoredCredential) -> Bool {

@@ -5,10 +5,10 @@ enum CIValue: CaseIterable {
     case base64, keyID, issuerID, password
     var title: String {
         switch self {
-        case .base64: "元ファイルのbase64"
+        case .base64: String(localized: "元ファイルのbase64")
         case .keyID: "Key ID"
         case .issuerID: "Issuer ID"
-        case .password: ".p12パスワード"
+        case .password: String(localized: ".p12パスワード")
         }
     }
 }

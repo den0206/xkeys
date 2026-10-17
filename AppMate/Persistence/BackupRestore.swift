@@ -6,12 +6,12 @@ enum RestoreError: LocalizedError {
     case identity, stale, choices, relationships, pendingChanges, safetyBackupRequired
     var errorDescription: String? {
         switch self {
-        case .safetyBackupRequired: "現在のデータを退避してから、全体を置き換えてください。"
-        case .identity: "同じ識別子が異なるTeam・App・ファイルを指しています。既存データを保護するため、このバックアップはまとめられません。"
-        case .stale: "確認後に現在のデータが変更されました。「差分を更新」で確認し直してください。"
-        case .choices: "内容が異なる項目ごとに、どちらを使うか選択してください。"
-        case .relationships: "選択した内容では置き換え履歴などの関連が一致しません。関連する項目の選択を確認してください。"
-        case .pendingChanges: "別の操作が保存待ちです。その操作を完了してから復元してください。"
+        case .safetyBackupRequired: String(localized: "現在のデータを退避してから、全体を置き換えてください。")
+        case .identity: String(localized: "同じ識別子が異なるTeam・App・ファイルを指しています。既存データを保護するため、このバックアップはまとめられません。")
+        case .stale: String(localized: "確認後に現在のデータが変更されました。「差分を更新」で確認し直してください。")
+        case .choices: String(localized: "内容が異なる項目ごとに、どちらを使うか選択してください。")
+        case .relationships: String(localized: "選択した内容では置き換え履歴などの関連が一致しません。関連する項目の選択を確認してください。")
+        case .pendingChanges: String(localized: "別の操作が保存待ちです。その操作を完了してから復元してください。")
         }
     }
 }
@@ -111,14 +111,14 @@ struct RestorePlan: Sendable {
         var items: [Item] = []
         for team in teams {
             let local = localTeams[team.id]
-            items.append(Item(kind: .team, target: team.id, title: "Team · \(team.teamID)", detail: "表示名",
+            items.append(Item(kind: .team, target: team.id, title: "Team · \(team.teamID)", detail: String(localized: "表示名"),
                               current: local?.name, incoming: team.name,
                               state: local == nil ? .added : local == team ? .duplicate : .conflict))
         }
         for app in apps {
             let local = localApps[app.id]
-            func summary(_ value: BackupSnapshot.App) -> String { "\(value.name) · \(value.bundleID) · \(value.platform) · 所属 \(value.parentAppID.flatMap { id in apps.first { $0.id == id }?.name } ?? "独立したアプリ") · 登録 \(value.createdAt.formatted())" }
-            items.append(Item(kind: .app, target: app.id, title: "App · \(app.bundleID)", detail: "表示名・所属アプリ・プラットフォーム・アイコン・登録日時・メモ（非表示）・削除状態",
+            func summary(_ value: BackupSnapshot.App) -> String { String(localized: "\(value.name) · \(value.bundleID) · \(value.platform) · 所属 \(value.parentAppID.flatMap { id in apps.first { $0.id == id }?.name } ?? String(localized: "独立したアプリ")) · 登録 \(value.createdAt.formatted())") }
+            items.append(Item(kind: .app, target: app.id, title: "App · \(app.bundleID)", detail: String(localized: "表示名・所属アプリ・プラットフォーム・アイコン・登録日時・メモ（非表示）・削除状態"),
                               current: local.map(summary), incoming: summary(app),
                               state: local == nil ? .added : local == app ? .duplicate : .conflict))
         }
@@ -126,23 +126,23 @@ struct RestorePlan: Sendable {
             let local = localCredentials[record.id]
             var differences: [String] = []
             if let local, local != record {
-                if local.name != record.name || local.originalName != record.originalName { differences.append("名前") }
-                if local.note != record.note { differences.append("暗号化メモ（値は非表示）") }
-                if local.deletedAt != record.deletedAt { differences.append("削除状態") }
-                if local.password != record.password { differences.append("保存済みパスワード（値は非表示）") }
-                if local.replacesCredentialID != record.replacesCredentialID || local.replacedByID != record.replacedByID { differences.append("置き換え履歴") }
-                if local.keyID != record.keyID || local.issuerID != record.issuerID || local.keyPurpose != record.keyPurpose { differences.append("鍵の識別情報") }
-                if differences.isEmpty { differences.append("期限・登録日時などのメタデータ") }
+                if local.name != record.name || local.originalName != record.originalName { differences.append(String(localized: "名前")) }
+                if local.note != record.note { differences.append(String(localized: "暗号化メモ（値は非表示）")) }
+                if local.deletedAt != record.deletedAt { differences.append(String(localized: "削除状態")) }
+                if local.password != record.password { differences.append(String(localized: "保存済みパスワード（値は非表示）")) }
+                if local.replacesCredentialID != record.replacesCredentialID || local.replacedByID != record.replacedByID { differences.append(String(localized: "置き換え履歴")) }
+                if local.keyID != record.keyID || local.issuerID != record.issuerID || local.keyPurpose != record.keyPurpose { differences.append(String(localized: "鍵の識別情報")) }
+                if differences.isEmpty { differences.append(String(localized: "期限・登録日時などのメタデータ")) }
             }
             func summary(_ value: BackupSnapshot.Credential) -> String {
-                "\(value.name) · \(value.originalName) · \(value.replacedByID == nil ? "通常一覧" : "置き換え済み")"
+                "\(value.name) · \(value.originalName) · \(value.replacedByID == nil ? String(localized: "通常一覧") : String(localized: "置き換え済み"))"
             }
-            items.append(Item(kind: .credential, target: record.id, title: "資格情報 · \(record.originalName)",
-                              detail: differences.joined(separator: "・"), current: local.map(summary), incoming: summary(record),
+            items.append(Item(kind: .credential, target: record.id, title: String(localized: "資格情報 · \(record.originalName)"),
+                              detail: differences.joined(separator: String(localized: "・")), current: local.map(summary), incoming: summary(record),
                               state: local == nil ? .added : local == record ? .duplicate : .conflict))
         }
         if let prefs = source.preferences {
-            items.append(Item(kind: .preferences, target: preferencesID, title: "アプリ設定", detail: "Dockバッジ", current: "このMacの設定（秘密値なし）", incoming: "バックアップの設定（秘密値なし）", state: prefs == (current.preferences ?? AppPreferences()) ? .duplicate : .conflict))
+            items.append(Item(kind: .preferences, target: preferencesID, title: String(localized: "アプリ設定"), detail: String(localized: "Dockバッジ"), current: String(localized: "このMacの設定（秘密値なし）"), incoming: String(localized: "バックアップの設定（秘密値なし）"), state: prefs == (current.preferences ?? AppPreferences()) ? .duplicate : .conflict))
         }
         let requiresSafetyBackup = !current.teams.isEmpty || !current.apps.isEmpty || !current.credentials.isEmpty
             || (current.preferences ?? AppPreferences()) != AppPreferences()

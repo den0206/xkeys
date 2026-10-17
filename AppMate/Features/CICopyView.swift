@@ -95,10 +95,10 @@ struct CICopyView: View {
 
     private func detail(_ value: CIValue) -> String {
         switch value {
-        case .base64: "CI の Secrets に貼り付ける、ファイルの中身（base64）です"
-        case .keyID: "鍵を見分ける ID です"
-        case .issuerID: "App Store Connect の Issuer ID です"
-        case .password: record.hasSavedPassword ? "取り込みのときに保存したパスワードです" : "パスワードは保存していません"
+        case .base64: String(localized: "CI の Secrets に貼り付ける、ファイルの中身（base64）です")
+        case .keyID: String(localized: "鍵を見分ける ID です")
+        case .issuerID: String(localized: "App Store Connect の Issuer ID です")
+        case .password: record.hasSavedPassword ? String(localized: "取り込みのときに保存したパスワードです") : String(localized: "パスワードは保存していません")
         }
     }
 
@@ -108,7 +108,7 @@ struct CICopyView: View {
     private func copy(_ value: CIValue) {
         Task { @MainActor in
             do {
-                try await access.withKey(reason: "CIへ登録する値をコピーします", allowCreation: false, vault: vault) { key in
+                try await access.withKey(reason: String(localized: "CIへ登録する値をコピーします"), allowCreation: false, vault: vault) { key in
                     let payload = try vault.read(record, key: key)
                     let secret: String? = switch value {
                     case .base64: payload.original.base64EncodedString()

@@ -27,7 +27,7 @@ struct AppleDeveloperLoginView: View {
     init(onTeam: ((RemoteDeveloperTeam) throws -> Void)? = nil,
          onVerified: (() throws -> Void)? = nil,
          session: AppleDeveloperSession = .shared,
-         verificationTitle: String = "復元するチームへの所属を確認", restoreSavedSession: Bool = true) {
+         verificationTitle: String = String(localized: "復元するチームへの所属を確認"), restoreSavedSession: Bool = true) {
         self.onTeam = onTeam
         self.onVerified = onVerified
         self.restoreSavedSession = restoreSavedSession
@@ -39,8 +39,8 @@ struct AppleDeveloperLoginView: View {
     private var trimmedAccount: String { account.trimmingCharacters(in: .whitespacesAndNewlines) }
     private var selectedTeamIsRegistered: Bool { registeredTeams.contains { $0.teamID == selection } }
     private var primaryTitle: String {
-        if onTeam == nil { return "所属を確認" }
-        return selectedTeamIsRegistered ? "このチームを開く" : "チームを追加"
+        if onTeam == nil { return String(localized: "所属を確認") }
+        return selectedTeamIsRegistered ? String(localized: "このチームを開く") : String(localized: "チームを追加")
     }
 
     private var step: Int {
@@ -208,7 +208,7 @@ struct AppleDeveloperLoginView: View {
                     .font(.system(size: 11, weight: .bold)).foregroundStyle(.white)
                     .frame(width: 24, height: 24).background(Color.gray, in: Circle())
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(session.currentAccount?.label ?? "ログイン中").textSelection(.enabled)
+                    Text(session.currentAccount?.label ?? String(localized: "ログイン中")).textSelection(.enabled)
                     Text("Apple Developer にログイン中").font(.caption).foregroundStyle(AppMateStyle.secondary)
                 }
                 Spacer()
@@ -221,7 +221,7 @@ struct AppleDeveloperLoginView: View {
                     }
                 }.menuStyle(.borderlessButton).fixedSize()
             }
-            Text(onTeam == nil ? verificationTitle : "追加するチーム").font(.system(size: 20, weight: .bold))
+            Text(onTeam == nil ? verificationTitle : String(localized: "追加するチーム")).font(.system(size: 20, weight: .bold))
             Text(onTeam == nil ? "このアカウントで確認できるチームです。" : "このアカウントが所属するチームです。")
                 .foregroundStyle(AppMateStyle.secondary)
             if session.teams.isEmpty {
@@ -286,10 +286,10 @@ struct AppleDeveloperLoginView: View {
 
     private func secondFactorLabel(_ option: TwoFactorOption) -> String {
         switch option {
-        case .codeSent: "ほかのApple製デバイスに確認コードを送信しました。\n6桁のコードを入力してください。"
-        case .smsSent(let phone): "\(phone.numberWithDialCode)に確認コードを送信しました。\n6桁のコードを入力してください。"
-        case .smsPendingChoice: "確認コードを受け取る電話番号を選んでください。"
-        case .securityKey: "この認証方式にはまだ対応していません。"
+        case .codeSent: String(localized: "ほかのApple製デバイスに確認コードを送信しました。\n6桁のコードを入力してください。")
+        case .smsSent(let phone): String(localized: "\(phone.numberWithDialCode)に確認コードを送信しました。\n6桁のコードを入力してください。")
+        case .smsPendingChoice: String(localized: "確認コードを受け取る電話番号を選んでください。")
+        case .securityKey: String(localized: "この認証方式にはまだ対応していません。")
         }
     }
 
@@ -341,7 +341,7 @@ struct AppleDeveloperLoginView: View {
 /// Where the user is in the sign-in: account, password, code, team.
 struct LoginSteps: View {
     let current: Int
-    private let titles = ["Apple Account", "パスワード", "確認コード", "チーム"]
+    private let titles = ["Apple Account", String(localized: "パスワード"), String(localized: "確認コード"), String(localized: "チーム")]
 
     var body: some View {
         HStack(spacing: 6) {

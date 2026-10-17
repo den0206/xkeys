@@ -21,15 +21,15 @@ struct AppSettingsView: View {
                     Text("設定").font(.system(size: 20, weight: .bold))
                     settingsGroup("Apple Developer") {
                         AppleDeveloperAccountView(session: apple).padding(14)
-                        settingsNote("パスワードは保存しません。接続情報だけをこの Mac のキーチェーンに保存しています。")
+                        settingsNote(String(localized: "パスワードは保存しません。接続情報だけをこの Mac のキーチェーンに保存しています。"))
                     }
-                    settingsGroup("表示") {
-                        settingsToggle("Dock アイコンに件数を表示", detail: "30日以内に期限が来るものの数を出します", isOn: $preferences.showDockBadge)
+                    settingsGroup(String(localized: "表示")) {
+                        settingsToggle(String(localized: "Dock アイコンに件数を表示"), detail: String(localized: "30日以内に期限が来るものの数を出します"), isOn: $preferences.showDockBadge)
                     }
-                    settingsGroup("安全のために") {
-                        safetyRow("touchid", "コピー・書き出し・削除の前に、毎回 Touch ID で確認します")
-                        safetyRow("clock", "5分操作しないと、表示中のパスワードやメモを閉じます")
-                        safetyRow("arrow.triangle.2.circlepath", "iCloud 同期や自動起動はしません。元のファイルも変更しません")
+                    settingsGroup(String(localized: "安全のために")) {
+                        safetyRow("touchid", String(localized: "コピー・書き出し・削除の前に、毎回 Touch ID で確認します"))
+                        safetyRow("clock", String(localized: "5分操作しないと、表示中のパスワードやメモを閉じます"))
+                        safetyRow("arrow.triangle.2.circlepath", String(localized: "iCloud 同期や自動起動はしません。元のファイルも変更しません"))
                     }
                 }.padding(.horizontal, 28).padding(.vertical, 24).frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -103,7 +103,7 @@ struct AppleDeveloperAccountView: View {
                     accountActions
                     if let error { Text(error) }
                 } label: {
-                    Label((session.currentAccount ?? session.savedAccount)?.label ?? "Apple Developerにログイン", systemImage: "person.crop.circle")
+                    Label((session.currentAccount ?? session.savedAccount)?.label ?? String(localized: "Apple Developerにログイン"), systemImage: "person.crop.circle")
                         .font(.system(size: 12))
                         .lineLimit(1).truncationMode(.middle)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -137,7 +137,7 @@ struct AppleDeveloperAccountView: View {
         }
         .sheet(isPresented: $showingLogin) {
             AppleDeveloperLoginView(onVerified: {}, session: session,
-                                    verificationTitle: "所属チーム", restoreSavedSession: false)
+                                    verificationTitle: String(localized: "所属チーム"), restoreSavedSession: false)
                 .onChange(of: session.connected) { _, connected in
                     if connected { showingLogin = false }
                 }

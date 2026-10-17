@@ -48,7 +48,7 @@ xcodebuild -project AppMate.xcodeproj -scheme AppMate \
 
 既存コードに合わせ、インデントはスペース4個、型名は `UpperCamelCase`、関数・変数名は `lowerCamelCase` にします。ファイル名は主要な型や機能に合わせます。画面は `Features/`、保存処理は `Persistence/` に置き、同じ処理を画面ごとに複製しないでください。
 
-UI 文言は日本語にし、既存の `AppMateStyle` と標準コントロールを使います。専用の formatter・linter 設定はありません。変更後は `git diff --check` で空白の問題を確認してください。
+UI 文言は日本語で書き、`AppMate/Resources/Localizable.xcstrings` に英訳を追加します（OS の言語設定で切り替わります）。`Text` などに直接書けない文字列は `String(localized:)` で囲みます。`kind` など保存データや暗号化の AAD に入る文字列は翻訳しないでください。既存の `AppMateStyle` と標準コントロールを使います。専用の formatter・linter 設定はありません。変更後は `git diff --check` で空白の問題を確認してください。
 
 ## テスト方針
 

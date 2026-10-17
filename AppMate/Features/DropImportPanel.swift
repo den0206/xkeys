@@ -52,7 +52,7 @@ struct DropImportPanel: View {
                 Divider()
                 VStack(alignment: .leading, spacing: 8) {
                     Text(waiting.count > 1 ? "あと\(waiting.count)件、パスワードが必要です" : "あと1件、パスワードが必要です").fontWeight(.semibold)
-                    Text(file.name + " · 証明書").font(.system(size: 12)).foregroundStyle(AppMateStyle.secondary)
+                    Text(file.name + String(localized: " · 証明書")).font(.system(size: 12)).foregroundStyle(AppMateStyle.secondary)
                     HStack(spacing: 4) {
                         Group {
                             if showingPassword { TextField(".p12 のパスワード", text: $password) }
@@ -96,10 +96,10 @@ struct DropImportPanel: View {
     }
 
     private var title: String {
-        if reading { return "読み取っています…" }
-        if finished { return saved.isEmpty ? "追加したファイルはありません" : "\(saved.count)件を追加しました" }
-        if !waiting.isEmpty { return "\(ready.count + waiting.count)件を追加します" }
-        return ready.isEmpty ? "追加できるファイルはありません" : "\(ready.count)件を追加します"
+        if reading { return String(localized: "読み取っています…") }
+        if finished { return saved.isEmpty ? String(localized: "追加したファイルはありません") : String(localized: "\(saved.count)件を追加しました") }
+        if !waiting.isEmpty { return String(localized: "\(ready.count + waiting.count)件を追加します") }
+        return ready.isEmpty ? String(localized: "追加できるファイルはありません") : String(localized: "\(ready.count)件を追加します")
     }
 
     private func read() async {
@@ -138,7 +138,7 @@ struct DropImportPanel: View {
             ready.append(Item(file: file, parsed: parsed, app: destination, password: password))
             return true
         } catch VaultError.duplicate {
-            notes.append(file.name + " · 追加済みのため飛ばしました")
+            notes.append(file.name + String(localized: " · 追加済みのため飛ばしました"))
             return true
         } catch { return false }
     }
@@ -155,7 +155,7 @@ struct DropImportPanel: View {
                 waiting.removeFirst()
                 showingPassword = false
             } catch {
-                self.error = "パスワードが違います。大文字・小文字も区別されます。"
+                self.error = String(localized: "パスワードが違います。大文字・小文字も区別されます。")
                 passwordFocused = true
             }
         }
@@ -163,7 +163,7 @@ struct DropImportPanel: View {
 
     private func skipWaiting() {
         guard let file = waiting.first else { return }
-        notes.append(file.name + " · 飛ばしました")
+        notes.append(file.name + String(localized: " · 飛ばしました"))
         waiting.removeFirst()
         password = ""
         error = nil
@@ -175,7 +175,7 @@ struct DropImportPanel: View {
         Task { @MainActor in
             do {
                 let canCreate = try vault.canCreateKey()
-                try await access.withKey(reason: "\(items.count)件の資格情報を暗号化して保存します", allowCreation: canCreate, vault: vault) { key in
+                try await access.withKey(reason: String(localized: "\(items.count)件の資格情報を暗号化して保存します"), allowCreation: canCreate, vault: vault) { key in
                     for item in items {
                         do {
                             lastSavedID = try vault.importFile(item.file, parsed: item.parsed, app: item.app, team: team, password: item.password,

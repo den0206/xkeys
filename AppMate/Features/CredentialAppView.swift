@@ -11,28 +11,28 @@ enum CredentialDisplayState: Equatable {
     }
     var title: String {
         switch self {
-        case .expired: "期限切れ"
-        case .withinDay: "24時間以内"
-        case .expiring(let days): "あと\(days)日"
-        case .valid: "有効"
-        case .stored: "保管中"
+        case .expired: String(localized: "期限切れ")
+        case .withinDay: String(localized: "24時間以内")
+        case .expiring(let days): String(localized: "あと\(days)日")
+        case .valid: String(localized: "有効")
+        case .stored: String(localized: "保管中")
         }
     }
 }
 
 extension StoredCredential {
     var fileTypeTitle: String {
-        if isIntermediateCA { return ParsedCredential.intermediateCAKind }
+        if isIntermediateCA { return String(localized: "中間CA証明書") }
         return switch fileExtension {
-        case "cer": "証明書"
-        case "p12": "証明書＋秘密鍵"
-        case "p8": "秘密鍵"
-        default: "プロファイル"
+        case "cer": String(localized: "証明書")
+        case "p12": String(localized: "証明書＋秘密鍵")
+        case "p8": String(localized: "秘密鍵")
+        default: String(localized: "プロファイル")
         }
     }
 
     var purposeTitle: String {
-        keyPurpose.flatMap(P8Purpose.purposes(stored:))?.map(\.title).joined(separator: "・") ?? "未設定"
+        keyPurpose.flatMap(P8Purpose.purposes(stored:))?.map(\.displayTitle).joined(separator: String(localized: "・")) ?? String(localized: "未設定")
     }
 
     func displayState(at now: Date) -> CredentialDisplayState {
@@ -132,7 +132,7 @@ struct CredentialAppView: View {
             if let team {
                 CredentialImportView(app: app, team: team, vault: vault, initialSources: droppedSources.isEmpty ? initialSources : droppedSources) { id in
                     selected = id
-                    status = "暗号化して保存しました。鍵・証明書はチームの一覧、プロファイルは対象アプリの一覧で確認できます。"
+                    status = String(localized: "暗号化して保存しました。鍵・証明書はチームの一覧、プロファイルは対象アプリの一覧で確認できます。")
                 }
             }
         }
@@ -140,7 +140,7 @@ struct CredentialAppView: View {
             if let team {
                 AppleDeveloperImportView(team: team, vault: vault) { id in
                     selected = id
-                    status = "Apple Developerから取得したファイルを暗号化して保存しました。"
+                    status = String(localized: "Apple Developerから取得したファイルを暗号化して保存しました。")
                 }.modelContainer(container)
             }
         }
@@ -181,7 +181,7 @@ struct CredentialAppView: View {
             do {
                 try vault.recover()
             }
-            catch { self.error = "保存状態を確認できません。\(error.localizedDescription)" }
+            catch { self.error = String(localized: "保存状態を確認できません。\(error.localizedDescription)") }
         }
         .onChange(of: importing) { _, shown in if !shown { droppedSources = [] } }
         .onDisappear { lock() }
@@ -246,7 +246,7 @@ struct CredentialAppView: View {
             if dropTargeted {
                 VStack(spacing: 10) {
                     Image(systemName: "square.and.arrow.down").font(.system(size: 28)).foregroundStyle(AppMateStyle.accent)
-                    Text("離すと \(app?.name ?? "鍵と証明書") に追加します").font(.system(size: 17, weight: .bold))
+                    Text("離すと \(app?.name ?? String(localized: "鍵と証明書")) に追加します").font(.system(size: 17, weight: .bold))
                     Text("証明書と鍵は「鍵と証明書」に入ります").font(.system(size: 12)).foregroundStyle(AppMateStyle.secondary)
                 }.frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(AppMateStyle.selectedRow.opacity(0.94), in: RoundedRectangle(cornerRadius: 14))
@@ -269,20 +269,20 @@ struct CredentialAppView: View {
     }
 
     private var pageTitle: String {
-        if CredentialSearch.hasQuery(search) { return "検索の結果" }
+        if CredentialSearch.hasQuery(search) { return String(localized: "検索の結果") }
         if let app { return app.name }
-        if case .team = scope { return "鍵と証明書" }
+        if case .team = scope { return String(localized: "鍵と証明書") }
         return scope.title
     }
 
     private var pageSubtitle: String {
-        if CredentialSearch.hasQuery(search) { return "すべてのチームとアプリ · \(visible.count)件" }
+        if CredentialSearch.hasQuery(search) { return String(localized: "すべてのチームとアプリ · \(visible.count)件") }
         if let app {
-            let targets = app.parentAppID == nil && app.targets.count > 1 ? " · \(app.targets.count)ターゲット" : ""
+            let targets = app.parentAppID == nil && app.targets.count > 1 ? String(localized: " · \(app.targets.count)ターゲット") : ""
             return "\(app.platform) · \(app.bundleID)\(targets)"
         }
-        if case .team = scope, let team { return "\(team.name) のどのアプリでも使えるもの" }
-        return "\(visible.count)件"
+        if case .team = scope, let team { return String(localized: "\(team.name) のどのアプリでも使えるもの") }
+        return String(localized: "\(visible.count)件")
     }
 
     private var header: some View {
@@ -325,9 +325,9 @@ struct CredentialAppView: View {
 
     private func targetFilterBar(_ app: ManagedApp) -> some View {
         HStack(spacing: 6) {
-            targetChip("すべて", id: nil)
+            targetChip(String(localized: "すべて"), id: nil)
             ForEach(app.targets) { target in
-                targetChip(target.id == app.id ? "本体" : target.name, id: target.id)
+                targetChip(target.id == app.id ? String(localized: "本体") : target.name, id: target.id)
                     .contextMenu {
                         if target.id != app.id {
                             Button("ターゲットを編集…") { editingTarget = target }
@@ -377,13 +377,13 @@ struct CredentialAppView: View {
     private func attentionMessage(_ records: [StoredCredential]) -> String {
         let unusable = records.filter { CredentialGroup($0) == .profile && $0.signingCertificatesExpired(in: self.records, at: clock) }
         if !unusable.isEmpty {
-            return "署名に使う証明書が期限切れのため、プロファイル \(unusable.count)件が使えません。"
+            return String(localized: "署名に使う証明書が期限切れのため、プロファイル \(unusable.count)件が使えません。")
         }
         let dates = records.compactMap(\.expiresAt)
         if let first = dates.first, first > clock, dates.allSatisfy({ Calendar.current.isDate($0, inSameDayAs: first) }) {
-            return "\(records.count)件が\(first.formatted(.dateTime.month().day()))に期限切れになります。新しいファイルを追加しましょう。"
+            return String(localized: "\(records.count)件が\(first.formatted(.dateTime.month().day()))に期限切れになります。新しいファイルを追加しましょう。")
         }
-        return "\(records.count)件の期限を確認してください。新しいファイルを追加しましょう。"
+        return String(localized: "\(records.count)件の期限を確認してください。新しいファイルを追加しましょう。")
     }
 
     private var deletionBar: some View {
@@ -402,9 +402,9 @@ struct CredentialAppView: View {
 
     private func sectionDetail(_ group: CredentialGroup, count: Int) -> String {
         switch group {
-        case .profile: app == nil || CredentialSearch.hasQuery(search) ? "\(count)" : "\(count) · このアプリ専用"
+        case .profile: app == nil || CredentialSearch.hasQuery(search) ? "\(count)" : String(localized: "\(count) · このアプリ専用")
         case .certificate: "\(count)"
-        case .key: "\(count) · 期限なし · どのアプリで使っているかは記録していません"
+        case .key: String(localized: "\(count) · 期限なし · どのアプリで使っているかは記録していません")
         }
     }
 
@@ -414,8 +414,8 @@ struct CredentialAppView: View {
                                    description: Text("検索語や種類を変えて確認してください。"))
         } else if team != nil, app?.deletedAt == nil, app != nil || isTeamScope {
             VStack(spacing: 12) {
-                CredentialDropZone(title: app != nil ? "このアプリのプロファイルをドロップ" : "証明書や鍵をドロップ",
-                                   formats: app != nil ? [".mobileprovision", ".provisionprofile"] : ["証明書 .p12 · .cer", "鍵 .p8"]) { importing = true }
+                CredentialDropZone(title: app != nil ? String(localized: "このアプリのプロファイルをドロップ") : String(localized: "証明書や鍵をドロップ"),
+                                   formats: app != nil ? [".mobileprovision", ".provisionprofile"] : [String(localized: "証明書 .p12 · .cer"), String(localized: "鍵 .p8")]) { importing = true }
                 AppleImportCard { onlineImporting = true }
             }.disabled(access.busy)
         } else {
@@ -444,7 +444,7 @@ struct CredentialAppView: View {
             HStack(spacing: 10) {
                 AppIcon(app: target.product, size: 28)
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(target.name + (target.parentAppID == nil ? "（本体）" : "")).fontWeight(.semibold)
+                    Text(target.name + (target.parentAppID == nil ? String(localized: "（本体）") : "")).fontWeight(.semibold)
                     Text(target.bundleID).font(.caption.monospaced()).foregroundStyle(AppMateStyle.secondary)
                 }
                 Spacer()
@@ -456,7 +456,7 @@ struct CredentialAppView: View {
                     }
                 } label: { Image(systemName: "ellipsis") }
                     .menuStyle(.borderlessButton).menuIndicator(.hidden).frame(width: 28)
-                    .accessibilityLabel(target.name + "の操作").disabled(access.busy)
+                    .accessibilityLabel(String(localized: "\(target.name)の操作")).disabled(access.busy)
             }.padding(.vertical, 8)
             if profiles.isEmpty {
                 Text("プロファイルはまだありません").foregroundStyle(AppMateStyle.secondary).padding(.vertical, 8)
@@ -560,7 +560,7 @@ struct CredentialAppView: View {
         if CredentialGroup(record) == .certificate {
             let bundled = record.bundledCertificates.count
             Text([record.certificateNameParts.holder ?? record.fileTypeTitle,
-                  ".\(record.fileExtension)" + (bundled > 0 ? "（ほか\(bundled)件を含む）" : "")].joined(separator: " · "))
+                  ".\(record.fileExtension)" + (bundled > 0 ? String(localized: "（ほか\(bundled)件を含む）") : "")].joined(separator: " · "))
                 .font(.system(size: 12)).foregroundStyle(AppMateStyle.secondary).lineLimit(1)
         }
     }
@@ -580,11 +580,11 @@ struct CredentialAppView: View {
             } else {
                 VStack(alignment: .leading, spacing: 4) {
                     ForEach(products) { product in
-                        let names = targets.filter { $0.product == product }.map { $0.parentAppID == nil ? "本体" : $0.name }
+                        let names = targets.filter { $0.product == product }.map { $0.parentAppID == nil ? String(localized: "本体") : $0.name }
                         HStack(spacing: 6) {
                             AppIcon(app: product, size: 16)
                             Text(product.name).lineLimit(1)
-                            Text(names.reduce(into: [String]()) { if !$0.contains($1) { $0.append($1) } }.joined(separator: "・"))
+                            Text(names.reduce(into: [String]()) { if !$0.contains($1) { $0.append($1) } }.joined(separator: String(localized: "・")))
                                 .foregroundStyle(AppMateStyle.secondary).lineLimit(1)
                         }.font(.system(size: 12)).padding(.leading, 3).padding(.trailing, 8).padding(.vertical, 2)
                             .background(AppMateStyle.canvas, in: RoundedRectangle(cornerRadius: 6))
@@ -604,7 +604,7 @@ struct CredentialAppView: View {
             Text(state.title).font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(state == .expired ? AppMateStyle.dangerText : AppMateStyle.warningText)
         } else {
-            Text(record.expiresAt.map { $0.formatted(.dateTime.year().month(.twoDigits).day(.twoDigits)) } ?? "なし")
+            Text(record.expiresAt.map { $0.formatted(.dateTime.year().month(.twoDigits).day(.twoDigits)) } ?? String(localized: "なし"))
                 .foregroundStyle(AppMateStyle.secondary)
         }
     }
@@ -634,33 +634,33 @@ struct CredentialAppView: View {
 
     private func detail(_ record: StoredCredential) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            metadata("ファイルの種類", "\(record.fileTypeTitle)（.\(record.fileExtension)）")
-            if record.fileExtension == "p8" { metadata("用途", record.purposeTitle) }
+            metadata(String(localized: "ファイルの種類"), "\(record.fileTypeTitle)（.\(record.fileExtension)）")
+            if record.fileExtension == "p8" { metadata(String(localized: "用途"), record.purposeTitle) }
             if record.isIntermediateCA {
-                metadata("Team ID", "対象外（中間CA証明書）")
+                metadata("Team ID", String(localized: "対象外（中間CA証明書）"))
             } else {
-                metadata("Team ID", record.team?.teamID ?? "未取得", monospaced: true)
+                metadata("Team ID", record.team?.teamID ?? String(localized: "未取得"), monospaced: true)
             }
             if let owner = record.app { metadata("Bundle ID", owner.bundleID, monospaced: true) }
             if CredentialGroup(record) == .profile {
                 let certificates = record.signingCertificates(in: records)
-                if !certificates.isEmpty { metadata("使う証明書", certificates.map(\.name).joined(separator: "、")) }
+                if !certificates.isEmpty { metadata(String(localized: "使う証明書"), certificates.map(\.name).joined(separator: String(localized: "、"))) }
             }
             if let value = record.keyID { metadata("Key ID", value, monospaced: true) }
             if let value = record.issuerID { metadata("Issuer ID", value, monospaced: true) }
             if record.fileExtension == "p12" {
                 let bundled = record.bundledCertificates
-                metadata("同梱の証明書", record.p12Certificates == nil ? (record.hasSavedPassword ? "未確認（次の認証後に表示）" : "未確認（パスワード未保存）")
-                         : bundled.isEmpty ? "なし"
-                         : bundled.map { $0.name + ($0.expiresAt.map { "（" + $0.formatted(date: .abbreviated, time: .omitted) + "まで）" } ?? "") }.joined(separator: "\n"))
+                metadata(String(localized: "同梱の証明書"), record.p12Certificates == nil ? (record.hasSavedPassword ? String(localized: "未確認（次の認証後に表示）") : String(localized: "未確認（パスワード未保存）"))
+                         : bundled.isEmpty ? String(localized: "なし")
+                         : bundled.map { $0.name + ($0.expiresAt.map { String(localized: "（\($0.formatted(date: .abbreviated, time: .omitted))まで）") } ?? "") }.joined(separator: "\n"))
                 HStack(alignment: .top, spacing: 12) {
                     Text("パスワード").foregroundStyle(AppMateStyle.secondary).frame(width: 96, alignment: .leading)
-                    Text(revealedPassword.map { $0.isEmpty ? "空のパスワード" : $0 } ?? (record.hasSavedPassword ? "••••••••" : "未保存"))
+                    Text(revealedPassword.map { $0.isEmpty ? String(localized: "空のパスワード") : $0 } ?? (record.hasSavedPassword ? "••••••••" : String(localized: "未保存")))
                         .monospaced().privacySensitive().textSelection(.disabled)
                 }
             }
-            metadata("追加した日", record.createdAt.formatted(date: .long, time: .omitted))
-            metadata("元のファイル名", record.originalName, monospaced: true)
+            metadata(String(localized: "追加した日"), record.createdAt.formatted(date: .long, time: .omitted))
+            metadata(String(localized: "元のファイル名"), record.originalName, monospaced: true)
             Label("コピー・書き出しの前に Touch ID で確認します", systemImage: "lock")
                 .font(.system(size: 11)).foregroundStyle(AppMateStyle.secondary).padding(.top, 4)
         }.font(.system(size: 12))
@@ -696,18 +696,18 @@ struct CredentialAppView: View {
         access.presentingPanel = true
         let panel = NSSavePanel()
         panel.nameFieldStringValue = record.originalName
-        panel.message = "元の形式で書き出します。保存先ではApp Mateの暗号化保護の対象外になります。新しい名前を指定してください。既存ファイルは上書きしません。"
+        panel.message = String(localized: "元の形式で書き出します。保存先ではApp Mateの暗号化保護の対象外になります。新しい名前を指定してください。既存ファイルは上書きしません。")
         let response = panel.runModal()
         access.presentingPanel = false
         guard response == .OK, let url = panel.url, generation == access.generation else { return }
         error = nil
         Task { @MainActor in
             do {
-                try await access.withKey(reason: "資格情報の元ファイルを書き出します", allowCreation: false, vault: vault) { key in
+                try await access.withKey(reason: String(localized: "資格情報の元ファイルを書き出します"), allowCreation: false, vault: vault) { key in
                     try vault.export(record, to: url, key: key)
                 }
                 if revealInFinder { NSWorkspace.shared.activateFileViewerSelecting([url]) }
-                status = "ファイルを書き出しました。保存先のファイルはご自身で管理してください。"
+                status = String(localized: "ファイルを書き出しました。保存先のファイルはご自身で管理してください。")
             } catch { self.error = error.localizedDescription }
         }
     }
@@ -715,7 +715,7 @@ struct CredentialAppView: View {
     private func trash(_ record: StoredCredential) {
         Task { @MainActor in
             do {
-                try await access.withKey(reason: "資格情報を最近削除した項目へ移します", allowCreation: false, vault: vault) { key in
+                try await access.withKey(reason: String(localized: "資格情報を最近削除した項目へ移します"), allowCreation: false, vault: vault) { key in
                     try VaultManagement(vault: vault).trash(record, key: key)
                 }
                 selected = nil
@@ -727,13 +727,13 @@ struct CredentialAppView: View {
         error = nil
         Task { @MainActor in
             do {
-                try await access.withKey(reason: "選択した\(targets.count)件の鍵・ファイルを最近削除した項目へ移します", allowCreation: false, vault: vault) { key in
+                try await access.withKey(reason: String(localized: "選択した\(targets.count)件の鍵・ファイルを最近削除した項目へ移します"), allowCreation: false, vault: vault) { key in
                     try VaultManagement(vault: vault).trash(targets, key: key)
                 }
                 checkedIDs = []
                 selectingForDeletion = false
                 if targets.contains(where: { $0.id == selected }) { selected = nil }
-                status = "\(targets.count)件を最近削除した項目へ移しました。30日間は復元できます。"
+                status = String(localized: "\(targets.count)件を最近削除した項目へ移しました。30日間は復元できます。")
             } catch { self.error = error.localizedDescription }
         }
     }
@@ -742,7 +742,7 @@ struct CredentialAppView: View {
         Task { @MainActor in
             do {
                 let create = try vault.canCreateKey()
-                try await access.withKey(reason: "登録と配下のプロファイルを削除します", allowCreation: create, vault: vault) { key in
+                try await access.withKey(reason: String(localized: "登録と配下のプロファイルを削除します"), allowCreation: create, vault: vault) { key in
                     try VaultManagement(vault: vault).trash(target, key: key)
                 }
             } catch { self.error = error.localizedDescription }
@@ -753,7 +753,7 @@ struct CredentialAppView: View {
         error = nil
         Task { @MainActor in
             do {
-                try await access.withKey(reason: "保存済みの.p12パスワードを表示します", allowCreation: false, vault: vault) { key in
+                try await access.withKey(reason: String(localized: "保存済みの.p12パスワードを表示します"), allowCreation: false, vault: vault) { key in
                     guard let password = try vault.read(record, key: key).password else { throw ValidationError.invalidFile }
                     revealedPassword = password
                     revealedAt = .now
@@ -817,21 +817,21 @@ struct CredentialImportView: View {
     private var showsQueue: Bool { !currentName.isEmpty || !pending.isEmpty || !completedItems.isEmpty }
 
     private var headline: String {
-        if finished { return "ファイルの追加が終わりました" }
-        if readyToCommit { return "\(pending.count)件の確認が終わりました" }
-        if file == nil { return currentName.isEmpty ? "ファイルを追加" : "読み取っています…" }
-        if needsPassword { return ".p12 のパスワードを入力してください" }
-        if isP8 { return "この鍵の用途を選んでください" }
-        if unregisteredBundle != nil { return "どのアプリのプロファイルですか？" }
-        return "内容を確認してください"
+        if finished { return String(localized: "ファイルの追加が終わりました") }
+        if readyToCommit { return String(localized: "\(pending.count)件の確認が終わりました") }
+        if file == nil { return currentName.isEmpty ? String(localized: "ファイルを追加") : String(localized: "読み取っています…") }
+        if needsPassword { return String(localized: ".p12 のパスワードを入力してください") }
+        if isP8 { return String(localized: "この鍵の用途を選んでください") }
+        if unregisteredBundle != nil { return String(localized: "どのアプリのプロファイルですか？") }
+        return String(localized: "内容を確認してください")
     }
 
     private var subheadline: String {
-        if finished { return "元のファイルは変更していません。" }
-        if readyToCommit { return "Touch ID で確認すると、まとめて暗号化して保存します。" }
-        if needsPassword { return ".p12 を書き出したときに決めたパスワードです。設定していない場合は空欄のまま「読み取る」を押します。" }
-        if isP8 { return ".p8 のファイルには用途が書かれていません。Apple Developer の鍵のページにある「Enabled Services」と同じものを選びます。" }
-        return "追加先：\(team.name)"
+        if finished { return String(localized: "元のファイルは変更していません。") }
+        if readyToCommit { return String(localized: "Touch ID で確認すると、まとめて暗号化して保存します。") }
+        if needsPassword { return String(localized: ".p12 を書き出したときに決めたパスワードです。設定していない場合は空欄のまま「読み取る」を押します。") }
+        if isP8 { return String(localized: ".p8 のファイルには用途が書かれていません。Apple Developer の鍵のページにある「Enabled Services」と同じものを選びます。") }
+        return String(localized: "追加先：\(team.name)")
     }
     private var parsed: ParsedCredential? { candidates.indices.contains(selected) ? candidates[selected] : nil }
     private var isP8: Bool { file.map { ($0.name as NSString).pathExtension.lowercased() == "p8" } ?? false }
@@ -957,8 +957,8 @@ struct CredentialImportView: View {
                         DisclosureGroup("読み取った識別情報") {
                             VStack(alignment: .leading, spacing: 8) {
                         LabeledContent("名前", value: parsed.name)
-                        LabeledContent("期限", value: parsed.expiresAt?.formatted(date: .abbreviated, time: .standard) ?? "期限なし")
-                        LabeledContent("取得したTeam ID", value: parsed.isIntermediateCA ? "対象外（中間CA証明書）" : parsed.teamID ?? "未取得")
+                        LabeledContent("期限", value: parsed.expiresAt?.formatted(date: .abbreviated, time: .standard) ?? String(localized: "期限なし"))
+                        LabeledContent("取得したTeam ID", value: parsed.isIntermediateCA ? String(localized: "対象外（中間CA証明書）") : parsed.teamID ?? String(localized: "未取得"))
                         if let bundle = parsed.bundleID { LabeledContent("Bundle ID", value: bundle) }
                         if let fingerprint = parsed.fingerprint { Text("SHA-256：\(fingerprint)").font(.caption.monospaced()).textSelection(.enabled) }
                             }
@@ -967,7 +967,7 @@ struct CredentialImportView: View {
                             Toggle("Team IDを判別できないため、\(team.name)に割り当てることを確認しました", isOn: $confirmUnknownTeam)
                         }
                         let isP12 = (file?.name as NSString?)?.pathExtension.lowercased() == "p12"
-                        Text(parsed.isIntermediateCA ? "中間CA証明書には個人のTeam IDはありません。選択中のTeamを保管先として保存します。" : parsed.bundleID == nil ? "チーム「\(team.name)」の鍵・証明書の一覧に保管します。" : "「\(importApp?.name ?? "未選択")」専用のプロファイルとして保存します。")
+                        Text(parsed.isIntermediateCA ? "中間CA証明書には個人のTeam IDはありません。選択中のTeamを保管先として保存します。" : parsed.bundleID == nil ? "チーム「\(team.name)」の鍵・証明書の一覧に保管します。" : "「\(importApp?.name ?? String(localized: "未選択"))」専用のプロファイルとして保存します。")
                         if isP12 {
                             Toggle(".p12のパスワードも暗号化して保存", isOn: $savePassword)
                             Text("証明書チェーンと秘密鍵を含む元の.p12全体を保存・書き出しします。証明書の選択は表示情報だけを変えます。")
@@ -1000,7 +1000,7 @@ struct CredentialImportView: View {
                     Button("キャンセル") { access.lock(); dismiss() }.keyboardShortcut(.cancelAction)
                     Spacer()
                     if !currentName.isEmpty {
-                        Button("このファイルを飛ばす") { completedItems.append("スキップ：" + currentName + (error.map { " · " + $0 } ?? "")); next() }
+                        Button("このファイルを飛ばす") { completedItems.append(String(localized: "スキップ：") + currentName + (error.map { " · " + $0 } ?? "")); next() }
                             .buttonStyle(.plain).foregroundStyle(AppMateStyle.secondary).disabled(access.busy)
                     }
                     if readyToCommit {
@@ -1149,7 +1149,7 @@ struct CredentialImportView: View {
         let inputPassword = password
         password = ""
         error = nil
-        guard inputPassword.utf8.count <= 4096 else { error = "パスワードが長すぎます。"; passwordFocused = true; return }
+        guard inputPassword.utf8.count <= 4096 else { error = String(localized: "パスワードが長すぎます。"); passwordFocused = true; return }
         let token = parseID
         let generation = access.generation
         lastActivity = .now
@@ -1197,14 +1197,14 @@ struct CredentialImportView: View {
         Task { @MainActor in
             do {
                 let canCreate = try vault.canCreateKey()
-                try await access.withKey(reason: "\(items.count)件の資格情報を暗号化して保存します", allowCreation: canCreate, vault: vault) { key in
+                try await access.withKey(reason: String(localized: "\(items.count)件の資格情報を暗号化して保存します"), allowCreation: canCreate, vault: vault) { key in
                     for item in items {
                         do {
                             lastSavedID = try vault.importFile(item.file, parsed: item.parsed, app: item.app, team: team, password: item.password,
                                                                confirmUnknownTeam: item.confirmed, key: key, p8: item.p8)
-                            completedItems.append("保存済み：" + item.file.name)
+                            completedItems.append(String(localized: "保存済み：") + item.file.name)
                         } catch {
-                            completedItems.append("保存できませんでした：" + item.file.name + " · " + error.localizedDescription)
+                            completedItems.append(String(localized: "保存できませんでした：") + item.file.name + " · " + error.localizedDescription)
                         }
                     }
                 }
@@ -1225,10 +1225,10 @@ struct CredentialImportView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 2) {
                     ForEach(Array(completedItems.enumerated()), id: \.offset) { _, item in
-                        let saved = item.hasPrefix("保存済み：")
-                        queueRow(item.split(separator: "：", maxSplits: 1).last.map(String.init) ?? item,
-                                 symbol: saved ? "checkmark.circle" : item.hasPrefix("スキップ：") ? "minus.circle" : "exclamationmark.circle",
-                                 tint: saved ? AppMateStyle.successText : item.hasPrefix("スキップ：") ? AppMateStyle.tertiary : AppMateStyle.dangerText, current: false)
+                        let saved = item.hasPrefix(String(localized: "保存済み："))
+                        queueRow(item.split(maxSplits: 1, whereSeparator: { $0 == "：" || $0 == ":" }).last.map(String.init) ?? item,
+                                 symbol: saved ? "checkmark.circle" : item.hasPrefix(String(localized: "スキップ：")) ? "minus.circle" : "exclamationmark.circle",
+                                 tint: saved ? AppMateStyle.successText : item.hasPrefix(String(localized: "スキップ：")) ? AppMateStyle.tertiary : AppMateStyle.dangerText, current: false)
                     }
                     ForEach(Array(pending.enumerated()), id: \.offset) { _, item in
                         queueRow(item.file.name, symbol: "checkmark.circle", tint: AppMateStyle.accent, current: false)
@@ -1245,7 +1245,7 @@ struct CredentialImportView: View {
 
     private func queueRow(_ name: String, symbol: String, tint: Color, current: Bool) -> some View {
         let ext = (name as NSString).pathExtension.lowercased()
-        let kind = ext == "p8" ? "鍵（.p8）" : ["cer", "p12"].contains(ext) ? "証明書" : "プロファイル"
+        let kind = ext == "p8" ? String(localized: "鍵（.p8）") : ["cer", "p12"].contains(ext) ? String(localized: "証明書") : String(localized: "プロファイル")
         return HStack(spacing: 10) {
             Image(systemName: symbol).foregroundStyle(tint)
             VStack(alignment: .leading, spacing: 1) {

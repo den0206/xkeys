@@ -34,7 +34,7 @@ F5は `.vscode/launch.json` から通常のDebugビルドを実行する。CodeL
 
 ## 自動テスト
 
-schemeのTestActionは `APP_MATE_TESTING=1` を指定する。アプリのストアはメモリ内、ファイルは一時領域の `AppMateTests` に分離する。製品のDockバッジ更新・初回案内を実行しない。認証のテストは注入した鍵を使い、製品Keychain鍵を生成しない。クリップボードのテストは専用pasteboardを使用する。
+schemeのTestActionは `APP_MATE_TESTING=1` と言語 `ja`（地域 `JP`）を指定し、OSの言語設定にかかわらず日本語の文言で検証する。アプリのストアはメモリ内、ファイルは一時領域の `AppMateTests` に分離する。製品のDockバッジ更新・初回案内を実行しない。認証のテストは注入した鍵を使い、製品Keychain鍵を生成しない。クリップボードのテストは専用pasteboardを使用する。
 
 ```sh
 xcodebuild -project AppMate.xcodeproj -scheme AppMate \
@@ -46,7 +46,7 @@ xcodebuild -project AppMate.xcodeproj -scheme AppMate \
 
 ## 確認状況
 
-2026-10-16時点で、全117件のXCTestと通常の署名付きDebugビルドが成功する。製品の暗号鍵・Keychain・実データ・実Apple Accountは自動テストで使わない。
+2026-10-17時点で、全117件のXCTestと通常の署名付きDebugビルドが成功する。製品の暗号鍵・Keychain・実データ・実Apple Accountは自動テストで使わない。
 
 | 対象 | 確認内容 |
 | --- | --- |
@@ -56,6 +56,7 @@ xcodebuild -project AppMate.xcodeproj -scheme AppMate \
 | Apple Developer | 所属チーム応答の検証、セッションの保存・復帰・期限切れ・ログアウト、旧Cookie形式の移行、復元の所属確認と期限、Webセッション用APIのTeam ID・CSRF・ページ送り・ダウンロード検証、鍵のサービスから.p8の用途への対応付け。HTTP・Keychainは架空データに置き換える |
 | 検索・CI | メタデータ検索、種別判定、条件付きクリップボード消去、CI用Secretファイルの初期選択・変数名の検証・dotenvの書き出しと上書き拒否・パスワードがない場合と書けない文字の扱い |
 | アプリアイコン | SVGの標準画像デコード・描画用データ生成・保存とバックアップへの収録、画像アイコンの復元と旧バックアップ互換性 |
+| 表示言語 | 英語環境（`-AppleLanguages (en)`）で初回案内とサイドバーが英語で表示されることを手動確認。ほかの画面の英語表示は未確認 |
 | 画面描画 | 通常幅1232×752と最小960×640のメイン画面、設定、追加、初回案内、取り込み、バックアップ、復元、CIコピー、CI用Secretファイル、削除確認、チーム管理、ログイン、オンライン一覧を架空データで描画 |
 
 この表は確認した範囲を示す。リリース承認や全操作の実機検証の代わりにはしない。架空データの値・並びは実データと異なり、画像にはOSのウィンドウ操作ボタン・シート外側・認証ダイアログを含まない。

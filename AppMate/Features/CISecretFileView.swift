@@ -7,10 +7,10 @@ struct CISecretEntry: Identifiable {
         case team, certificate, profile, key
         var title: String {
             switch self {
-            case .team: "チーム"
-            case .certificate: "証明書（.p12）"
-            case .profile: "プロファイル"
-            case .key: "鍵（.p8）"
+            case .team: String(localized: "チーム")
+            case .certificate: String(localized: "証明書（.p12）")
+            case .profile: String(localized: "プロファイル")
+            case .key: String(localized: "鍵（.p8）")
             }
         }
     }
@@ -34,11 +34,11 @@ enum CISecretError: LocalizedError {
     case empty, invalidName(String), reservedName(String), duplicateName(String), unsupportedPassword
     var errorDescription: String? {
         switch self {
-        case .empty: "書き出す項目を1つ以上選んでください。"
-        case .invalidName(let name): "変数名「\(name)」は使えません。英字・数字・_ で、先頭は英字か _ にしてください。"
-        case .reservedName(let name): "変数名「\(name)」は GITHUB_ で始まるため使えません。"
-        case .duplicateName(let name): "変数名「\(name)」が重複しています。"
-        case .unsupportedPassword: ".p12 のパスワードに ' または改行が含まれるため、ファイルに書けません。CI に直接設定してください。"
+        case .empty: String(localized: "書き出す項目を1つ以上選んでください。")
+        case .invalidName(let name): String(localized: "変数名「\(name)」は使えません。英字・数字・_ で、先頭は英字か _ にしてください。")
+        case .reservedName(let name): String(localized: "変数名「\(name)」は GITHUB_ で始まるため使えません。")
+        case .duplicateName(let name): String(localized: "変数名「\(name)」が重複しています。")
+        case .unsupportedPassword: String(localized: ".p12 のパスワードに ' または改行が含まれるため、ファイルに書けません。CI に直接設定してください。")
         }
     }
 }
@@ -48,7 +48,7 @@ enum CISecretError: LocalizedError {
         let product = app.product
         guard let team = product.team else { return [] }
         let active = records.filter { $0.deletedAt == nil && $0.team?.id == team.id && $0.displayState(at: now) != .expired }
-        var entries = [CISecretEntry(id: "team", section: .team, title: "Team ID（\(team.name)）", name: "APPLE_TEAM_ID",
+        var entries = [CISecretEntry(id: "team", section: .team, title: String(localized: "Team ID（\(team.name)）"), name: "APPLE_TEAM_ID",
                                      source: .text(team.teamID), included: true)]
 
         var chosenProfiles: [StoredCredential] = []
@@ -70,10 +70,10 @@ enum CISecretError: LocalizedError {
             let include = index == 0 && linked.contains(certificate.id)
             entries.append(CISecretEntry(id: "p12-\(certificate.id)", section: .certificate, title: certificate.name,
                                          name: "BUILD_CERTIFICATE_BASE64", source: .file(certificate), included: include,
-                                         note: linked.contains(certificate.id) ? "プロファイルが使う証明書" : nil))
-            entries.append(CISecretEntry(id: "password-\(certificate.id)", section: .certificate, title: "パスワード",
+                                         note: linked.contains(certificate.id) ? String(localized: "プロファイルが使う証明書") : nil))
+            entries.append(CISecretEntry(id: "password-\(certificate.id)", section: .certificate, title: String(localized: "パスワード"),
                                          name: "P12_PASSWORD", source: .password(certificate), included: include,
-                                         note: certificate.hasSavedPassword ? nil : "保存していません。空の値で書き出します",
+                                         note: certificate.hasSavedPassword ? nil : String(localized: "保存していません。空の値で書き出します"),
                                          warns: !certificate.hasSavedPassword, parent: "p12-\(certificate.id)"))
         }
 
@@ -126,10 +126,10 @@ enum CISecretError: LocalizedError {
         try validate(entries)
         let included = entries.filter(\.included)
         let label = title.components(separatedBy: .newlines).joined(separator: " ")
-        var lines = ["# このファイルは App Mate が自動生成しました。編集しないでください。",
-                     "# 値を変える場合は、App Mate で書き出し直してください。",
-                     "# 生成元: \(label) · \(now.formatted(.iso8601.year().month().day()))",
-                     "# このファイルは暗号化されていません。CI に登録したら削除してください。"]
+        var lines = [String(localized: "# このファイルは App Mate が自動生成しました。編集しないでください。"),
+                     String(localized: "# 値を変える場合は、App Mate で書き出し直してください。"),
+                     String(localized: "# 生成元: \(label) · \(now.formatted(.iso8601.year().month().day()))"),
+                     String(localized: "# このファイルは暗号化されていません。CI に登録したら削除してください。")]
         var payloads: [UUID: CredentialPayload] = [:]
         func payload(_ record: StoredCredential) throws -> CredentialPayload {
             if let cached = payloads[record.id] { return cached }
@@ -145,7 +145,7 @@ enum CISecretError: LocalizedError {
             case .file(let record): value = try payload(record).original.base64EncodedString()
             case .password(let record):
                 guard let password = try payload(record).password else {
-                    lines += ["# \(name): パスワードを保存していないため空です。CI に直接設定してください。", "# \(name)="]
+                    lines += [String(localized: "# \(name): パスワードを保存していないため空です。CI に直接設定してください。"), "# \(name)="]
                     continue
                 }
                 value = password
@@ -281,21 +281,21 @@ struct CISecretFileView: View {
         access.presentingPanel = true
         let panel = NSSavePanel()
         panel.nameFieldStringValue = CISecretFile.defaultFileName(for: app)
-        panel.message = "ファイル名を変更できます。保存先では App Mate の暗号化保護の対象外になります。既存ファイルは上書きしません。"
+        panel.message = String(localized: "ファイル名を変更できます。保存先では App Mate の暗号化保護の対象外になります。既存ファイルは上書きしません。")
         let response = panel.runModal()
         access.presentingPanel = false
         guard response == .OK, let url = panel.url, generation == access.generation else { return }
         let entries = entries
         Task { @MainActor in
             do {
-                try await access.withKey(reason: "CI 用の Secret ファイルを書き出します", allowCreation: false, vault: vault) { key in
+                try await access.withKey(reason: String(localized: "CI 用の Secret ファイルを書き出します"), allowCreation: false, vault: vault) { key in
                     let data = try CISecretFile.render(entries, title: app.product.name, at: .now) { try vault.read($0, key: key) }
                     try CredentialFile(data: data, name: url.lastPathComponent).export(to: url)
                 }
                 written = url
                 NSWorkspace.shared.activateFileViewerSelecting([url])
             } catch let error as POSIXError where error.code == .EEXIST {
-                message = "同じ名前のファイルがあります。別の名前を指定してください。"
+                message = String(localized: "同じ名前のファイルがあります。別の名前を指定してください。")
             } catch { message = error.localizedDescription }
         }
     }

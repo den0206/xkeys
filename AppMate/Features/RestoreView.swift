@@ -43,9 +43,9 @@ struct RestoreView: View {
             if let result {
                 Label("バックアップから戻しました", systemImage: "checkmark.circle.fill").font(.headline).foregroundStyle(AppMateStyle.successText)
                 HStack(spacing: 8) {
-                    resultCount(result.added, "追加", AppMateStyle.successText)
-                    resultCount(result.updated, "更新", AppMateStyle.accent)
-                    resultCount(result.skipped, "そのまま", AppMateStyle.tertiary)
+                    resultCount(result.added, String(localized: "restore.added", defaultValue: "追加"), AppMateStyle.successText)
+                    resultCount(result.updated, String(localized: "更新"), AppMateStyle.accent)
+                    resultCount(result.skipped, String(localized: "そのまま"), AppMateStyle.tertiary)
                 }
                 Text(replaceAll ? "バックアップの内容で全体を置き換えました。金庫鍵は維持しています。" : "既存のデータと金庫鍵を維持して、選んだ内容をまとめました。件数にはTeam・Appも含みます。")
                     .foregroundStyle(.secondary)
@@ -53,7 +53,7 @@ struct RestoreView: View {
             } else {
                 HStack(alignment: .top) {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text(file?.name ?? "バックアップファイルを選んでください").font(.headline).lineLimit(2)
+                        Text(file?.name ?? String(localized: "バックアップファイルを選んでください")).font(.headline).lineLimit(2)
                         if let snapshot {
                             Text("\(snapshot.createdAt.formatted())に作成").font(.caption).foregroundStyle(.secondary)
                             Label(protected ? "パスワード保護あり · 復号・整合性チェック済み" : "暗号化なし · 破損チェック済み", systemImage: protected ? "lock.shield" : "exclamationmark.triangle")
@@ -78,7 +78,7 @@ struct RestoreView: View {
                             Text("復元するチームへの所属確認").font(.headline)
                             ForEach(plan.incoming.teams.filter { plan.requiredTeamIDs.contains($0.teamID) }, id: \.teamID) { team in
                                 let verified = (try? authorization.confirmedTeamIDs(for: plan).contains(team.teamID)) == true
-                                Label("\(team.name)（\(team.teamID)） · \(verified ? "確認済み" : "要確認")",
+                                Label("\(team.name)（\(team.teamID)） · \(verified ? String(localized: "確認済み") : String(localized: "要確認"))",
                                       systemImage: verified ? "checkmark.circle" : "person.crop.circle.badge.questionmark")
                             }
                             Button("Apple Developerで所属を確認…") { verifyingTeams = true }
@@ -88,9 +88,9 @@ struct RestoreView: View {
                     }
                     Text("今のデータとの違い").font(.headline)
                     HStack(spacing: 28) {
-                        count(plan.addedCount, title: "新しく追加")
-                        count(plan.duplicateCount, title: "同じもの（スキップ）")
-                        count(plan.conflicts.count, title: "内容が違う（選択が必要）")
+                        count(plan.addedCount, title: String(localized: "新しく追加"))
+                        count(plan.duplicateCount, title: String(localized: "同じもの（スキップ）"))
+                        count(plan.conflicts.count, title: String(localized: "内容が違う（選択が必要）"))
                     }
                     Text("件数はTeam・App・資格情報の合計です。").font(.caption).foregroundStyle(.secondary)
                     if plan.addedCount == 0 && plan.conflicts.isEmpty {
@@ -102,9 +102,9 @@ struct RestoreView: View {
                                 ForEach(plan.conflicts) { item in
                                     VStack(alignment: .leading, spacing: 6) {
                                         Text(item.title).font(.headline)
-                                        Text("異なる内容：" + item.detail).font(.caption).foregroundStyle(.secondary)
-                                        Text("現在：" + (item.current ?? "")).font(.caption).textSelection(.enabled)
-                                        Text("バックアップ：" + item.incoming).font(.caption).textSelection(.enabled)
+                                        Text(String(localized: "異なる内容：") + item.detail).font(.caption).foregroundStyle(.secondary)
+                                        Text(String(localized: "現在：") + (item.current ?? "")).font(.caption).textSelection(.enabled)
+                                        Text(String(localized: "バックアップ：") + item.incoming).font(.caption).textSelection(.enabled)
                                         Picker("使う内容", selection: Binding<RestoreChoice?>(get: { choices[item.id] }, set: { choices[item.id] = $0 })) {
                                             Text("選択してください").tag(nil as RestoreChoice?)
                                             Text("今のまま").tag(Optional(RestoreChoice.current))
@@ -167,7 +167,7 @@ struct RestoreView: View {
         .onChange(of: choices) { _, _ in lastActivity = .now }
         .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { _ in
             if !working && result == nil && (file != nil || snapshot != nil) && Date.now.timeIntervalSince(lastActivity) >= 300 {
-                clear(); error = "5分間操作がなかったため、読み込んだバックアップを閉じました。"
+                clear(); error = String(localized: "5分間操作がなかったため、読み込んだバックアップを閉じました。")
             }
         }
         .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.willSleepNotification)) { _ in clear(); dismiss() }
@@ -253,7 +253,7 @@ struct RestoreView: View {
         let decoded = try await Task.detached(priority: .userInitiated) { try BackupArchive.decode(file.data, password: password) }.value
         guard access.generation == generation, !Task.isCancelled else { throw VaultError.cancelled }
         let canCreate = try restore.vault.canCreateKey()
-        let prepared = try await access.withKey(reason: "バックアップと現在の資格情報を比較します", allowCreation: canCreate, vault: restore.vault) { key in
+        let prepared = try await access.withKey(reason: String(localized: "バックアップと現在の資格情報を比較します"), allowCreation: canCreate, vault: restore.vault) { key in
             try restore.prepare(decoded, key: key)
         }
         guard access.generation == generation, !Task.isCancelled else { throw VaultError.cancelled }
@@ -274,7 +274,7 @@ struct RestoreView: View {
             defer { working = false; work = nil }
             do {
                 let canCreate = try restore.vault.canCreateKey()
-                let refreshed = try await access.withKey(reason: "バックアップの復元差分を更新します", allowCreation: canCreate, vault: restore.vault) { key in
+                let refreshed = try await access.withKey(reason: String(localized: "バックアップの復元差分を更新します"), allowCreation: canCreate, vault: restore.vault) { key in
                     try restore.prepare(snapshot, key: key)
                 }
                 guard generation == access.generation, !Task.isCancelled else { throw VaultError.cancelled }
@@ -294,7 +294,7 @@ struct RestoreView: View {
             defer { working = false; work = nil }
             do {
                 let canCreate = try restore.vault.canCreateKey()
-                let merged = try await access.withKey(reason: "バックアップの選択した内容を復元します", allowCreation: canCreate, vault: restore.vault) { key in
+                let merged = try await access.withKey(reason: String(localized: "バックアップの選択した内容を復元します"), allowCreation: canCreate, vault: restore.vault) { key in
                     try restore.merge(plan, choices: selected, authorization: authorization, key: key, safetyBackup: replaceAll ? safetyBackup : nil, replacingAll: replaceAll)
                 }
                 result = merged

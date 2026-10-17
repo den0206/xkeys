@@ -14,9 +14,9 @@ enum CredentialGroup: CaseIterable {
 
     var title: String {
         switch self {
-        case .profile: "プロファイル"
-        case .certificate: "証明書"
-        case .key: "鍵（.p8）"
+        case .profile: String(localized: "プロファイル")
+        case .certificate: String(localized: "証明書")
+        case .key: String(localized: "鍵（.p8）")
         }
     }
 
@@ -55,9 +55,9 @@ enum CredentialGroup: CaseIterable {
     /// Headings of the name and middle columns in the list.
     var columns: (name: String, detail: String) {
         switch self {
-        case .profile: ("プロファイル", "Bundle ID")
-        case .certificate: ("名前", "使っているアプリ")
-        case .key: ("Key ID", "用途")
+        case .profile: (String(localized: "プロファイル"), "Bundle ID")
+        case .certificate: (String(localized: "名前"), String(localized: "使っているアプリ"))
+        case .key: ("Key ID", String(localized: "用途"))
         }
     }
 }
@@ -125,13 +125,13 @@ extension P8Purpose {
     var shortTitle: String {
         switch self {
         case .appStoreConnect: "App Store Connect"
-        case .apns: "通知"
-        case .signInWithApple: "Appleでサインイン"
+        case .apns: String(localized: "通知")
+        case .signInWithApple: String(localized: "Appleでサインイン")
         case .deviceCheck: "DeviceCheck"
-        case .maps: "マップ"
-        case .weatherKit: "天気"
-        case .mediaServices: "メディア"
-        case .other: "その他"
+        case .maps: String(localized: "マップ")
+        case .weatherKit: String(localized: "天気")
+        case .mediaServices: String(localized: "メディア")
+        case .other: String(localized: "その他")
         }
     }
 
@@ -175,7 +175,7 @@ struct PurposeLabels: View {
             }
         }.font(.system(size: 12)).foregroundStyle(AppMateStyle.text.opacity(0.8))
             .accessibilityElement(children: .combine)
-            .accessibilityLabel("用途：" + (purposes.isEmpty ? "未設定" : purposes.map(\.shortTitle).joined(separator: "、")))
+            .accessibilityLabel(String(localized: "用途：") + (purposes.isEmpty ? String(localized: "未設定") : purposes.map(\.shortTitle).joined(separator: String(localized: "、"))))
     }
 }
 
@@ -200,7 +200,7 @@ struct CollapsibleSection<Content: View>: View {
                     }
                 }.font(.system(size: 13)).padding(.vertical, 4).contentShape(Rectangle())
             }.buttonStyle(.plain)
-                .accessibilityLabel("\(title)、\(detail)" + (attention > 0 ? "、要対応\(attention)件" : ""))
+                .accessibilityLabel(String(localized: "\(title)、\(detail)") + (attention > 0 ? String(localized: "、要対応\(attention)件") : ""))
                 .accessibilityValue(expanded ? "開いています" : "閉じています")
                 .padding(.bottom, 6)
             if expanded {

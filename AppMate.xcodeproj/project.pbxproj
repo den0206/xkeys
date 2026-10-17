@@ -17,6 +17,7 @@
 		8AAD9CB9833BC16230BD9766 /* Services/CredentialParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E1814744B33849C5EC9325F /* Services/CredentialParser.swift */; };
 		8F70FEAAA107ADEF37464932 /* Persistence/CredentialVault.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D0C25BD41FF872EF528DB22 /* Persistence/CredentialVault.swift */; };
 		AA1000000000000000000001 /* Resources/DesignAssets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AA1000000000000000000002 /* Resources/DesignAssets.xcassets */; };
+		AA1000000000000000000003 /* Resources/Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = AA1000000000000000000004 /* Resources/Localizable.xcstrings */; };
 		B4D9566931CF573707CC0A1A /* Persistence/EncryptedBlobStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFA38885211ADBBDEF2389B2 /* Persistence/EncryptedBlobStore.swift */; };
 		BA0000000000000000000001 /* Persistence/BackupArchive.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA0000000000000000000002 /* Persistence/BackupArchive.swift */; };
 		BA0000000000000000000003 /* Features/BackupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA0000000000000000000004 /* Features/BackupView.swift */; };
@@ -61,6 +62,7 @@
 		735DACB0CD1890235097A8AF /* Models/AppCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models/AppCatalog.swift; sourceTree = "<group>"; };
 		7E1814744B33849C5EC9325F /* Services/CredentialParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/CredentialParser.swift; sourceTree = "<group>"; };
 		AA1000000000000000000002 /* Resources/DesignAssets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Resources/DesignAssets.xcassets; sourceTree = "<group>"; };
+		AA1000000000000000000004 /* Resources/Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Resources/Localizable.xcstrings; sourceTree = "<group>"; };
 		AE0042EC290704DA7E641B97 /* App Mate.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; path = "App Mate.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		BA0000000000000000000002 /* Persistence/BackupArchive.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Persistence/BackupArchive.swift; sourceTree = "<group>"; };
 		BA0000000000000000000004 /* Features/BackupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/BackupView.swift; sourceTree = "<group>"; };
@@ -164,6 +166,7 @@
 				BFA38885211ADBBDEF2389B2 /* Persistence/EncryptedBlobStore.swift */,
 				CCB32DA757F8CB91EA8A9F9D /* AppMate.entitlements */,
 				AA1000000000000000000002 /* Resources/DesignAssets.xcassets */,
+				AA1000000000000000000004 /* Resources/Localizable.xcstrings */,
 			);
 			path = AppMate;
 			sourceTree = "<group>";
@@ -250,6 +253,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				AA1000000000000000000001 /* Resources/DesignAssets.xcassets in Resources */,
+				AA1000000000000000000003 /* Resources/Localizable.xcstrings in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -330,9 +334,11 @@
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Manual;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				SDKROOT = macosx;
 				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_STRICT_CONCURRENCY = complete;
 				SWIFT_VERSION = 5.0;
 			};
@@ -393,9 +399,11 @@
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_TESTABILITY = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = macosx;
+				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_STRICT_CONCURRENCY = complete;
 				SWIFT_VERSION = 5.0;

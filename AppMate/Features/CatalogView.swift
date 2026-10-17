@@ -8,14 +8,14 @@ enum CredentialScope: Hashable {
 
     var title: String {
         switch self {
-        case .trash: "最近削除した項目"
-        case .credential: "資格情報"
-        case .all: "すべての鍵とファイル"
-        case .expired: "期限切れ"
-        case .expiring: "30日以内に期限"
-        case .attention: "対応が必要"
+        case .trash: String(localized: "最近削除した項目")
+        case .credential: String(localized: "資格情報")
+        case .all: String(localized: "すべての鍵とファイル")
+        case .expired: String(localized: "期限切れ")
+        case .expiring: String(localized: "30日以内に期限")
+        case .attention: String(localized: "対応が必要")
         case .app: "App"
-        case .team: "チームの鍵・証明書"
+        case .team: String(localized: "チームの鍵・証明書")
         }
     }
 }
@@ -91,7 +91,7 @@ struct CatalogView: View {
             loadHistory()
             do { try VaultManagement(vault: CredentialVault(context: container.mainContext, blobs: EncryptedBlobStore(directory: CredentialVault.directory))).pruneExpired() }
             catch ManagementError.replacementInUse { /* Re-encrypt surviving history after owner authentication. */ }
-            catch { historyError = "削除済みデータの整理を完了できませんでした。再起動して確認してください。" }
+            catch { historyError = String(localized: "削除済みデータの整理を完了できませんでした。再起動して確認してください。") }
             selection = navigation.scope == .all ? (rootApps.first { $0.team?.id == currentTeam?.id }.map { .app($0.id) } ?? currentTeam.map { .team($0.id) } ?? .all) : navigation.scope
             onboarding = !onboardingCompleted && ProcessInfo.processInfo.environment["APP_MATE_TESTING"] != "1"
         }
@@ -197,7 +197,7 @@ struct CatalogView: View {
                     .disabled(credentialTeam == nil || CredentialSearch.hasQuery(search))
                 Menu("Apple Developerから取り込む…", systemImage: "icloud.and.arrow.down") {
                     ForEach(teams) { team in
-                        Button(team.name + "（" + team.teamID + "）") { onlineImportTeam = team }
+                        Button(String(localized: "\(team.name)（\(team.teamID)）")) { onlineImportTeam = team }
                     }
                 }.disabled(teams.isEmpty)
             } label: {
@@ -232,7 +232,7 @@ struct CatalogView: View {
                     Text("すべてのチームで \(expiredCount + expiringCount)件").font(.system(size: 12)).foregroundStyle(AppMateStyle.dangerText)
                 }
             }
-            sidebarHeading("アプリ · \(teamApps.count)")
+            sidebarHeading(String(localized: "アプリ · \(teamApps.count)"))
             ScrollView {
                 VStack(alignment: .leading, spacing: 4) {
                     if teamApps.isEmpty {
@@ -243,7 +243,7 @@ struct CatalogView: View {
                         Label("アプリを追加", systemImage: "plus").fontWeight(.semibold).padding(.horizontal, 10).padding(.vertical, 8)
                     }.buttonStyle(.plain).foregroundStyle(AppMateStyle.accent).disabled(teams.isEmpty)
                     if let team = currentTeam {
-                        sidebarHeading("チーム共通").padding(.top, 8)
+                        sidebarHeading(String(localized: "チーム共通")).padding(.top, 8)
                         teamRow(team)
                     }
                 }
@@ -279,8 +279,8 @@ struct CatalogView: View {
             Section("表示するチーム") {
                 ForEach(teams) { team in
                     Button { switchTeam(team) } label: {
-                        if team.id == currentTeam?.id { Label(team.name + "（" + team.teamID + "）", systemImage: "checkmark") }
-                        else { Text(team.name + "（" + team.teamID + "）") }
+                        if team.id == currentTeam?.id { Label(String(localized: "\(team.name)（\(team.teamID)）"), systemImage: "checkmark") }
+                        else { Text(String(localized: "\(team.name)（\(team.teamID)）")) }
                     }
                 }
             }
@@ -296,7 +296,7 @@ struct CatalogView: View {
                 Text(currentTeam.map { String($0.name.prefix(1)) } ?? "＋").font(.system(size: 14, weight: .bold)).foregroundStyle(AppMateStyle.accent)
                     .frame(width: 32, height: 32).background(AppMateStyle.selection, in: RoundedRectangle(cornerRadius: 8))
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(currentTeam?.name ?? "チームを追加").fontWeight(.bold).lineLimit(1)
+                    Text(currentTeam?.name ?? String(localized: "チームを追加")).fontWeight(.bold).lineLimit(1)
                     if let team = currentTeam { Text("Team ID " + team.teamID).font(.system(size: 11, design: .monospaced)).foregroundStyle(AppMateStyle.secondary) }
                 }
                 Spacer(minLength: 0)
@@ -305,7 +305,7 @@ struct CatalogView: View {
                 .background(AppMateStyle.canvas, in: RoundedRectangle(cornerRadius: 10))
                 .overlay(RoundedRectangle(cornerRadius: 10).stroke(AppMateStyle.border))
         }.menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden)
-            .accessibilityLabel("表示するチーム：" + (currentTeam.map { "\($0.name)、Team ID \($0.teamID)" } ?? "なし"))
+            .accessibilityLabel(String(localized: "表示するチーム：") + (currentTeam.map { "\($0.name)、Team ID \($0.teamID)" } ?? String(localized: "なし")))
     }
 
     private func switchTeam(_ team: DeveloperTeam) {
@@ -370,7 +370,7 @@ struct CatalogView: View {
                 else { Text("バックアップ済み") }
                 Spacer(minLength: 0)
                 if let date = checkpoints.first.flatMap({ BackupHistorySummary(changes: changes, checkpoint: $0, hasStoredItems: !apps.isEmpty || !credentials.isEmpty).lastCompletedAt }) {
-                    Text("前回 " + date.formatted(.dateTime.month(.defaultDigits).day())).foregroundStyle(AppMateStyle.tertiary)
+                    Text(String(localized: "前回 ") + date.formatted(.dateTime.month(.defaultDigits).day())).foregroundStyle(AppMateStyle.tertiary)
                 }
             }.font(.system(size: 12)).foregroundStyle(AppMateStyle.secondary).padding(.horizontal, 6).padding(.vertical, 6).contentShape(Rectangle())
         }.buttonStyle(.plain)
@@ -415,9 +415,9 @@ struct CatalogView: View {
                 Text("期限が近づいたらお知らせします。まずは Apple Developer のチームを追加しましょう。").foregroundStyle(AppMateStyle.secondary)
             }.multilineTextAlignment(.center)
             VStack(alignment: .leading, spacing: 14) {
-                welcomeStep(1, "チームを追加", "Apple Developer にサインインして、所属しているチームを選びます", current: true)
-                welcomeStep(2, "アプリを追加", "Bundle ID を登録します。プロファイルから自動で入力することもできます", current: false)
-                welcomeStep(3, "ファイルを追加", "証明書・プロファイル・鍵をドロップするだけです", current: false)
+                welcomeStep(1, String(localized: "チームを追加"), String(localized: "Apple Developer にサインインして、所属しているチームを選びます"), current: true)
+                welcomeStep(2, String(localized: "アプリを追加"), String(localized: "Bundle ID を登録します。プロファイルから自動で入力することもできます"), current: false)
+                welcomeStep(3, String(localized: "ファイルを追加"), String(localized: "証明書・プロファイル・鍵をドロップするだけです"), current: false)
             }.padding(18).frame(width: 460, alignment: .leading).background(AppMateStyle.sidebar, in: RoundedRectangle(cornerRadius: 12))
             Button("Apple Developer にサインインしてチームを追加") { addingTeam = true }
                 .buttonStyle(AppMateButtonStyle(primary: true)).keyboardShortcut(.defaultAction)
@@ -438,7 +438,7 @@ struct CatalogView: View {
 
     private func loadHistory() {
         do { try BackupHistory.bootstrap(in: container.mainContext); historyError = nil }
-        catch { historyError = "バックアップの変更状態を確認できません。再確認してください。" }
+        catch { historyError = String(localized: "バックアップの変更状態を確認できません。再確認してください。") }
     }
 
 
@@ -656,7 +656,7 @@ struct AppIconPicker: View {
                     Button { iconColor = color; iconImage = nil } label: {
                         Circle().fill(AppMateStyle.iconColor(color)).frame(width: 22, height: 22)
                             .overlay(Circle().stroke(iconColor == color && iconImage == nil ? AppMateStyle.text : .clear, lineWidth: 2))
-                    }.buttonStyle(.plain).accessibilityLabel("アイコンの色：" + color)
+                    }.buttonStyle(.plain).accessibilityLabel(String(localized: "アイコンの色：") + color)
                         .accessibilityAddTraits(iconColor == color && iconImage == nil ? .isSelected : [])
                 }
                 Button("画像を選ぶ…", action: chooseIcon).buttonStyle(AppMateButtonStyle())
@@ -676,7 +676,7 @@ struct AppIconPicker: View {
             guard NSImage(data: file.data) != nil else { throw ValidationError.invalidFile }
             iconImage = file.data
             error = nil
-        } catch { self.error = "1MB以下のPNG・JPEG・SVG画像を選んでください。" }
+        } catch { self.error = String(localized: "1MB以下のPNG・JPEG・SVG画像を選んでください。") }
     }
 
 }
@@ -702,7 +702,7 @@ struct OnboardingView: View {
     @State private var step: Int
     @State private var sources: [URL] = []
     private let artwork = ["OnboardingWelcome", "OnboardingImport", "OnboardingSecurity"]
-    private let titles = ["App Mate へ\nようこそ", "今ある鍵を\n取り込みましょう", "安心して使うための\n設定"]
+    private let titles = [String(localized: "App Mate へ\nようこそ"), String(localized: "今ある鍵を\n取り込みましょう"), String(localized: "安心して使うための\n設定")]
 
     init(step: Int = 0, onFinished: @escaping ([URL]) -> Void) {
         self.onFinished = onFinished
@@ -719,9 +719,9 @@ struct OnboardingView: View {
                     Text("鍵と証明書はチームで、プロファイルはアプリごとに保管します。")
                         .font(.system(size: 14)).lineSpacing(5).foregroundStyle(AppMateStyle.secondary).padding(.top, 12)
                     VStack(alignment: .leading, spacing: 14) {
-                        feature("保管先で整理", detail: "鍵と証明書はチーム、プロファイルはアプリにまとめます", symbol: "sidebar.left", color: AppMateStyle.accent, background: AppMateStyle.selectedRow)
-                        feature("期限を一覧で確認", detail: "期限切れと30日以内を「対応が必要」にまとめます", symbol: "clock", color: AppMateStyle.warningText, background: AppMateStyle.warningBackground)
-                        feature("このMacの中だけ", detail: "暗号化して保存。サーバーには送りません", symbol: "lock", color: AppMateStyle.successText, background: AppMateStyle.successBackground)
+                        feature(String(localized: "保管先で整理"), detail: String(localized: "鍵と証明書はチーム、プロファイルはアプリにまとめます"), symbol: "sidebar.left", color: AppMateStyle.accent, background: AppMateStyle.selectedRow)
+                        feature(String(localized: "期限を一覧で確認"), detail: String(localized: "期限切れと30日以内を「対応が必要」にまとめます"), symbol: "clock", color: AppMateStyle.warningText, background: AppMateStyle.warningBackground)
+                        feature(String(localized: "このMacの中だけ"), detail: String(localized: "暗号化して保存。サーバーには送りません"), symbol: "lock", color: AppMateStyle.successText, background: AppMateStyle.successBackground)
                     }.padding(.top, 22)
                 } else if step == 1 {
                     Text("鍵や証明書をまとめているフォルダがあれば、そのまま選んでください。")
@@ -741,10 +741,10 @@ struct OnboardingView: View {
                     Text("秘密情報を開くときは、このMacで確認します。")
                         .font(.system(size: 14)).foregroundStyle(AppMateStyle.secondary).padding(.top, 10)
                     VStack(spacing: 10) {
-                        feature("Macの認証で守る", detail: "Touch ID またはMacのパスワードで確認します", symbol: "touchid", color: AppMateStyle.accent, background: AppMateStyle.selectedRow)
+                        feature(String(localized: "Macの認証で守る"), detail: String(localized: "Touch ID またはMacのパスワードで確認します"), symbol: "touchid", color: AppMateStyle.accent, background: AppMateStyle.selectedRow)
                             .padding(12).background(AppMateStyle.sidebar, in: RoundedRectangle(cornerRadius: 14))
                         HStack {
-                            feature("表示を自動で閉じる", detail: "パスワードやメモの表示は、操作がないと閉じます", symbol: "eye.slash", color: AppMateStyle.secondary, background: AppMateStyle.search)
+                            feature(String(localized: "表示を自動で閉じる"), detail: String(localized: "パスワードやメモの表示は、操作がないと閉じます"), symbol: "eye.slash", color: AppMateStyle.secondary, background: AppMateStyle.search)
                             Spacer(minLength: 0)
                             Text("5分").font(.system(size: 12))
                         }.padding(12).background(AppMateStyle.sidebar, in: RoundedRectangle(cornerRadius: 14))

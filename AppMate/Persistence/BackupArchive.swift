@@ -202,11 +202,11 @@ enum BackupError: LocalizedError {
     case invalid, tooLarge, password, passwordRequired, derivation
     var errorDescription: String? {
         switch self {
-        case .invalid: "バックアップの形式または整合性を確認できません。既存データは変更していません。"
-        case .tooLarge: "このバックアップのサイズ上限を超えています。現在の上限は元ファイル合計32MiB・payload 64MiBです。"
-        case .password: "パスワードが違うか、バックアップが破損しています。"
-        case .passwordRequired: "バックアップ用パスワードを6文字以上、UTF-8で1,024バイト以内で入力してください。"
-        case .derivation: "バックアップの暗号鍵を作成できませんでした。"
+        case .invalid: String(localized: "バックアップの形式または整合性を確認できません。既存データは変更していません。")
+        case .tooLarge: String(localized: "このバックアップのサイズ上限を超えています。現在の上限は元ファイル合計32MiB・payload 64MiBです。")
+        case .password: String(localized: "パスワードが違うか、バックアップが破損しています。")
+        case .passwordRequired: String(localized: "バックアップ用パスワードを6文字以上、UTF-8で1,024バイト以内で入力してください。")
+        case .derivation: String(localized: "バックアップの暗号鍵を作成できませんでした。")
         }
     }
 }

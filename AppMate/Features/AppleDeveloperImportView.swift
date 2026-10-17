@@ -52,7 +52,7 @@ struct AppleDeveloperImportView: View {
                                 Text(item.name).fontWeight(.medium)
                                 Text(item.detail).font(.caption).foregroundStyle(.secondary)
                                 if let date = item.expiresAt {
-                                    Text("期限：" + date.formatted(date: .numeric, time: .omitted)).font(.caption).foregroundStyle(.secondary)
+                                    Text(String(localized: "期限：") + date.formatted(date: .numeric, time: .omitted)).font(.caption).foregroundStyle(.secondary)
                                 }
                             }.frame(maxWidth: .infinity, alignment: .leading)
                         }.toggleStyle(.checkbox).padding(10)
@@ -78,7 +78,7 @@ struct AppleDeveloperImportView: View {
             AppleDeveloperLoginView(onVerified: {
                 guard session.teams.contains(where: { $0.teamID == team.teamID }) else { throw AppleDeveloperError.teamAccessRequired }
                 load()
-            }, session: session, verificationTitle: "取り込み先チームへの所属を確認").modelContainer(vault.context.container)
+            }, session: session, verificationTitle: String(localized: "取り込み先チームへの所属を確認")).modelContainer(vault.context.container)
         }
         .sheet(isPresented: $showingImport, onDismiss: { files = []; lastActivity = .now }) {
             CredentialImportView(app: nil, team: team, vault: vault, initialFiles: files, onSaved: onSaved)

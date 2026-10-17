@@ -36,9 +36,9 @@ enum ImportSourceError: LocalizedError {
     case limit, symlink, empty
     var errorDescription: String? {
         switch self {
-        case .limit: "一度に200ファイル・フォルダ内の探索は10,000項目までです。対象を分けてください。"
-        case .symlink: "シンボリックリンクは取り込めません。元のファイルまたはフォルダを選んでください。"
-        case .empty: "対応するファイルが見つかりませんでした。"
+        case .limit: String(localized: "一度に200ファイル・フォルダ内の探索は10,000項目までです。対象を分けてください。")
+        case .symlink: String(localized: "シンボリックリンクは取り込めません。元のファイルまたはフォルダを選んでください。")
+        case .empty: String(localized: "対応するファイルが見つかりませんでした。")
         }
     }
 }
