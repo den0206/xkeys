@@ -5,7 +5,7 @@
 ## 開発環境
 
 - 最低対応OS：macOS 26.0（Debug・Release共通）
-- 確認した環境：Apple Silicon、Xcode 27.0、Swift 6.4
+- 確認した環境：Apple Silicon、Xcode 27.0、Swift 6.4（Swift 6 言語モード）
 - プロジェクト／scheme：`Xkeys.xcodeproj` / `Xkeys`
 - 実装：SwiftUI、SwiftData、Apple標準フレームワーク。Apple Developer認証はXcodesLoginKitを使用
 
