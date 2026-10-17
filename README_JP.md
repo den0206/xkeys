@@ -62,7 +62,7 @@ Apple開発者向けの鍵・証明書・プロビジョニングプロファイ
 
 ## インストール
 
-配布先は[このリポジトリのGitHub Releases](https://github.com/den0206/xkeys/releases)です。リリースが公開されたら `Xkeys-X.Y.Z.dmg` をダウンロードして開き、`Xkeys.app` を `/Applications` に移動してください。
+配布先は[このリポジトリのGitHub Releases](https://github.com/den0206/xkeys/releases)です。リリースが公開されたら `Xkeys-X.Y.Z.dmg` をダウンロードして開き、ウインドウの矢印に沿って `Xkeys.app` を `/Applications` にドラッグしてください。DMGから直接開いた場合は、移動を案内する画面を表示します。
 
 [Homebrew](https://brew.sh)でもインストールできます。このリポジトリをtapとして使います。
 
