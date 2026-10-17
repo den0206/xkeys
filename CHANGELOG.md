@@ -8,6 +8,8 @@ The format follows Keep a Changelog conventions and releases use semantic versio
 
 ### Changed
 
+- Licensed the original code under GPL-3.0-only and added the license text.
+
 - Added English and Japanese READMEs, separate usage documentation, and a pre-publication documentation security review.
 
 ## [0.1.0] — 2026-10-17

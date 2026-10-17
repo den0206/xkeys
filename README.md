@@ -123,4 +123,8 @@ The scope of completed checks and remaining on-device checks is tracked in the [
 
 ## License
 
-This repository does not currently include a license for its original code. Public availability alone does not grant permission to reuse or redistribute it. Third-party dependencies retain their own licenses.
+Copyright (c) 2026 Yuuki Sakai.
+
+Original code in this repository is licensed under the GNU General Public License
+version 3 only (`GPL-3.0-only`). See [LICENSE](LICENSE) for the full terms.
+Third-party dependencies retain their own licenses.

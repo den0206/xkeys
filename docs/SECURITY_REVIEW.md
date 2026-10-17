@@ -16,4 +16,4 @@
 
 Team IDなどの構成情報はXcodeプロジェクトにも含まれる。文書からの削除によって、Git履歴や他のファイルから消えるわけではない。署名・保存先・既存データへの影響を避けるため、今回の変更ではプロジェクトの識別子を変更していない。
 
-公開用READMEの構成は [aI'm Thinking](https://github.com/den0206/aI-m-Thinking) を参考にした。XkeysにはLICENSEファイルがないため、参考リポジトリのライセンスを転用せず、未設定と記載した。再利用を許可する場合は、公開前に適用するライセンスを決める。
+公開用READMEの構成は [aI'm Thinking](https://github.com/den0206/aI-m-Thinking) を参考にした。初回確認時はライセンス未設定だった。その後、所有者の指定により `GPL-3.0-only` を適用し、[LICENSE](../LICENSE)と日英READMEに記載した。
