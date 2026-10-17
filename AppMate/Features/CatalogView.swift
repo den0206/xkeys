@@ -258,6 +258,7 @@ struct CatalogView: View {
             Spacer(minLength: 8)
             backupStatusLine
             Divider().padding(.vertical, 4)
+            AppleDeveloperAccountView(session: appleSession, compact: true).padding(.horizontal, 6).padding(.bottom, 2)
             HStack(spacing: 4) {
                 Button { selection = .trash } label: {
                     Label("最近削除した項目", systemImage: "trash").font(.system(size: 12))

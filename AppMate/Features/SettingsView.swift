@@ -106,7 +106,7 @@ struct AppleDeveloperAccountView: View {
                     Label((session.currentAccount ?? session.savedAccount)?.label ?? "Apple Developerにログイン", systemImage: "person.crop.circle")
                         .font(.system(size: 12))
                         .lineLimit(1).truncationMode(.middle)
-                        .frame(width: 180, alignment: .leading)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }.menuStyle(.borderlessButton)
             } else {
                 VStack(alignment: .leading, spacing: 8) {
