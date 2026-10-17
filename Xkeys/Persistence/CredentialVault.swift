@@ -361,7 +361,8 @@ final class VaultAccess {
         guard self.generation == generation, !Task.isCancelled else { throw VaultError.cancelled }
         if let vault {
             let management = VaultManagement(vault: vault)
-            try management.pruneExpired()
+            // Housekeeping: a failure here must not block the requested operation; launch and the next authentication retry it.
+            try? management.pruneExpired()
             // Display-only metadata: a failure here must not block the requested operation.
             try? await management.backfillSigningCertificates(key: key)
             guard self.generation == generation, !Task.isCancelled else { throw VaultError.cancelled }
