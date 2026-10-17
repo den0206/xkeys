@@ -2,12 +2,12 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "Build App Mate Debug.app",
+      "label": "Build Xkeys Debug.app",
       "type": "process",
       "command": "xcodebuild",
       "args": [
-        "-project", "${workspaceFolder}/AppMate.xcodeproj",
-        "-scheme", "AppMate",
+        "-project", "${workspaceFolder}/Xkeys.xcodeproj",
+        "-scheme", "Xkeys",
         "-configuration", "Debug",
         "-destination", "platform=macOS",
         "-derivedDataPath", "${workspaceFolder}/.build/xcode",

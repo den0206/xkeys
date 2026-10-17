@@ -6,7 +6,7 @@
 
 - 最低対応OS：macOS 26.0（Debug・Release共通）
 - 確認した環境：Apple Silicon、Xcode 27.0、Swift 6.4
-- プロジェクト／scheme：`AppMate.xcodeproj` / `AppMate`
+- プロジェクト／scheme：`Xkeys.xcodeproj` / `Xkeys`
 - 実装：SwiftUI、SwiftData、Apple標準フレームワーク。Apple Developer認証はXcodesLoginKitを使用
 
 ```sh
@@ -21,25 +21,25 @@ F5は `.vscode/launch.json` から通常のDebugビルドを実行する。CodeL
 
 | 場所 | 役割 |
 | --- | --- |
-| `AppMate/Application/` | ウィンドウと設定の構成 |
-| `AppMate/Models/` | Team・Appモデルと登録時の検証 |
-| `AppMate/Features/` | 一覧・詳細、取り込み、編集・削除・メモ、バックアップ・復元、CIコピー、設定 |
-| `AppMate/Services/` | ファイル解析、所有者認証、検索、一括取り込みの探索、設定 |
-| `AppMate/Persistence/` | 暗号化blob、資格情報管理、バックアップ形式・復元・変更記録 |
-| `AppMateTests/` | XCTestと架空fixture。旧保存形式の互換性も確認 |
+| `Xkeys/Application/` | ウィンドウと設定の構成 |
+| `Xkeys/Models/` | Team・Appモデルと登録時の検証 |
+| `Xkeys/Features/` | 一覧・詳細、取り込み、編集・削除・メモ、バックアップ・復元、CIコピー、設定 |
+| `Xkeys/Services/` | ファイル解析、所有者認証、検索、一括取り込みの探索、設定 |
+| `Xkeys/Persistence/` | 暗号化blob、資格情報管理、バックアップ形式・復元・変更記録 |
+| `XkeysTests/` | XCTestと架空fixture。旧保存形式の互換性も確認 |
 
-製品メタデータはSwiftData、暗号化blobはApplication Supportの `AppMateVault/blobs`、暗号鍵は端末専用Keychainへ保存する。保存先はApp Sandboxのコンテナ内。Bundle IDや署名Teamの変更時は既存データへのアクセスに注意する。
+製品メタデータはSwiftData、暗号化blobはApplication Supportの `XkeysVault/blobs`、暗号鍵は端末専用Keychainへ保存する。保存先はApp Sandboxのコンテナ内。Bundle IDや署名Teamの変更時は既存データへのアクセスに注意する。
 
 技術検証画面は削除した。既存ストアを開くため、VerificationRecordのモデル定義だけをSwiftDataの型一覧に残す。以前の検証で作られたKeychain項目（`probe-key-v1`）と暗号化ファイルは、利用者データとして自動では削除しない。
 
 ## 自動テスト
 
-schemeのTestActionは `APP_MATE_TESTING=1` と言語 `ja`（地域 `JP`）を指定し、OSの言語設定にかかわらず日本語の文言で検証する。アプリのストアはメモリ内、ファイルは一時領域の `AppMateTests` に分離する。製品のDockバッジ更新・初回案内を実行しない。認証のテストは注入した鍵を使い、製品Keychain鍵を生成しない。クリップボードのテストは専用pasteboardを使用する。
+schemeのTestActionは `XKEYS_TESTING=1` と言語 `ja`（地域 `JP`）を指定し、OSの言語設定にかかわらず日本語の文言で検証する。アプリのストアはメモリ内、ファイルは一時領域の `XkeysTests` に分離する。製品のDockバッジ更新・初回案内を実行しない。認証のテストは注入した鍵を使い、製品Keychain鍵を生成しない。クリップボードのテストは専用pasteboardを使用する。
 
 ```sh
-xcodebuild -project AppMate.xcodeproj -scheme AppMate \
+xcodebuild -project Xkeys.xcodeproj -scheme Xkeys \
   -destination 'platform=macOS,arch=arm64' \
-  -derivedDataPath /tmp/app-mate-tests test
+  -derivedDataPath /tmp/xkeys-tests test
 ```
 
 通常ビルドと出力先を分け、Xcodeのテストホスト終了後に検証用生成物を削除する。SQLite接続を保持したホストの実行中には削除しない。製品ストア・暗号鍵・利用者設定・取り込み元・既存バックアップを削除対象に含めない。
@@ -87,7 +87,7 @@ Apple DeveloperログインにはXcodesLoginKitのリビジョン `929f9aac3140c
 | チーム共有の鍵・証明書 | 複数アプリで使えるため、アプリ・ターゲット削除に巻き込まない。既存の共有鍵保持テストを実行 |
 | チーム削除 | 所属データがあれば拒否し、完全削除が必要なことを画面に説明済み。資格情報の巻き込み削除は追加しない |
 | Apple Developerログアウト | 接続情報だけを削除し、ローカルのチーム登録・資格情報は保持。接続先と保管データは別用途のため維持 |
-| 元ファイル・作成済みバックアップ・Apple側の登録 | App Mate内の削除とは独立し、削除確認で対象外と説明。自動削除は追加しない |
+| 元ファイル・作成済みバックアップ・Apple側の登録 | Xkeys内の削除とは独立し、削除確認で対象外と説明。自動削除は追加しない |
 
 通常幅・最小960×640の一覧と削除確認を架空データで描画。実データ、Touch ID、右クリックとメニューからの通し操作は未確認。
 
