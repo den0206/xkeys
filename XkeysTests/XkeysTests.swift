@@ -3045,6 +3045,16 @@ final class XkeysTests: XCTestCase {
     }
 
     @MainActor
+    func testOnboardingArtworkUsesEnglishCopiesOnlyWhereTheyExist() {
+        for name in ["OnboardingWelcome", "OnboardingFiles", "OnboardingSecurity"] {
+            XCTAssertEqual(OnboardingView.artworkName(name, japanese: true), name)
+            XCTAssertEqual(OnboardingView.artworkName(name, japanese: false), name + "EN")
+            XCTAssertNotNil(NSImage(named: name + "EN"), name)
+        }
+        XCTAssertEqual(OnboardingView.artworkName("OnboardingImport", japanese: false), "OnboardingImport")
+    }
+
+    @MainActor
     func testGuideModeIsKeptOutOfBackedUpPreferences() throws {
         let encoded = try JSONEncoder().encode(AppPreferences())
         let keys = try XCTUnwrap(JSONSerialization.jsonObject(with: encoded) as? [String: Any]).keys
