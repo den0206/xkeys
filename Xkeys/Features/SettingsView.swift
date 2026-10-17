@@ -7,6 +7,8 @@ struct AppSettingsView: View {
     @State private var error: String?
     @State private var loaded = false
     @State private var apple = AppleDeveloperSession.shared
+    @AppStorage(GuideMode.storageKey) private var guideMode = false
+    @AppStorage(OnboardingView.completedKey) private var onboardingCompleted = false
 
     /// `initialSection` is kept for callers of the old two-page layout; every group is now on one page.
     init(container: ModelContainer, appleSession: AppleDeveloperSession = .shared, initialSection: String = "一般") {
@@ -25,6 +27,19 @@ struct AppSettingsView: View {
                     }
                     settingsGroup(String(localized: "表示")) {
                         settingsToggle(String(localized: "Dock アイコンに件数を表示"), detail: String(localized: "30日以内に期限が来るものの数を出します"), isOn: $preferences.showDockBadge)
+                    }
+                    // These act at once and stay on this Mac: they are not saved with the button below or included in backups.
+                    settingsGroup(String(localized: "はじめての方へ")) {
+                        settingsToggle(String(localized: "説明モード"), detail: String(localized: "画面の見方と言葉の意味をその場で表示します"), isOn: $guideMode)
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("はじめの説明").fontWeight(.semibold)
+                                Text("最初に表示した案内をもう一度見ます").font(.system(size: 12)).foregroundStyle(XkeysStyle.secondary)
+                            }
+                            Spacer(minLength: 10)
+                            Button("もう一度見る") { onboardingCompleted = false }.buttonStyle(XkeysButtonStyle(compact: true))
+                        }.padding(.horizontal, 14).padding(.vertical, 11)
+                            .overlay(alignment: .top) { Rectangle().fill(XkeysStyle.rowBorder).frame(height: 1) }
                     }
                     settingsGroup(String(localized: "安全のために")) {
                         safetyRow("touchid", String(localized: "コピー・書き出し・削除の前に、毎回 Touch ID で確認します"))

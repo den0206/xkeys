@@ -29,6 +29,8 @@
 		BB0000000000000000000000 /* Persistence/VaultManagement.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC0000000000000000000000 /* Persistence/VaultManagement.swift */; };
 		BB0000000000000000000001 /* Services/AppPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC0000000000000000000001 /* Services/AppPreferences.swift */; };
 		BB0000000000000000000003 /* Features/SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC0000000000000000000003 /* Features/SettingsView.swift */; };
+		DF3000000000000000000003 /* Features/InstallLocationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF3000000000000000000004 /* Features/InstallLocationView.swift */; };
+		DF3000000000000000000001 /* Features/GuideViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF3000000000000000000002 /* Features/GuideViews.swift */; };
 		BB0000000000000000000004 /* Features/ManagementViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC0000000000000000000004 /* Features/ManagementViews.swift */; };
 		BB0000000000000000000099 /* Features/CISecretFileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC0000000000000000000099 /* Features/CISecretFileView.swift */; };
 		BB0000000000000000000005 /* Features/CICopyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC0000000000000000000005 /* Features/CICopyView.swift */; };
@@ -75,6 +77,8 @@
 		BC0000000000000000000000 /* Persistence/VaultManagement.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Persistence/VaultManagement.swift; sourceTree = "<group>"; };
 		BC0000000000000000000001 /* Services/AppPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/AppPreferences.swift; sourceTree = "<group>"; };
 		BC0000000000000000000003 /* Features/SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/SettingsView.swift; sourceTree = "<group>"; };
+		DF3000000000000000000004 /* Features/InstallLocationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/InstallLocationView.swift; sourceTree = "<group>"; };
+		DF3000000000000000000002 /* Features/GuideViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/GuideViews.swift; sourceTree = "<group>"; };
 		BC0000000000000000000004 /* Features/ManagementViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/ManagementViews.swift; sourceTree = "<group>"; };
 		BC0000000000000000000099 /* Features/CISecretFileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/CISecretFileView.swift; sourceTree = "<group>"; };
 		BC0000000000000000000005 /* Features/CICopyView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/CICopyView.swift; sourceTree = "<group>"; };
@@ -148,6 +152,8 @@
 				BC0000000000000000000099 /* Features/CISecretFileView.swift */,
 				BC0000000000000000000004 /* Features/ManagementViews.swift */,
 				BC0000000000000000000003 /* Features/SettingsView.swift */,
+				DF3000000000000000000004 /* Features/InstallLocationView.swift */,
+				DF3000000000000000000002 /* Features/GuideViews.swift */,
 				BC0000000000000000000001 /* Services/AppPreferences.swift */,
 				BC0000000000000000000000 /* Persistence/VaultManagement.swift */,
 				BA000000000000000000000C /* Services/CredentialSearch.swift */,
@@ -285,6 +291,8 @@
 				BB0000000000000000000099 /* Features/CISecretFileView.swift in Sources */,
 				BB0000000000000000000004 /* Features/ManagementViews.swift in Sources */,
 				BB0000000000000000000003 /* Features/SettingsView.swift in Sources */,
+				DF3000000000000000000003 /* Features/InstallLocationView.swift in Sources */,
+				DF3000000000000000000001 /* Features/GuideViews.swift in Sources */,
 				BB0000000000000000000001 /* Services/AppPreferences.swift in Sources */,
 				BB0000000000000000000000 /* Persistence/VaultManagement.swift in Sources */,
 				BA000000000000000000000B /* Services/CredentialSearch.swift in Sources */,

@@ -1078,8 +1078,13 @@ final class XkeysTests: XCTestCase {
             ("settings", NSSize(width: 640, height: 592), AnyView(AppSettingsView(container: container))),
             ("settings-account", NSSize(width: 640, height: 592), AnyView(AppSettingsView(container: container, appleSession: loginSession, initialSection: "セキュリティ"))),
             ("welcome", NSSize(width: 760, height: 518), AnyView(OnboardingView(onFinished: { _ in }))),
-            ("onboarding-import", NSSize(width: 760, height: 518), AnyView(OnboardingView(step: 1, onFinished: { _ in }))),
-            ("onboarding-security", NSSize(width: 760, height: 518), AnyView(OnboardingView(step: 2, onFinished: { _ in }))),
+            ("onboarding-how-it-works", NSSize(width: 760, height: 518), AnyView(OnboardingView(step: 1, onFinished: { _ in }))),
+            ("onboarding-import", NSSize(width: 760, height: 518), AnyView(OnboardingView(step: 2, onFinished: { _ in }))),
+            ("onboarding-security", NSSize(width: 760, height: 518), AnyView(OnboardingView(step: 3, onFinished: { _ in }))),
+            ("move-to-applications", NSSize(width: 400, height: 520), AnyView(MoveToApplicationsView(location: .diskImage, onContinue: {}))),
+            ("guide-tour-card", NSSize(width: 380, height: 260), AnyView(GuideTourCard(step: 2, onBack: {}, onNext: {}, onClose: {}, onGlossary: {}).padding(20))),
+            ("guide-glossary", NSSize(width: 480, height: 540), AnyView(GuideGlossaryView())),
+            ("renewal-guide", NSSize(width: 600, height: 640), AnyView(RenewalGuideView(expired: true, canImportOnline: true, done: .constant([0]), onAction: { _ in }))),
             ("add-app", NSSize(width: 560, height: 520), AnyView(RegistrationForm(container: container, teams: [team], initialTeam: team.id, isTeam: false, onSaved: { _ in }))),
             ("add-team", NSSize(width: 600, height: 540), AnyView(RegistrationForm(container: container, teams: [team], initialTeam: team.id, isTeam: true, onSaved: { _ in }))),
             ("edit-app-icon", NSSize(width: 490, height: 430), AnyView(CatalogEditor(vault: vault, team: nil, app: app))),
@@ -3014,6 +3019,38 @@ final class XkeysTests: XCTestCase {
                 guard case VaultError.teamMismatch = error else { return XCTFail("Unexpected error: \(error)") }
             }
         }
+    }
+
+    func testInstallLocationSuggestsMoveOnlyFromDiskImageOrTranslocation() {
+        func location(_ path: String) -> InstallLocation { InstallLocation(bundleURL: URL(fileURLWithPath: path, isDirectory: true)) }
+        XCTAssertEqual(location("/Volumes/Xkeys 1.0.0/Xkeys.app"), .diskImage)
+        XCTAssertEqual(location("/private/var/folders/ab/cd/T/AppTranslocation/0123-4567/d/Xkeys.app"), .translocated)
+        XCTAssertEqual(location("/Applications/Xkeys.app"), .applications)
+        XCTAssertEqual(location("/Users/fixture/Applications/Xkeys.app"), .applications)
+        XCTAssertEqual(location("/Volumes/External/Applications/Xkeys.app"), .applications)
+        XCTAssertEqual(location("/Users/fixture/Library/Developer/Xcode/DerivedData/Xkeys/Build/Products/Debug/Xkeys.app"), .other)
+        XCTAssertTrue(location("/Volumes/Xkeys 1.0.0/Xkeys.app").suggestsMove)
+        XCTAssertTrue(location("/private/var/folders/ab/cd/T/AppTranslocation/0123/d/Xkeys.app").suggestsMove)
+        XCTAssertFalse(location("/Applications/Xkeys.app").suggestsMove)
+        XCTAssertFalse(location("/Users/fixture/Downloads/Xkeys.app").suggestsMove)
+    }
+
+    @MainActor
+    func testGuideTourAndTermsHaveTextForEveryPlace() {
+        XCTAssertEqual(GuideTour.steps.count, 5)
+        XCTAssertTrue(GuideTour.steps.allSatisfy { !$0.title.isEmpty && !$0.detail.isEmpty })
+        XCTAssertEqual(Set(GuideTerm.allCases.map(\.title)).count, GuideTerm.allCases.count)
+        XCTAssertTrue(GuideTerm.allCases.allSatisfy { !$0.detail.isEmpty })
+        XCTAssertEqual(CredentialGroup.allCases.map(\.guideTerm), [.profile, .certificate, .key])
+    }
+
+    @MainActor
+    func testGuideModeIsKeptOutOfBackedUpPreferences() throws {
+        let encoded = try JSONEncoder().encode(AppPreferences())
+        let keys = try XCTUnwrap(JSONSerialization.jsonObject(with: encoded) as? [String: Any]).keys
+        XCTAssertEqual(Set(keys), ["showDockBadge"])
+        XCTAssertNotEqual(GuideMode.storageKey, OnboardingView.completedKey)
+        XCTAssertNotEqual(GuideMode.storageKey, InstallLocation.skipKey)
     }
 
     func testInvalidAndOversizedFilesRejected() {

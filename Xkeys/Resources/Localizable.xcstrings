@@ -1176,32 +1176,12 @@
         }
       }
     },
-    "1. Apple Developerで新しい証明書やプロファイルを用意します。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "1. Create new certificates or profiles in Apple Developer."
-          }
-        }
-      }
-    },
     "1MB以下のPNG・JPEG・SVG画像を選んでください。" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Choose a PNG, JPEG, or SVG image of 1 MB or less."
-          }
-        }
-      }
-    },
-    "2. 「ファイルを追加」で新しいファイルを選びます。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "2. Choose the new files with Add Files."
           }
         }
       }
@@ -1232,16 +1212,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Two-factor authentication"
-          }
-        }
-      }
-    },
-    "3. 不要になった旧ファイルは削除します。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "3. Delete old files you no longer need."
           }
         }
       }
@@ -1942,16 +1912,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "SHA-256: %@"
-          }
-        }
-      }
-    },
-    "STEP %lld / 3" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "STEP %lld / 3"
           }
         }
       }
@@ -3019,16 +2979,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Skipped: "
-          }
-        }
-      }
-    },
-    "ステップ %lld / 3" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Step %lld of 3"
           }
         }
       }
@@ -5387,16 +5337,6 @@
         }
       }
     },
-    "期限が近づいたらお知らせします。まずは Apple Developer のチームを追加しましょう。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "You'll be notified as expiration approaches. Start by adding your Apple Developer team."
-          }
-        }
-      }
-    },
     "期限なし" : {
       "localizations" : {
         "en" : {
@@ -7145,6 +7085,766 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Choose from %@'s teams"
+          }
+        }
+      }
+    },
+    "いま表示しているチーム" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The team you’re viewing"
+          }
+        }
+      }
+    },
+    "Apple Developer の契約ごとに「チーム」があります。複数のチームに入っているときは、ここで切り替えます。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Each Apple Developer membership is a team. If you belong to several teams, switch between them here."
+          }
+        }
+      }
+    },
+    "アプリの一覧と状態" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your apps and their status"
+          }
+        }
+      }
+    },
+    "アプリごとに状態を表示します。赤は「対応が必要」、黄は「期限が近い」、緑は「問題なし」です。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Each app shows its status: red means needs attention, yellow means expiring soon, and green means no issues."
+          }
+        }
+      }
+    },
+    "チーム共通の鍵と証明書" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keys and certificates shared by the team"
+          }
+        }
+      }
+    },
+    "どのアプリでも使う証明書と鍵（.p8）はここにまとめます。証明書の期限が切れると、その証明書を使うプロファイルも使えなくなります。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Certificates and keys (.p8) that any app can use are kept here. When a certificate expires, the profiles that use it stop working too."
+          }
+        }
+      }
+    },
+    "バックアップの状態" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Backup status"
+          }
+        }
+      }
+    },
+    "バックアップは自動では作りません。「バックアップが必要」と出たら、ここから保存してください。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Backups are never made automatically. When you see “Backup needed,” save one from here."
+          }
+        }
+      }
+    },
+    "Mac にある証明書・プロファイル・鍵を選ぶか、Apple Developer から取り込みます。画面にドロップしても追加できます。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose certificates, profiles, and keys on your Mac, or import them from Apple Developer. You can also drop files onto the window."
+          }
+        }
+      }
+    },
+    "画面の見方 · %lld / %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Screen tour · %lld of %lld"
+          }
+        }
+      }
+    },
+    "画面の見方 %lld / %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Screen tour %lld of %lld"
+          }
+        }
+      }
+    },
+    "画面のガイドを閉じる" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Close Screen Tour"
+          }
+        }
+      }
+    },
+    "用語集" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Glossary"
+          }
+        }
+      }
+    },
+    "おわり" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Done"
+          }
+        }
+      }
+    },
+    "チーム · Team ID" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Team · Team ID"
+          }
+        }
+      }
+    },
+    "証明書（.cer / .p12）" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Certificate (.cer / .p12)"
+          }
+        }
+      }
+    },
+    "開発用と配布用" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Development and distribution"
+          }
+        }
+      }
+    },
+    "Apple Developer Program の契約の単位です。英大文字と数字10文字の Team ID で区別します。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A membership in the Apple Developer Program. Each team is identified by a 10-character Team ID of capital letters and digits."
+          }
+        }
+      }
+    },
+    "アプリを見分ける名前です。com.example.app のような形で、ターゲットごとに1つあります。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The name that identifies an app, such as com.example.app. Each target has its own."
+          }
+        }
+      }
+    },
+    "チームが作ったアプリだと示す署名に使います。署名には秘密鍵を含む .p12 が必要です。だいたい1年で期限が来ます。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Signs apps as your team’s. Signing needs a .p12 that includes the private key. Certificates usually expire after about a year."
+          }
+        }
+      }
+    },
+    "「このアプリを、この証明書で、ここに配ってよい」という許可証です。使う証明書の期限が切れると、プロファイルも使えなくなります。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A permit that says “this app may be signed with this certificate and distributed here.” When its certificate expires, the profile stops working too."
+          }
+        }
+      }
+    },
+    "開発用は自分の端末で試すとき、配布用は App Store や TestFlight に出すときに使います。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Development is for testing on your own devices; distribution is for the App Store and TestFlight."
+          }
+        }
+      }
+    },
+    "プッシュ通知や App Store Connect API などに使う鍵です。Apple からは一度しかダウンロードできません。期限はありません。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A key for push notifications, the App Store Connect API, and similar services. Apple lets you download it only once. It does not expire."
+          }
+        }
+      }
+    },
+    "%@とは" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "What is %@?"
+          }
+        }
+      }
+    },
+    "Xkeys の画面に出てくる言葉の意味です。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Terms you will see in Xkeys."
+          }
+        }
+      }
+    },
+    "%lldステップ · %lld / %lld 完了" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld steps · %lld of %lld done"
+          }
+        }
+      }
+    },
+    "なぜこうなった？" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Why did this happen?"
+          }
+        }
+      }
+    },
+    "証明書の期限が切れると、その証明書で署名するプロファイルも一緒に使えなくなります。アプリ本体や保存したデータには影響ありません。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When a certificate expires, the profiles signed with it stop working too. Your app and the data saved here are not affected."
+          }
+        }
+      }
+    },
+    "期限が切れる前に新しいファイルに入れ替えると、提出や配布を止めずに済みます。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Replacing files before they expire keeps submissions and distribution running."
+          }
+        }
+      }
+    },
+    "Apple Developer で新しいファイルを作る" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Create new files in Apple Developer"
+          }
+        }
+      }
+    },
+    "Xkeys では作成できません。Certificates, Identifiers & Profiles で新しい証明書やプロファイルを作り、ダウンロードします。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Xkeys can’t create them. Create new certificates or profiles in Certificates, Identifiers & Profiles, then download them."
+          }
+        }
+      }
+    },
+    "Apple Developer を開く" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open Apple Developer"
+          }
+        }
+      }
+    },
+    "新しいファイルを取り込む" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Import the new files"
+          }
+        }
+      }
+    },
+    "ダウンロードしたファイルを追加するか、Apple Developer から直接取り込みます。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add the downloaded files, or import them directly from Apple Developer."
+          }
+        }
+      }
+    },
+    "ファイルを追加…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add Files…"
+          }
+        }
+      }
+    },
+    "古いファイルを削除する" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete the old files"
+          }
+        }
+      }
+    },
+    "期限切れの行のメニューから削除します。30日間は「最近削除した項目」から戻せます。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete them from the menu on each expired row. You can restore them from Recently Deleted for 30 days."
+          }
+        }
+      }
+    },
+    "新しい .p12 などを保存したら、サイドバー下部の「バックアップが必要」からバックアップします。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "After saving a new .p12 or other files, back up from “Backup needed” at the bottom of the sidebar."
+          }
+        }
+      }
+    },
+    "進み具合は、このページを離れるまで残ります" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your progress is kept until you leave this page"
+          }
+        }
+      }
+    },
+    "未完了に戻す：%@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mark as not done: %@"
+          }
+        }
+      }
+    },
+    "完了にする：%@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mark as done: %@"
+          }
+        }
+      }
+    },
+    "Xkeys を「アプリケーション」フォルダに移動してください" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move Xkeys to the Applications folder"
+          }
+        }
+      }
+    },
+    "いまはディスクイメージから開いています。ディスクイメージを取り出すと Xkeys も開けなくなり、アップデートもできません。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Xkeys is running from the disk image. Once the disk image is ejected, Xkeys won’t open, and it can’t be updated."
+          }
+        }
+      }
+    },
+    "いまはダウンロードした場所から一時的に開いています。この場所ではアップデートが正しく行えないことがあります。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Xkeys is running temporarily from where it was downloaded. Updates may not work from this location."
+          }
+        }
+      }
+    },
+    "Finder で Xkeys と「アプリケーション」を開きます" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open Xkeys and Applications in Finder"
+          }
+        }
+      }
+    },
+    "Finder で「アプリケーション」を開きます" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open Applications in Finder"
+          }
+        }
+      }
+    },
+    "Xkeys を「アプリケーション」へドラッグします" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drag Xkeys to Applications"
+          }
+        }
+      }
+    },
+    "ダウンロードした Xkeys を「アプリケーション」へドラッグします" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drag the downloaded Xkeys to Applications"
+          }
+        }
+      }
+    },
+    "「アプリケーション」から Xkeys を開き直します" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open Xkeys again from Applications"
+          }
+        }
+      }
+    },
+    "保存したデータは移動後もそのまま使えます。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your saved data stays available after the move."
+          }
+        }
+      }
+    },
+    "Finder で開いて終了" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open in Finder and Quit"
+          }
+        }
+      }
+    },
+    "このまま使う" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keep Using from Here"
+          }
+        }
+      }
+    },
+    "次回から確認しない" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Don’t ask again"
+          }
+        }
+      }
+    },
+    "画面のガイドを見る" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show Screen Tour"
+          }
+        }
+      }
+    },
+    "説明モードをオフ" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Turn Off Guide Mode"
+          }
+        }
+      }
+    },
+    "説明モード オン" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Guide Mode On"
+          }
+        }
+      }
+    },
+    "説明モード" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Guide Mode"
+          }
+        }
+      }
+    },
+    "画面の見方と言葉の意味を表示しています" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Showing how the screen works and what terms mean"
+          }
+        }
+      }
+    },
+    "画面の見方と言葉の意味を表示します" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show how the screen works and what terms mean"
+          }
+        }
+      }
+    },
+    "期限切れや期限が近いものを、ひと目で分かるようにします。まずは Apple Developer のチームを追加しましょう。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "See expired and expiring items at a glance. Start by adding your Apple Developer team."
+          }
+        }
+      }
+    },
+    "3種類のファイルを\n分けて持ちます" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Three kinds of files,\neach in its place"
+          }
+        }
+      }
+    },
+    "拡張子が分からなくても大丈夫です。取り込むときに Xkeys が見分けます。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No need to know file extensions. Xkeys tells the files apart when you import them."
+          }
+        }
+      }
+    },
+    "証明書 · チーム共通" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Certificates · Shared by the team"
+          }
+        }
+      }
+    },
+    "アプリの署名に使います。だいたい1年で期限が来ます" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sign your apps. They usually expire after about a year"
+          }
+        }
+      }
+    },
+    "鍵（.p8）· チーム共通" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keys (.p8) · Shared by the team"
+          }
+        }
+      }
+    },
+    "通知や API に使います。再ダウンロードできません" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "For notifications and APIs. They can’t be downloaded again"
+          }
+        }
+      }
+    },
+    "プロファイル · アプリごと" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Profiles · One set per app"
+          }
+        }
+      }
+    },
+    "証明書が切れると、一緒に使えなくなります" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "They stop working when their certificate expires"
+          }
+        }
+      }
+    },
+    "STEP %lld / %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "STEP %lld / %lld"
+          }
+        }
+      }
+    },
+    "ステップ %lld / %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Step %lld of %lld"
+          }
+        }
+      }
+    },
+    "鍵" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Key"
+          }
+        }
+      }
+    },
+    "はじめての方へ" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Getting Started"
+          }
+        }
+      }
+    },
+    "画面の見方と言葉の意味をその場で表示します" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show how the screen works and what terms mean, right where you are"
+          }
+        }
+      }
+    },
+    "はじめの説明" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Introduction"
+          }
+        }
+      }
+    },
+    "最初に表示した案内をもう一度見ます" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "See the introduction from the first launch again"
+          }
+        }
+      }
+    },
+    "もう一度見る" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show Again"
           }
         }
       }
