@@ -4,10 +4,10 @@
     {
       "type": "lldb",
       "request": "launch",
-      "name": "Run App Mate Debug.app",
-      "program": "${workspaceFolder}/.build/xcode/Build/Products/Debug/App Mate.app/Contents/MacOS/App Mate",
+      "name": "Run Xkeys Debug.app",
+      "program": "${workspaceFolder}/.build/xcode/Build/Products/Debug/Xkeys.app/Contents/MacOS/Xkeys",
       "cwd": "${workspaceFolder}",
-      "preLaunchTask": "Build App Mate Debug.app"
+      "preLaunchTask": "Build Xkeys Debug.app"
     }
   ]
 }

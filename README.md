@@ -1,4 +1,4 @@
-# App Mate
+# Xkeys
 
 Apple開発者向けの鍵・証明書・プロビジョニングプロファイル管理アプリ。**macOS 26.0以降**に対応し、SwiftUIとSwiftDataで実装しています。データをこのMacに暗号化保存し、期限は一覧とDockバッジで確認します。Apple Developerへのログイン・所属チームの確認時に外部通信を行います。iCloud同期・自動起動は行いません。
 
@@ -13,25 +13,25 @@ Apple Developer認証には[XcodesLoginKit](https://github.com/XcodesOrg/XcodesL
 ### VS Code / Cursor
 
 1. リポジトリを開き、推奨拡張機能 **CodeLLDB** をインストールする。
-2. 「実行とデバッグ」で **Run App Mate Debug.app** を選び、**F5** を押す。
+2. 「実行とデバッグ」で **Run Xkeys Debug.app** を選び、**F5** を押す。
 
-ビルドだけなら **⇧⌘B**。通常ビルドの出力先は `.build/xcode/Build/Products/Debug/App Mate.app` です。
+ビルドだけなら **⇧⌘B**。通常ビルドの出力先は `.build/xcode/Build/Products/Debug/Xkeys.app` です。
 
 ### Xcodeと署名
 
-`AppMate.xcodeproj` を開き、scheme **AppMate**、実行先 **My Mac** で実行します。開発環境はXcode 27.0 / Swift 6.4です。
+`Xkeys.xcodeproj` を開き、scheme **Xkeys**、実行先 **My Mac** で実行します。開発環境はXcode 27.0 / Swift 6.4です。
 
 秘密情報の保管にはApple Development署名が必要です。別の開発環境では **Signing & Capabilities** で利用するTeamを選び、Keychain Sharingの専用グループが設定されていることを確認してください。アドホック署名では使えません。
 
 F5で `No Account for Team` / `No profiles` が出る場合は、最初に次の設定を行ってください。
 
 1. Xcode → **Settings → Accounts** で開発用Apple Accountを追加する。登録済みなら再認証する。
-2. `AppMate.xcodeproj` を開き、ターゲット **AppMate → Signing & Capabilities** で **Automatically manage signing** を有効にし、利用できる **Team** を選ぶ。現在のAppMateターゲットの指定は `4KJFNVZ8R6`。テストを実行する場合は **AppMateTests** のTeamも合わせる。
-3. Xcodeで **AppMate / My Mac** を一度ビルドし、署名エラーが解消してからF5を実行する。
+2. `Xkeys.xcodeproj` を開き、ターゲット **Xkeys → Signing & Capabilities** で **Automatically manage signing** を有効にし、利用できる **Team** を選ぶ。現在のXkeysターゲットの指定は `4KJFNVZ8R6`。テストを実行する場合は **XkeysTests** のTeamも合わせる。
+3. Xcodeで **Xkeys / My Mac** を一度ビルドし、署名エラーが解消してからF5を実行する。
 
 F5のビルドはプロビジョニングプロファイルの自動更新を許可しますが、Apple Accountの追加・再認証はXcodeで行う必要があります。
 
-開発用Bundle IDは `com.example.AppMate.prototype`。Bundle IDや署名Teamを変更すると、既存のコンテナ・暗号鍵をそのまま利用できない場合があります。データの移行にはバックアップを使用してください。
+Bundle IDはRelease `com.yuuki.xkeys`、Debug `com.yuuki.xkeys.dev`。開発ビルドは配布版とコンテナ・暗号鍵を共有しません。Bundle IDや署名Teamを変更すると、既存のコンテナ・暗号鍵をそのまま利用できない場合があります。データの移行にはバックアップを使用してください。
 
 ## アプリとターゲット
 
