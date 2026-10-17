@@ -19,9 +19,58 @@ enum CredentialGroup: CaseIterable {
         case .key: "鍵（.p8）"
         }
     }
+
+    var symbol: String {
+        switch self {
+        case .profile: "doc.text"
+        case .certificate: "checkmark.seal"
+        case .key: "key"
+        }
+    }
+
+    var tint: Color {
+        switch self {
+        case .profile: AppMateStyle.accent
+        case .certificate: AppMateStyle.successText
+        case .key: AppMateStyle.warningText
+        }
+    }
+
+    var background: Color {
+        switch self {
+        case .profile: AppMateStyle.profileBackground
+        case .certificate: AppMateStyle.certificateBackground
+        case .key: AppMateStyle.keyBackground
+        }
+    }
+
+    var border: Color {
+        switch self {
+        case .profile: AppMateStyle.profileBorder
+        case .certificate: AppMateStyle.certificateBorder
+        case .key: AppMateStyle.keyBorder
+        }
+    }
+
+    /// Headings of the name and middle columns in the list.
+    var columns: (name: String, detail: String) {
+        switch self {
+        case .profile: ("プロファイル", "Bundle ID")
+        case .certificate: ("名前", "使っているアプリ")
+        case .key: ("Key ID", "用途")
+        }
+    }
 }
 
 extension StoredCredential {
+    /// "Apple Distribution: Name (TEAMID)" → ("Apple Distribution", "Name"); the team page already shows the Team ID.
+    var certificateNameParts: (title: String, holder: String?) {
+        guard let range = name.range(of: ": ") else { return (name, nil) }
+        var holder = String(name[range.upperBound...])
+        if let id = team?.teamID, holder.hasSuffix(" (\(id))") { holder.removeLast(id.count + 3) }
+        return (String(name[..<range.lowerBound]), holder)
+    }
+
     var signingDigestList: [String] {
         signingCertificateDigests?.split(separator: ",").map(String.init) ?? []
     }
@@ -155,8 +204,7 @@ struct CollapsibleSection<Content: View>: View {
                 .accessibilityValue(expanded ? "開いています" : "閉じています")
                 .padding(.bottom, 6)
             if expanded {
-                VStack(alignment: .leading, spacing: 0) { content }
-                    .overlay(alignment: .bottom) { Rectangle().fill(AppMateStyle.rowBorder).frame(height: 1) }
+                VStack(alignment: .leading, spacing: 6) { content }
             }
         }
     }

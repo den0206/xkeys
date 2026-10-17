@@ -610,6 +610,12 @@ enum AppMateStyle {
     static let dangerBorder = hex(0xFBD5D1)
     static let successText = hex(0x15803D)
     static let successBackground = hex(0xDCFCE7)
+    static let profileBackground = hex(0xF7F8FF)
+    static let profileBorder = hex(0xE3E6FB)
+    static let certificateBackground = hex(0xF4FBF6)
+    static let certificateBorder = hex(0xD6EFDD)
+    static let keyBackground = hex(0xFFFAF0)
+    static let keyBorder = hex(0xF3E3C3)
 
     private static func hex(_ value: Int) -> Color {
         Color(red: Double((value >> 16) & 255)/255, green: Double((value >> 8) & 255)/255, blue: Double(value & 255)/255)

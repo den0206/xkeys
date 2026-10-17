@@ -217,6 +217,7 @@ struct CredentialAppView: View {
                         let items = visible.filter { CredentialGroup($0) == group }
                         CollapsibleSection(title: group.title, detail: sectionDetail(group, count: items.count),
                                            attention: scoped.filter { CredentialGroup($0) == group && $0.needsAttention(in: records, at: clock) }.count) {
+                            columnHeader(group)
                             ForEach(items) { row($0) }
                         }
                     }
@@ -460,45 +461,63 @@ struct CredentialAppView: View {
             if profiles.isEmpty {
                 Text("プロファイルはまだありません").foregroundStyle(AppMateStyle.secondary).padding(.vertical, 8)
             } else {
+                columnHeader(.profile)
                 ForEach(profiles) { row($0) }
             }
         }
     }
 
+    private static let detailColumnWidth: CGFloat = 240
+    private static let expiryColumnWidth: CGFloat = 110
+
+    private func columnHeader(_ group: CredentialGroup) -> some View {
+        HStack(spacing: 14) {
+            if selectingForDeletion { Color.clear.frame(width: 14, height: 1) }
+            Color.clear.frame(width: 36, height: 1)
+            Text(group.columns.name).frame(maxWidth: .infinity, alignment: .leading)
+            Text(group.columns.detail).frame(width: Self.detailColumnWidth, alignment: .leading)
+            Text("期限").frame(width: Self.expiryColumnWidth, alignment: .trailing)
+        }.font(.system(size: 11, weight: .semibold)).foregroundStyle(AppMateStyle.secondary)
+            .padding(.horizontal, 15).accessibilityHidden(true)
+    }
+
     private func row(_ record: StoredCredential) -> some View {
+        let group = CredentialGroup(record)
         let state = record.displayState(at: clock)
-        let certificatesExpired = CredentialGroup(record) == .profile && record.signingCertificatesExpired(in: records, at: clock)
+        let certificatesExpired = group == .profile && record.signingCertificatesExpired(in: records, at: clock)
         let broken = state == .expired || certificatesExpired
         let isSelected = selected == record.id
         return VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 12) {
+            HStack(spacing: 14) {
                 if selectingForDeletion {
                     Toggle("\(record.name)を選択", isOn: Binding(
                         get: { checkedIDs.contains(record.id) },
                         set: { if $0 { checkedIDs.insert(record.id) } else { checkedIDs.remove(record.id) } }
                     )).toggleStyle(.checkbox).labelsHidden().disabled(access.busy)
                 }
-                Circle().fill(broken ? AppMateStyle.danger : state.needsRenewal ? Color(red: 0.96, green: 0.62, blue: 0.04) : AppMateStyle.border)
-                    .frame(width: 8, height: 8).accessibilityHidden(true)
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 8) {
-                        Text(CredentialGroup(record) == .key ? record.keyID ?? record.name : record.name)
-                            .font(.system(size: 13, weight: .semibold, design: CredentialGroup(record) == .key ? .monospaced : .default))
-                            .lineLimit(1)
-                        if let owner = record.app { targetTag(owner) }
-                    }
+                Image(systemName: group.symbol).font(.system(size: 16)).foregroundStyle(group.tint)
+                    .frame(width: 36, height: 36).background(AppMateStyle.canvas, in: RoundedRectangle(cornerRadius: 9))
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 3) {
+                    title(record)
                     subtitle(record)
-                }
-                Spacer(minLength: 8)
+                }.frame(maxWidth: .infinity, alignment: .leading)
+                detailColumn(record).frame(width: Self.detailColumnWidth, alignment: .leading)
                 status(record, state: state, certificatesExpired: certificatesExpired)
-                if isSelected { actions(record) }
-            }.padding(.horizontal, 10).padding(.vertical, 8).frame(minHeight: 48)
+                    .frame(width: Self.expiryColumnWidth, alignment: .trailing)
+            }.padding(.horizontal, 14).padding(.vertical, 12)
                 .contentShape(Rectangle())
                 .onTapGesture { selected = isSelected ? nil : record.id }
-            if isSelected { detail(record).padding(.horizontal, 30).padding(.bottom, 14) }
+            if isSelected {
+                VStack(alignment: .leading, spacing: 12) {
+                    actions(record)
+                    detail(record)
+                }.padding(.leading, 64).padding(.trailing, 14).padding(.bottom, 14)
+            }
         }
-        .background(isSelected ? AppMateStyle.selectedRow : .clear, in: RoundedRectangle(cornerRadius: 8))
-        .overlay(alignment: .top) { if !isSelected { Rectangle().fill(AppMateStyle.rowBorder).frame(height: 1) } }
+        .background(group.background, in: RoundedRectangle(cornerRadius: 10))
+        .overlay(RoundedRectangle(cornerRadius: 10)
+            .stroke(isSelected ? AppMateStyle.selectionBorder : broken ? AppMateStyle.dangerBorder : group.border, lineWidth: isSelected ? 1.5 : 1))
         .accessibilityElement(children: .contain)
         .accessibilityAddTraits(isSelected ? [.isSelected, .isButton] : .isButton)
         .accessibilityAction { selected = isSelected ? nil : record.id }
@@ -516,33 +535,62 @@ struct CredentialAppView: View {
     private func targetTag(_ owner: ManagedApp) -> some View {
         HStack(spacing: 4) {
             AppIcon(app: owner.product, size: 14)
-            Text(app == nil || CredentialSearch.hasQuery(search) ? owner.product.name + (owner.parentAppID == nil ? "" : " · " + owner.name)
-                 : owner.parentAppID == nil ? "本体" : owner.name)
+            Text(owner.product.name + (owner.parentAppID == nil ? "" : " · " + owner.name))
         }.font(.system(size: 11)).foregroundStyle(AppMateStyle.text.opacity(0.75))
             .padding(.leading, 3).padding(.trailing, 6).padding(.vertical, 1)
-            .background(AppMateStyle.search, in: RoundedRectangle(cornerRadius: 5))
+            .background(AppMateStyle.canvas, in: RoundedRectangle(cornerRadius: 5))
+    }
+
+    @ViewBuilder private func title(_ record: StoredCredential) -> some View {
+        switch CredentialGroup(record) {
+        case .key:
+            Text(record.keyID ?? record.name).font(.system(size: 13, weight: .bold, design: .monospaced)).lineLimit(1)
+        case .certificate:
+            Text(record.certificateNameParts.title).font(.system(size: 13, weight: .bold)).lineLimit(1)
+        case .profile:
+            HStack(spacing: 8) {
+                Text(record.name).font(.system(size: 13, weight: .bold)).lineLimit(1)
+                // Target sections on app pages already name the target.
+                if let owner = record.app, app == nil || CredentialSearch.hasQuery(search) { targetTag(owner) }
+            }
+        }
     }
 
     @ViewBuilder private func subtitle(_ record: StoredCredential) -> some View {
+        if CredentialGroup(record) == .certificate {
+            let bundled = record.bundledCertificates.count
+            Text([record.certificateNameParts.holder ?? record.fileTypeTitle,
+                  ".\(record.fileExtension)" + (bundled > 0 ? "（ほか\(bundled)件を含む）" : "")].joined(separator: " · "))
+                .font(.system(size: 12)).foregroundStyle(AppMateStyle.secondary).lineLimit(1)
+        }
+    }
+
+    @ViewBuilder private func detailColumn(_ record: StoredCredential) -> some View {
         switch CredentialGroup(record) {
         case .key:
             PurposeLabels(record: record)
+        case .profile:
+            Text(record.bundleID ?? record.app?.bundleID ?? "—").font(.system(size: 12, design: .monospaced))
+                .foregroundStyle(AppMateStyle.text.opacity(0.8)).lineLimit(1).truncationMode(.middle)
         case .certificate:
-            let users = record.profilesUsing(in: records)
-            VStack(alignment: .leading, spacing: 4) {
-                let bundled = record.bundledCertificates.count
-                Text("\(record.fileTypeTitle) · .\(record.fileExtension)" + (bundled > 0 ? " · ほか\(bundled)件の証明書" : ""))
-                    .font(.system(size: 12)).foregroundStyle(AppMateStyle.tertiary)
-                if !users.isEmpty {
-                    HStack(spacing: 6) {
-                        Text("使っているプロファイル").font(.system(size: 11)).foregroundStyle(AppMateStyle.secondary)
-                        ForEach(users.compactMap(\.app).reduce(into: [ManagedApp]()) { if !$0.contains($1) { $0.append($1) } }) { targetTag($0) }
+            let targets = record.profilesUsing(in: records).compactMap(\.app)
+            let products = targets.map(\.product).reduce(into: [ManagedApp]()) { if !$0.contains($1) { $0.append($1) } }
+            if products.isEmpty {
+                Text("なし").font(.system(size: 12)).foregroundStyle(AppMateStyle.secondary)
+            } else {
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(products) { product in
+                        let names = targets.filter { $0.product == product }.map { $0.parentAppID == nil ? "本体" : $0.name }
+                        HStack(spacing: 6) {
+                            AppIcon(app: product, size: 16)
+                            Text(product.name).lineLimit(1)
+                            Text(names.reduce(into: [String]()) { if !$0.contains($1) { $0.append($1) } }.joined(separator: "・"))
+                                .foregroundStyle(AppMateStyle.secondary).lineLimit(1)
+                        }.font(.system(size: 12)).padding(.leading, 3).padding(.trailing, 8).padding(.vertical, 2)
+                            .background(AppMateStyle.canvas, in: RoundedRectangle(cornerRadius: 6))
+                            .overlay(RoundedRectangle(cornerRadius: 6).stroke(CredentialGroup.certificate.border))
                     }
                 }
-            }
-        case .profile:
-            if let owner = record.app, app == nil || CredentialSearch.hasQuery(search) {
-                Text(owner.bundleID).font(.system(size: 11, design: .monospaced)).foregroundStyle(AppMateStyle.tertiary).lineLimit(1)
             }
         }
     }
@@ -556,7 +604,7 @@ struct CredentialAppView: View {
             Text(state.title).font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(state == .expired ? AppMateStyle.dangerText : AppMateStyle.warningText)
         } else {
-            Text(record.expiresAt.map { $0.formatted(.dateTime.year().month(.twoDigits).day(.twoDigits)) + " まで" } ?? "期限なし")
+            Text(record.expiresAt.map { $0.formatted(.dateTime.year().month(.twoDigits).day(.twoDigits)) } ?? "なし")
                 .foregroundStyle(AppMateStyle.secondary)
         }
     }
