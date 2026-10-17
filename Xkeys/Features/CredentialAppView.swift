@@ -108,6 +108,8 @@ struct CredentialAppView: View {
     @State private var batchDeletion: BatchDeletion?
     @State private var deletingTarget: ManagedApp?
     @State private var showingRenewalGuide = false
+    @State private var renewalDone: Set<Int> = []
+    @State private var renewalAction: RenewalAction?
     @State private var revealedAt = Date.distantPast
 
     private struct BatchDeletion: Identifiable {
@@ -201,7 +203,7 @@ struct CredentialAppView: View {
         .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.willSleepNotification)) { _ in lock() }
         .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.sessionDidResignActiveNotification)) { _ in lock() }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didResignActiveNotification)) { _ in
-            if !access.busy && !access.presentingPanel && !editingNote && !editingCustomSecrets && !editingPurposes && !copyingCI && !creatingSecretFile && !editingApp && editingTarget == nil { lock(dismissImport: false) }
+            if !access.busy && !access.presentingPanel && !showingRenewalGuide && !editingNote && !editingCustomSecrets && !editingPurposes && !copyingCI && !creatingSecretFile && !editingApp && editingTarget == nil { lock(dismissImport: false) }
         }
     }
 
@@ -222,7 +224,8 @@ struct CredentialAppView: View {
                     ForEach(CredentialGroup.allCases.filter { group in visible.contains { CredentialGroup($0) == group } }, id: \.self) { group in
                         let items = visible.filter { CredentialGroup($0) == group }
                         CollapsibleSection(title: group.title, detail: sectionDetail(group, count: items.count),
-                                           attention: scoped.filter { CredentialGroup($0) == group && $0.needsAttention(in: records, at: clock) }.count) {
+                                           attention: scoped.filter { CredentialGroup($0) == group && $0.needsAttention(in: records, at: clock) }.count,
+                                           term: group.guideTerm) {
                             columnHeader(group)
                             ForEach(items) { row($0) }
                         }
@@ -368,18 +371,26 @@ struct CredentialAppView: View {
                 Text(attentionMessage(attention)).frame(maxWidth: .infinity, alignment: .leading)
                 Button("直し方を見る") { showingRenewalGuide = true }
                     .buttonStyle(XkeysButtonStyle(compact: true))
-                    .popover(isPresented: $showingRenewalGuide) {
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("証明書とプロファイルを更新する").font(.headline)
-                            Text("1. Apple Developerで新しい証明書やプロファイルを用意します。")
-                            Text("2. 「ファイルを追加」で新しいファイルを選びます。")
-                            Text("3. 不要になった旧ファイルは削除します。")
-                        }.font(.system(size: 13)).padding(20).frame(width: 340)
+                    .sheet(isPresented: $showingRenewalGuide, onDismiss: runRenewalAction) {
+                        RenewalGuideView(expired: danger, canImportOnline: team != nil, done: $renewalDone) { action in
+                            renewalAction = action
+                            showingRenewalGuide = false
+                        }
                     }
             }.padding(.horizontal, 14).padding(.vertical, 10)
                 .foregroundStyle(danger ? Color(red: 0.5, green: 0.11, blue: 0.11) : XkeysStyle.warningText)
                 .background(danger ? XkeysStyle.dangerBackground : XkeysStyle.warningBanner, in: RoundedRectangle(cornerRadius: 10))
                 .overlay(RoundedRectangle(cornerRadius: 10).stroke(danger ? XkeysStyle.dangerBorder : XkeysStyle.warningBorder))
+        }
+    }
+
+    // Sheets open one at a time, so the guide's buttons act after it has closed.
+    private func runRenewalAction() {
+        guard let action = renewalAction else { return }
+        renewalAction = nil
+        switch action {
+        case .addFile: importing = true
+        case .importOnline: onlineImporting = true
         }
     }
 
@@ -512,6 +523,7 @@ struct CredentialAppView: View {
                     Text(target.bundleID).font(.caption.monospaced()).foregroundStyle(XkeysStyle.secondary)
                 }
                 Spacer()
+                GuideTermButton(term: .profile)
                 Text("プロファイル \(profiles.count)件").foregroundStyle(XkeysStyle.secondary)
                 Menu {
                     Button("編集…") { editingTarget = target }

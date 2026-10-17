@@ -54,8 +54,14 @@ struct CatalogView: View {
     @State private var editingApp: ManagedApp?
     @State private var onboarding = false
     @State private var onboardingSources: [URL] = []
-    @AppStorage("Xkeys.onboardingCompleted") private var onboardingCompleted = false
+    @AppStorage(OnboardingView.completedKey) private var onboardingCompleted = false
+    @AppStorage(GuideMode.storageKey) private var guideMode = false
+    @State private var tourStep: Int?
+    @State private var showingGlossary = false
+    @State private var movingToApplications = false
+    private let installLocation = InstallLocation(bundleURL: Bundle.main.bundleURL)
     @State private var typeFilter: CredentialTypeFilter = .all
+    private var testing: Bool { ProcessInfo.processInfo.environment["XKEYS_TESTING"] == "1" }
 
     private var selectedApp: ManagedApp? {
         guard case .app(let id) = selection else { return nil }
@@ -92,8 +98,27 @@ struct CatalogView: View {
             do { try VaultManagement(vault: CredentialVault(context: container.mainContext, blobs: EncryptedBlobStore(directory: CredentialVault.directory))).pruneExpired() }
             catch { historyError = String(localized: "削除済みデータの整理を完了できませんでした。再起動して確認してください。") }
             selection = navigation.scope == .all ? (rootApps.first { $0.team?.id == currentTeam?.id }.map { .app($0.id) } ?? currentTeam.map { .team($0.id) } ?? .all) : navigation.scope
-            onboarding = !onboardingCompleted && ProcessInfo.processInfo.environment["XKEYS_TESTING"] != "1"
+            // Moving first keeps the onboarding for the copy that stays; the data is shared, so nothing is lost either way.
+            if !testing && installLocation.suggestsMove && !UserDefaults.standard.bool(forKey: InstallLocation.skipKey) { movingToApplications = true }
+            else { onboarding = !onboardingCompleted && !testing }
         }
+        .onChange(of: onboardingCompleted) { _, completed in
+            // Settings clears the flag to show the onboarding again.
+            if !completed && !testing { onboarding = true }
+        }
+        .onChange(of: guideMode) { _, on in tourStep = on ? 0 : nil }
+        .overlay(alignment: .bottomTrailing) {
+            if guideMode, let tourStep {
+                GuideTourCard(step: tourStep, onBack: { self.tourStep = max(tourStep - 1, 0) },
+                              onNext: { self.tourStep = tourStep + 1 < GuideTour.steps.count ? tourStep + 1 : nil },
+                              onClose: { self.tourStep = nil }, onGlossary: { showingGlossary = true })
+                    .padding(24)
+            }
+        }
+        .sheet(isPresented: $movingToApplications, onDismiss: { onboarding = !onboardingCompleted && !testing }) {
+            MoveToApplicationsView(location: installLocation) { movingToApplications = false }
+        }
+        .sheet(isPresented: $showingGlossary) { GuideGlossaryView() }
         .onReceive(Timer.publish(every: 60, on: .main, in: .common).autoconnect()) { _ in clock = .now }
         .onChange(of: dockBadgeLabel, initial: true) { _, label in
             guard ProcessInfo.processInfo.environment["XKEYS_TESTING"] != "1" else { return }
@@ -178,6 +203,25 @@ struct CatalogView: View {
                 selection = .app(id)
             }
         }
+        .environment(\.guide, GuideState(active: guideMode, tourStep: tourStep))
+    }
+
+    @ViewBuilder private var guideControl: some View {
+        if guideMode {
+            Menu {
+                Button("画面のガイドを見る", systemImage: "map") { tourStep = 0 }
+                Button("用語集", systemImage: "book") { showingGlossary = true }
+                Divider()
+                Button("説明モードをオフ") { guideMode = false }
+            } label: {
+                Label("説明モード オン", systemImage: "questionmark.circle")
+            }.menuStyle(.button).buttonStyle(.bordered).fixedSize()
+                .help("画面の見方と言葉の意味を表示しています")
+        } else {
+            Button { guideMode = true } label: { Label("説明モード", systemImage: "questionmark.circle") }
+                .buttonStyle(.bordered).fixedSize()
+                .help("画面の見方と言葉の意味を表示します")
+        }
     }
 
     private var header: some View {
@@ -187,6 +231,7 @@ struct CatalogView: View {
                 Text("Xkeys").font(.system(size: 14, weight: .bold)).fixedSize()
             }
             Spacer(minLength: 12)
+            guideControl
             HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass").foregroundStyle(XkeysStyle.secondary)
                 TextField("アプリ名・Bundle ID・Key IDで探す", text: $search)
@@ -207,6 +252,7 @@ struct CatalogView: View {
                 Label("ファイルを追加", systemImage: "plus")
             }.menuStyle(.button).buttonStyle(.borderedProminent).fixedSize()
                 .help("Mac上のファイル、またはApple Developerから取り込みます")
+                .guideSpot(5)
         }.padding(.horizontal, 16).frame(height: 52).background(XkeysStyle.canvas)
     }
 
@@ -227,7 +273,7 @@ struct CatalogView: View {
 
     private var sidebar: some View {
         VStack(alignment: .leading, spacing: 4) {
-            teamSwitcher.padding(.bottom, 8)
+            teamSwitcher.guideSpot(1).padding(.bottom, 8)
             if expiredCount + expiringCount > 0 {
                 sidebarRow(scope: .attention) {
                     Image(systemName: "exclamationmark.circle").font(.system(size: 15)).foregroundStyle(XkeysStyle.danger).frame(width: 40)
@@ -235,7 +281,11 @@ struct CatalogView: View {
                     Text("すべてのチームで \(expiredCount + expiringCount)件").font(.system(size: 12)).foregroundStyle(XkeysStyle.dangerText)
                 }
             }
-            sidebarHeading(String(localized: "アプリ · \(teamApps.count)"))
+            HStack(spacing: 6) {
+                sidebarHeading(String(localized: "アプリ · \(teamApps.count)"))
+                GuideTermButton(term: .bundleID).padding(.top, 4)
+                Spacer(minLength: 0)
+            }.guideSpot(2)
             ScrollView {
                 VStack(alignment: .leading, spacing: 4) {
                     if teamApps.isEmpty {
@@ -247,7 +297,7 @@ struct CatalogView: View {
                     }.buttonStyle(.plain).foregroundStyle(XkeysStyle.accent).disabled(teams.isEmpty)
                     if let team = currentTeam {
                         sidebarHeading(String(localized: "チーム共通")).padding(.top, 8)
-                        teamRow(team)
+                        teamRow(team).guideSpot(3)
                     }
                 }
             }
@@ -259,7 +309,7 @@ struct CatalogView: View {
                 selection = scopes[min(max(index + (direction == .down ? 1 : -1), 0), scopes.count - 1)]
             }
             Spacer(minLength: 8)
-            backupStatusLine
+            backupStatusLine.guideSpot(4)
             Divider().padding(.vertical, 4)
             if teams.isEmpty { addTeamPrompt.padding(.horizontal, 6).padding(.bottom, 2) }
             else { AppleDeveloperAccountView(session: appleSession, compact: true).padding(.horizontal, 6).padding(.bottom, 2) }
@@ -431,7 +481,7 @@ struct CatalogView: View {
             Image(nsImage: NSApp.applicationIconImage).resizable().frame(width: 96, height: 96).accessibilityHidden(true)
             VStack(spacing: 8) {
                 Text("証明書と鍵を、この Mac に安全にまとめます").font(.system(size: 22, weight: .bold))
-                Text("期限が近づいたらお知らせします。まずは Apple Developer のチームを追加しましょう。").foregroundStyle(XkeysStyle.secondary)
+                Text("期限切れや期限が近いものを、ひと目で分かるようにします。まずは Apple Developer のチームを追加しましょう。").foregroundStyle(XkeysStyle.secondary)
             }.multilineTextAlignment(.center)
             VStack(alignment: .leading, spacing: 14) {
                 welcomeStep(1, String(localized: "チームを追加"), String(localized: "Apple Developer にサインインして、所属しているチームを選びます"), current: true)
@@ -732,11 +782,17 @@ struct XkeysButtonStyle: ButtonStyle {
 
 
 struct OnboardingView: View {
+    static let completedKey = "Xkeys.onboardingCompleted"
+    static let stepCount = 4
+
     let onFinished: ([URL]) -> Void
     @State private var step: Int
     @State private var sources: [URL] = []
-    private let artwork = ["OnboardingWelcome", "OnboardingImport", "OnboardingSecurity"]
-    private let titles = [String(localized: "Xkeys へ\nようこそ"), String(localized: "今ある鍵を\n取り込みましょう"), String(localized: "安心して使うための\n設定")]
+    @AppStorage(GuideMode.storageKey) private var guideMode = false
+    // The second step draws its picture in SwiftUI; the others use the bundled artwork.
+    private let artwork: [String?] = ["OnboardingWelcome", nil, "OnboardingImport", "OnboardingSecurity"]
+    private let titles = [String(localized: "Xkeys へ\nようこそ"), String(localized: "3種類のファイルを\n分けて持ちます"),
+                          String(localized: "今ある鍵を\n取り込みましょう"), String(localized: "安心して使うための\n設定")]
 
     init(step: Int = 0, onFinished: @escaping ([URL]) -> Void) {
         self.onFinished = onFinished
@@ -745,9 +801,11 @@ struct OnboardingView: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            Image(artwork[step]).resizable().frame(width: 320, height: 518).accessibilityHidden(true)
+            Group {
+                if let name = artwork[step] { Image(name).resizable() } else { howItWorksArt }
+            }.frame(width: 320, height: 518).accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 0) {
-                Text("STEP \(step + 1) / 3").font(.system(size: 12, weight: .bold)).tracking(1).foregroundStyle(XkeysStyle.accent)
+                Text("STEP \(step + 1) / \(Self.stepCount)").font(.system(size: 12, weight: .bold)).tracking(1).foregroundStyle(XkeysStyle.accent)
                 Text(titles[step]).font(.system(size: step == 0 ? 30 : 28, weight: .heavy)).lineSpacing(3).padding(.top, 8)
                 if step == 0 {
                     Text("鍵と証明書はチームで、プロファイルはアプリごとに保管します。")
@@ -758,6 +816,14 @@ struct OnboardingView: View {
                         feature(String(localized: "このMacの中だけ"), detail: String(localized: "暗号化して保存。サーバーには送りません"), symbol: "lock", color: XkeysStyle.successText, background: XkeysStyle.successBackground)
                     }.padding(.top, 22)
                 } else if step == 1 {
+                    Text("拡張子が分からなくても大丈夫です。取り込むときに Xkeys が見分けます。")
+                        .font(.system(size: 14)).lineSpacing(5).foregroundStyle(XkeysStyle.secondary).padding(.top, 12)
+                    VStack(alignment: .leading, spacing: 14) {
+                        kind(.certificate, String(localized: "証明書 · チーム共通"), detail: String(localized: "アプリの署名に使います。だいたい1年で期限が来ます"))
+                        kind(.key, String(localized: "鍵（.p8）· チーム共通"), detail: String(localized: "通知や API に使います。再ダウンロードできません"))
+                        kind(.profile, String(localized: "プロファイル · アプリごと"), detail: String(localized: "証明書が切れると、一緒に使えなくなります"))
+                    }.padding(.top, 22)
+                } else if step == 2 {
                     Text("鍵や証明書をまとめているフォルダがあれば、そのまま選んでください。")
                         .font(.system(size: 14)).lineSpacing(5).foregroundStyle(XkeysStyle.secondary).padding(.top, 10)
                     VStack(spacing: 10) {
@@ -776,25 +842,32 @@ struct OnboardingView: View {
                         .font(.system(size: 14)).foregroundStyle(XkeysStyle.secondary).padding(.top, 10)
                     VStack(spacing: 10) {
                         feature(String(localized: "Macの認証で守る"), detail: String(localized: "Touch ID またはMacのパスワードで確認します"), symbol: "touchid", color: XkeysStyle.accent, background: XkeysStyle.selectedRow)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(12).background(XkeysStyle.sidebar, in: RoundedRectangle(cornerRadius: 14))
                         HStack {
                             feature(String(localized: "表示を自動で閉じる"), detail: String(localized: "パスワードやメモの表示は、操作がないと閉じます"), symbol: "eye.slash", color: XkeysStyle.secondary, background: XkeysStyle.search)
                             Spacer(minLength: 0)
                             Text("5分").font(.system(size: 12))
                         }.padding(12).background(XkeysStyle.sidebar, in: RoundedRectangle(cornerRadius: 14))
+                        HStack {
+                            feature(String(localized: "説明モード"), detail: String(localized: "画面の見方と言葉の意味を表示します"), symbol: "questionmark.circle", color: XkeysStyle.accent, background: XkeysStyle.selectedRow)
+                            Spacer(minLength: 0)
+                            Toggle("説明モード", isOn: $guideMode).labelsHidden().toggleStyle(.switch)
+                        }.padding(12).background(XkeysStyle.sidebar, in: RoundedRectangle(cornerRadius: 14))
                     }.padding(.top, 18)
                 }
                 Spacer(minLength: 12)
                 HStack(spacing: 8) {
                     HStack(spacing: 6) {
-                        ForEach(0..<3) { index in
+                        ForEach(0..<Self.stepCount, id: \.self) { index in
                             Capsule().fill(index == step ? XkeysStyle.accent : XkeysStyle.border).frame(width: index == step ? 22 : 6, height: 6)
                         }
-                    }.accessibilityLabel("ステップ \(step + 1) / 3")
+                    }.accessibilityLabel("ステップ \(step + 1) / \(Self.stepCount)")
                     Spacer()
-                    if step == 1 { Button("あとで") { sources = []; step = 2 }.buttonStyle(.borderless) }
-                    Button(step == 1 ? "次へ →" : "はじめる →") {
-                        if step < 2 { step += 1 } else { onFinished(sources) }
+                    if step > 0 { Button("戻る") { step -= 1 }.buttonStyle(.borderless).foregroundStyle(XkeysStyle.secondary) }
+                    if step == 2 { Button("あとで") { sources = []; step = 3 }.buttonStyle(.borderless) }
+                    Button(step + 1 < Self.stepCount ? "次へ →" : "はじめる →") {
+                        if step + 1 < Self.stepCount { step += 1 } else { onFinished(sources) }
                     }.font(.system(size: 14, weight: .bold)).buttonStyle(.plain)
                         .padding(.horizontal, 26).frame(height: 40).foregroundStyle(.white)
                         .background(XkeysStyle.accent, in: Capsule())
@@ -802,6 +875,46 @@ struct OnboardingView: View {
                 }
             }.padding(.top, 46).padding(.horizontal, 40).padding(.bottom, 26).frame(maxWidth: .infinity)
         }.frame(width: 760, height: 518).background(XkeysStyle.canvas).foregroundStyle(XkeysStyle.text)
+    }
+
+    /// Team at the top, shared keys and certificates on one side and per-app profiles on the other.
+    private var howItWorksArt: some View {
+        ZStack {
+            XkeysStyle.selectedRow
+            VStack(spacing: 0) {
+                artCard(String(localized: "チーム"), symbol: "person.2", tint: XkeysStyle.accent)
+                Rectangle().fill(XkeysStyle.selectionBorder).frame(width: 2, height: 22)
+                Rectangle().fill(XkeysStyle.selectionBorder).frame(width: 138, height: 2)
+                HStack(spacing: 0) {
+                    Rectangle().fill(XkeysStyle.selectionBorder).frame(width: 2, height: 22)
+                    Spacer().frame(width: 134)
+                    Rectangle().fill(XkeysStyle.selectionBorder).frame(width: 2, height: 22)
+                }
+                HStack(alignment: .top, spacing: 16) {
+                    VStack(spacing: 8) {
+                        artCard(String(localized: "証明書"), symbol: CredentialGroup.certificate.symbol, tint: CredentialGroup.certificate.tint)
+                        artCard(String(localized: "鍵"), symbol: CredentialGroup.key.symbol, tint: CredentialGroup.key.tint)
+                    }
+                    VStack(spacing: 8) {
+                        artCard(String(localized: "アプリ"), symbol: "app", tint: XkeysStyle.text.opacity(0.7))
+                        artCard(String(localized: "プロファイル"), symbol: CredentialGroup.profile.symbol, tint: CredentialGroup.profile.tint)
+                    }
+                }
+            }
+        }
+    }
+
+    private func artCard(_ title: String, symbol: String, tint: Color) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: symbol).font(.system(size: 14, weight: .semibold)).foregroundStyle(tint).frame(width: 20)
+            Text(title).font(.system(size: 13, weight: .bold))
+        }.frame(width: 120, height: 40)
+            .background(XkeysStyle.canvas, in: RoundedRectangle(cornerRadius: 10))
+            .overlay(RoundedRectangle(cornerRadius: 10).stroke(XkeysStyle.selectionBorder))
+    }
+
+    private func kind(_ group: CredentialGroup, _ title: String, detail: String) -> some View {
+        feature(title, detail: detail, symbol: group.symbol, color: group.tint, background: group.background)
     }
 
     private func feature(_ title: String, detail: String, symbol: String, color: Color, background: Color) -> some View {

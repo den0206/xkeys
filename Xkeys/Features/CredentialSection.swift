@@ -184,25 +184,29 @@ struct CollapsibleSection<Content: View>: View {
     let title: String
     let detail: String
     let attention: Int
+    /// Explained by a “?” beside the title while the guide is on.
+    var term: GuideTerm? = nil
     @ViewBuilder let content: Content
     @State private var expanded = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Button { expanded.toggle() } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: "chevron.down").font(.system(size: 10, weight: .bold))
-                        .rotationEffect(.degrees(expanded ? 0 : -90)).foregroundStyle(XkeysStyle.secondary)
-                    Text(title).fontWeight(.bold).foregroundStyle(XkeysStyle.text.opacity(0.75))
-                    Text(detail).foregroundStyle(XkeysStyle.tertiary)
-                    if !expanded && attention > 0 {
-                        Label("要対応 \(attention)", systemImage: "circle.fill").labelStyle(AttentionBadgeStyle())
-                    }
-                }.font(.system(size: 13)).padding(.vertical, 4).contentShape(Rectangle())
-            }.buttonStyle(.plain)
-                .accessibilityLabel(String(localized: "\(title)、\(detail)") + (attention > 0 ? String(localized: "、要対応\(attention)件") : ""))
-                .accessibilityValue(expanded ? "開いています" : "閉じています")
-                .padding(.bottom, 6)
+            HStack(spacing: 6) {
+                Button { expanded.toggle() } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "chevron.down").font(.system(size: 10, weight: .bold))
+                            .rotationEffect(.degrees(expanded ? 0 : -90)).foregroundStyle(XkeysStyle.secondary)
+                        Text(title).fontWeight(.bold).foregroundStyle(XkeysStyle.text.opacity(0.75))
+                        Text(detail).foregroundStyle(XkeysStyle.tertiary)
+                        if !expanded && attention > 0 {
+                            Label("要対応 \(attention)", systemImage: "circle.fill").labelStyle(AttentionBadgeStyle())
+                        }
+                    }.font(.system(size: 13)).padding(.vertical, 4).contentShape(Rectangle())
+                }.buttonStyle(.plain)
+                    .accessibilityLabel(String(localized: "\(title)、\(detail)") + (attention > 0 ? String(localized: "、要対応\(attention)件") : ""))
+                    .accessibilityValue(expanded ? "開いています" : "閉じています")
+                if let term { GuideTermButton(term: term) }
+            }.padding(.bottom, 6)
             if expanded {
                 VStack(alignment: .leading, spacing: 6) { content }
             }
