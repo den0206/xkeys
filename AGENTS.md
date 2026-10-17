@@ -12,7 +12,7 @@ Xkeys は macOS 26.0 以降向けの SwiftUI・SwiftData アプリです。Apple
 - `Xkeys/Resources/`：画像アセットと同梱リソース。
 - `XkeysTests/`：XCTest と架空データの `Fixtures/`。
 - `docs/DESIGN.md`：動作仕様。`docs/IMPLEMENTATION.md`：開発手順と確認範囲。`docs/RELEASE.md`：バージョンと配布手順。
-- `.github/workflows/release.yml`・`scripts/notarize.sh`：`release/Ver_X.Y.Z` の push で署名・公証した DMG を GitHub Releases に公開します。手元の Mac からは配布しません。
+- `.github/workflows/release.yml`・`scripts/notarize.sh`：`release/Ver_X.Y.Z` の push で署名・公証した DMG を GitHub Releases に公開します。手元の Mac からは配布しません。公開後に CI が `Casks/xkeys.rb`（Homebrew の Cask）の version と sha256 を更新します。
 - `CHANGELOG.md`：リリースノート。利用者に見える変更は `[Unreleased]` に英語で追記します。
 
 ## ビルド・実行

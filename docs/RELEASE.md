@@ -59,7 +59,7 @@ git push origin release/Ver_0.1.0
 ```
 
 2. Actions の **Release**（check → build → publish）が成功すると、`vX.Y.Z` の GitHub Release に DMG が添付される。ノートは `[Unreleased]` の内容。
-3. 続けて CI が `main` の `CHANGELOG.md` で `[Unreleased]` の内容を `## [X.Y.Z] — YYYY-MM-DD` の下に移し、`[skip ci]` 付きでコミットする。
+3. 続けて CI が `main` の `CHANGELOG.md` で `[Unreleased]` の内容を `## [X.Y.Z] — YYYY-MM-DD` の下に移し、`Casks/xkeys.rb` の `version` と `sha256` を DMG に合わせて書き換え、両方を `[skip ci]` 付きの1コミットにまとめる。
 
 `[Unreleased]` が空なら CI は最初に止まります。リリースブランチを作ったあとに `main` の `[Unreleased]` へ追記した項目も、`main` 側ではこのバージョンの節に入るので、必要なら手で直してください。`main` に保護ルールを設定する場合は、`github-actions[bot]` の push を許可してください。
 
@@ -71,13 +71,27 @@ macOS の実行時間は Linux より高く数えられるため、macOS で動�
 | --- | --- | --- | --- |
 | check | Ubuntu | 5分 | ブランチ名からバージョンを取り出し、公開済みでないこと・`[Unreleased]` に内容があること・Secrets が揃っていることを確認する。失敗すれば macOS は起動しない |
 | build | macOS | 40分 | 署名なしでテスト → .p12 とプロファイルを一時キーチェーン等に入れる → archive・export（developer-id・手動署名） → DMG を作って Developer ID で署名 → DMG を1回だけ公証して staple → DMG を artifact に保存 → 成否にかかわらず一時キーチェーン・プロファイル・.p8 を削除 |
-| publish | Ubuntu | 10分 | GitHub Release を作って DMG を添付し、`main` の CHANGELOG で `[Unreleased]` を `[X.Y.Z]` の節に移してコミットする |
+| publish | Ubuntu | 10分 | GitHub Release を作って DMG を添付し、`main` の CHANGELOG で `[Unreleased]` を `[X.Y.Z]` の節に移し、Homebrew の Cask を更新してコミットする |
 
 - 公証は DMG だけに行います。中のアプリも同じ提出で公証されますが、チケットを staple するのは DMG だけです。DMG からコピーしたアプリを初めて開くときは、Gatekeeper がオンラインで公証を確認します。
 - 公証の待ち時間は15分まで（`scripts/notarize.sh`）です。Apple 側が混んで15分を超えたときや、却下されたときはジョブを失敗にし、Actions のログに Apple の判定（`notarytool log`）を出します。
 - 各ステップに時間上限があり、超えたりキャンセルしたりするとジョブは失敗します。GitHub Release は publish でしか作らないので、途中で止まっても中途半端なリリースは残りません。
 - 同じリリースブランチに新しく push すると、古い実行の check・build は取り消され、新しい実行だけが続きます。publish はすでに始まっていれば最後まで続けます（Release の作成と CHANGELOG の反映を途中で止めないため）。その場合、古いコミットが先に公開されるので、新しい実行は check の「公開済み」で止まります。修正は次のバージョンで出してください。
 - publish だけが失敗した場合は、Actions の「Re-run failed jobs」で publish だけをやり直せます。macOS で再ビルドはしません（DMG の artifact は3日間保存）。作成済みの Release や反映済みの CHANGELOG があれば、その処理は飛ばします。
+
+## Homebrew
+
+このリポジトリ自身を tap として使い、Cask は `Casks/xkeys.rb` に置きます。利用者は次のコマンドでインストールします。
+
+```sh
+brew tap den0206/xkeys https://github.com/den0206/xkeys
+brew install --cask xkeys
+```
+
+- Homebrew は認証なしで DMG を取得するため、リポジトリが Private のあいだはインストールできません。
+- リリースのたびに、CI が `version` と `sha256` の2行だけを書き換えます。そのほかの定義（`url`、`depends_on`、`zap` など）を変えるときは `Casks/xkeys.rb` を直接編集し、`brew audit --cask --strict` と `brew style` で確認します。Homebrew は tap 内の Cask しか検査しないため、`brew tap-new --no-git` で作った一時 tap にコピーして実行し、終わったら `brew untap` します。
+- `zap` は App Sandbox のコンテナ `~/Library/Containers/com.yuuki.xkeys` を丸ごと削除します（暗号化した保管庫を含む）。Keychain の暗号鍵と Apple Developer の Cookie は Cask から削除できないので残ります。
+- 公式の homebrew/cask へ移す場合は、notability の基準（Star 数など）を満たしてから申請します。
 
 ## 手元での確認
 

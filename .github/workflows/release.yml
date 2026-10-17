@@ -231,7 +231,8 @@ jobs:
             --target "$GITHUB_SHA" --title "Xkeys $VERSION" \
             --notes-file "$RUNNER_TEMP/artifacts/release-notes/notes.md"
 
-      - name: Move released notes under the version on main
+      # The Homebrew cask lives in this repository, so it is bumped in the same commit as the CHANGELOG.
+      - name: Move released notes and bump the Homebrew cask on main
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
@@ -246,6 +247,11 @@ jobs:
             { print }
           ' CHANGELOG.md > "$RUNNER_TEMP/CHANGELOG.md"
           mv "$RUNNER_TEMP/CHANGELOG.md" CHANGELOG.md
-          git add CHANGELOG.md
-          git commit -m "chore: v$VERSION の CHANGELOG を反映 [skip ci]"
+          SHA256="$(sha256sum "$RUNNER_TEMP/artifacts/dmg/Xkeys-$VERSION.dmg" | cut -d ' ' -f 1)"
+          sed -i -e "s/^  version \".*\"$/  version \"$VERSION\"/" \
+            -e "s/^  sha256 \".*\"$/  sha256 \"$SHA256\"/" Casks/xkeys.rb
+          grep -Fxq "  version \"$VERSION\"" Casks/xkeys.rb && grep -Fxq "  sha256 \"$SHA256\"" Casks/xkeys.rb \
+            || { echo "::error::Could not update version and sha256 in Casks/xkeys.rb"; exit 1; }
+          git add CHANGELOG.md Casks/xkeys.rb
+          git commit -m "chore: v$VERSION の CHANGELOG と Homebrew cask を反映 [skip ci]"
           git push origin main

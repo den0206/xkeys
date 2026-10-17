@@ -8,6 +8,8 @@ The format follows Keep a Changelog conventions and releases use semantic versio
 
 ### Added
 
+- Homebrew cask (`brew tap den0206/xkeys https://github.com/den0206/xkeys && brew install --cask xkeys`).
+
 - Custom per-app key/value secrets with encrypted storage, authenticated editing and copying, dotenv export, and backup v1 support.
 
 ### Changed
