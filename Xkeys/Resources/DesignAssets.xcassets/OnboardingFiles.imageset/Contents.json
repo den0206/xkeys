@@ -1,13 +1,23 @@
 {
-  "images": [
+  "images" : [
     {
-      "filename": "OnboardingFiles.png",
-      "idiom": "universal",
-      "scale": "2x"
+      "filename" : "OnboardingFiles.png",
+      "idiom" : "universal",
+      "locale" : "ja",
+      "scale" : "2x"
+    },
+    {
+      "filename" : "OnboardingFiles-en.png",
+      "idiom" : "universal",
+      "locale" : "en",
+      "scale" : "2x"
     }
   ],
-  "info": {
-    "author": "xcode",
-    "version": 1
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  },
+  "properties" : {
+    "localizable" : true
   }
 }
