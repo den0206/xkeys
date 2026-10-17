@@ -146,9 +146,10 @@ struct CredentialAppView: View {
         }
         .sheet(isPresented: $editingNote) { NoteEditor(vault: vault, app: selectedRecord == nil ? app : nil, record: selectedRecord) }
         .sheet(isPresented: $editingPurposes) { if let record = selectedRecord { P8PurposeEditor(vault: vault, record: record) } }
-        .sheet(isPresented: $addingTarget) {
+        .sheet(isPresented: $addingTarget, onDismiss: { if !droppedSources.isEmpty { importing = true } }) {
             if let parent = app?.product {
-                RegistrationForm(container: container, teams: parent.team.map { [$0] } ?? [], initialTeam: parent.team?.id, isTeam: false, parentApp: parent) { _ in }
+                RegistrationForm(container: container, teams: parent.team.map { [$0] } ?? [], initialTeam: parent.team?.id, isTeam: false, parentApp: parent,
+                                 onProfile: { droppedSources = [$0] }) { _ in }
             }
         }
         .sheet(isPresented: $editingApp) { CatalogEditor(vault: vault, team: nil, app: app) }

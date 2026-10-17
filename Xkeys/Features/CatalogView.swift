@@ -154,8 +154,11 @@ struct CatalogView: View {
                 selection = .team(team.id)
             }.modelContainer(container)
         }
-        .sheet(item: $addingTarget) { parent in
-            RegistrationForm(container: container, teams: teams, initialTeam: parent.team?.id, isTeam: false, parentApp: parent) { id in
+        .sheet(item: $addingTarget, onDismiss: {
+            if !onboardingSources.isEmpty && selectedApp != nil { addingFile = true } else { onboardingSources = [] }
+        }) { parent in
+            RegistrationForm(container: container, teams: teams, initialTeam: parent.team?.id, isTeam: false, parentApp: parent,
+                             onProfile: { onboardingSources = [$0] }) { id in
                 selection = .app(id)
             }
         }
@@ -170,7 +173,8 @@ struct CatalogView: View {
         .sheet(isPresented: $addingApp, onDismiss: {
             if !onboardingSources.isEmpty && selectedApp != nil { addingFile = true } else { onboardingSources = [] }
         }) {
-            RegistrationForm(container: container, teams: teams, initialTeam: credentialTeam?.id ?? selectedTeam, isTeam: false) { id in
+            RegistrationForm(container: container, teams: teams, initialTeam: credentialTeam?.id ?? selectedTeam, isTeam: false,
+                             onProfile: { onboardingSources = [$0] }) { id in
                 selection = .app(id)
             }
         }
@@ -467,6 +471,8 @@ struct RegistrationForm: View {
     var parentApp: ManagedApp? = nil
     var initialBundleID = ""
     var initialName = ""
+    // Receives the profile used to fill the form so the caller can offer to store it after registration.
+    var onProfile: ((URL) -> Void)? = nil
     let onSaved: (UUID) -> Void
     @Environment(\.dismiss) private var dismiss
     @State private var name = ""
@@ -478,6 +484,7 @@ struct RegistrationForm: View {
     @Query(sort: \DeveloperTeam.name) private var registeredTeams: [DeveloperTeam]
     @State private var teamID: UUID?
     @State private var error: String?
+    @State private var profile: (url: URL, bundleID: String)?
     @FocusState private var nameFocused: Bool
 
     var body: some View {
@@ -591,6 +598,7 @@ struct RegistrationForm: View {
             if let parentApp, let sourceTeam = profile.teamID, sourceTeam != parentApp.team?.teamID { throw VaultError.teamMismatch }
             name = profile.name
             identifier = bundle
+            self.profile = (url, bundle)
             if parentApp == nil, let sourceTeam = profile.teamID { teamID = registeredTeams.first { $0.teamID == sourceTeam }?.id }
             error = nil
         } catch { self.error = error.localizedDescription }
@@ -601,6 +609,8 @@ struct RegistrationForm: View {
             let catalog = AppCatalog(context: container.mainContext)
             guard let teamID else { throw RegistrationError.teamMissing }
             let id = try catalog.addApp(name: name, bundleID: identifier, platform: platform, teamID: teamID, iconColor: iconColor, iconImage: iconImage, parentAppID: parentApp?.id)
+            // A profile whose Bundle ID was edited away no longer belongs to this app.
+            if let profile, profile.bundleID == identifier { onProfile?(profile.url) }
             onSaved(id)
             dismiss()
         } catch { self.error = error.localizedDescription }
