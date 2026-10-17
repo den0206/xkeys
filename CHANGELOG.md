@@ -6,6 +6,8 @@ The format follows Keep a Changelog conventions and releases use semantic versio
 
 ## [Unreleased]
 
+## [0.1.0] — 2026-10-17
+
 ### Added
 
 - Encrypted local storage for Apple Developer keys, certificates and provisioning profiles, unlocked with Touch ID or the Mac password.
