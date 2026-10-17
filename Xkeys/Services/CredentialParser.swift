@@ -30,7 +30,7 @@ struct ContainedCertificate: Codable, Equatable, Sendable {
 }
 
 enum ValidationError: LocalizedError {
-    case invalidFile, tooLarge, unsupported, multipleCertificates, signingRequired, security(OSStatus), missingKey
+    case invalidFile, tooLarge, unsupported, multipleCertificates, signingRequired, security(OSStatus), missingKey, keyNotFound
 
     var errorDescription: String? {
         switch self {
@@ -45,6 +45,7 @@ enum ValidationError: LocalizedError {
                 ? ValidationError.signingRequired.localizedDescription
                 : String(localized: "セキュリティ処理に失敗しました（\(status)）。パスワードとアクセス許可を確認してください。")
         case .missingKey: String(localized: "保存済みデータの暗号鍵を取得できません。新しい鍵で上書きしません。")
+        case .keyNotFound: String(localized: "このMacのKeychainに保存データの暗号鍵がありません。別のMacから移行した場合などに起こります。「バックアップから戻す」で読めないデータを隔離してから復元してください。")
         }
     }
 }

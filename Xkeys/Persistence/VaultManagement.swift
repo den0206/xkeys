@@ -287,6 +287,57 @@ struct VaultManagement {
         guard context.hasChanges else { return }
         do { try context.save() } catch { context.rollback(); throw error }
     }
+
+    /// Moves encrypted blobs that cannot be opened aside and drops their references, so backup and restore can run again.
+    /// A nil key means the vault key is gone: every blob is moved. Each moved blob keeps its AAD in a `.aad` file next to it,
+    /// so it can still be decrypted if the key returns. Returns the number of moved blobs.
+    @discardableResult
+    func quarantineUnreadable(key: SymmetricKey?, at now: Date = .now) throws -> Int {
+        guard !context.hasChanges else { throw RestoreError.pendingChanges }
+        let records = try vault.records()
+        let apps = try context.fetch(FetchDescriptor<ManagedApp>())
+        let brokenRecords = records.filter { record in key.map { (try? vault.read(record, key: $0)) == nil } ?? true }
+        let brokenNotes = apps.filter { app in app.noteBlobID != nil && key.map { (try? readNote(app, key: $0)) == nil } ?? true }
+        let brokenSecrets = apps.filter { app in
+            (app.customSecretsBlobID != nil || app.customSecretNames != nil) && key.map { (try? readCustomSecrets(app, key: $0)) == nil } ?? true
+        }
+        var moves: [UUID: Data?] = [:]
+        // updateValue keeps a nil AAD as an entry; subscript assignment would remove it.
+        for record in brokenRecords { moves.updateValue(try? record.authenticatedData(), forKey: record.blobID) }
+        for app in brokenNotes { if let id = app.noteBlobID { moves.updateValue(Self.noteAAD(app), forKey: id) } }
+        for app in brokenSecrets { if let id = app.customSecretsBlobID { moves.updateValue(Self.customSecretsAAD(app), forKey: id) } }
+        if key == nil, FileManager.default.fileExists(atPath: vault.blobs.directory.path) {
+            for url in try FileManager.default.contentsOfDirectory(at: vault.blobs.directory, includingPropertiesForKeys: nil) where url.pathExtension == "blob" {
+                if let id = UUID(uuidString: url.deletingPathExtension().lastPathComponent), moves[id] == nil { moves.updateValue(nil, forKey: id) }
+            }
+        }
+        guard !moves.isEmpty || !brokenRecords.isEmpty || !brokenNotes.isEmpty || !brokenSecrets.isEmpty else { return 0 }
+        let stamp = ISO8601DateFormatter().string(from: now).replacingOccurrences(of: ":", with: "-")
+        let destination = vault.blobs.directory.deletingLastPathComponent()
+            .appendingPathComponent("Quarantine", isDirectory: true).appendingPathComponent(stamp + "-" + UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: true)
+        // Blobs move before the database commits: recover() would delete them once they are unreferenced.
+        var moved: [(from: URL, to: URL)] = []
+        do {
+            for (id, aad) in moves {
+                let source = vault.blobs.file(id)
+                guard FileManager.default.fileExists(atPath: source.path) else { continue }
+                let target = destination.appendingPathComponent(source.lastPathComponent)
+                if let aad { try aad.write(to: target.deletingPathExtension().appendingPathExtension("aad"), options: .atomic) }
+                try FileManager.default.moveItem(at: source, to: target)
+                moved.append((source, target))
+            }
+            try change {
+                for record in brokenRecords { context.delete(record) }
+                for app in brokenNotes { app.noteBlobID = nil }
+                for app in brokenSecrets { app.customSecretsBlobID = nil; app.customSecretNames = nil }
+            }
+        } catch {
+            for item in moved { try? FileManager.default.moveItem(at: item.to, to: item.from) }
+            throw error
+        }
+        return moved.count
+    }
 }
 
 enum ManagementError: LocalizedError {

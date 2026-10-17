@@ -7059,22 +7059,22 @@
         }
       }
     },
-    "「%@」の保存データを復号できません。保存ファイルの破損か、暗号鍵の不一致が考えられます。バックアップから復元してください。" : {
+    "「%@」の保存データを復号できません。保存ファイルの破損か、暗号鍵の不一致が考えられます。「バックアップから戻す」で読めないデータを隔離してから復元してください。" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Can't decrypt the stored data for “%@”. The stored file may be damaged or the encryption key doesn't match. Restore from a backup."
+            "value" : "Can't decrypt the stored data for “%@”. The stored file may be damaged or the encryption key doesn't match. Quarantine the unreadable data in Restore from Backup, then restore."
           }
         }
       }
     },
-    "保存データを復号できません。保存ファイルの破損か、暗号鍵の不一致が考えられます。バックアップから復元してください。" : {
+    "保存データを復号できません。保存ファイルの破損か、暗号鍵の不一致が考えられます。「バックアップから戻す」で読めないデータを隔離してから復元してください。" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Can't decrypt the stored data. The stored file may be damaged or the encryption key doesn't match. Restore from a backup."
+            "value" : "Can't decrypt the stored data. The stored file may be damaged or the encryption key doesn't match. Quarantine the unreadable data in Restore from Backup, then restore."
           }
         }
       }
@@ -7839,12 +7839,114 @@
         }
       }
     },
+    "このMacのKeychainに保存データの暗号鍵がありません。別のMacから移行した場合などに起こります。「バックアップから戻す」で読めないデータを隔離してから復元してください。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The encryption key for the stored data isn't in this Mac's Keychain. This can happen after moving from another Mac. Quarantine the unreadable data in Restore from Backup, then restore."
+          }
+        }
+      }
+    },
     "同じBundle IDのAppが「最近削除した項目」にあります。復元するか、完全に削除してから登録してください。" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "An app with the same Bundle ID is in Recently Deleted. Restore it, or delete it permanently before adding it again."
+          }
+        }
+      }
+    },
+    "読めないデータを隔離すると、残りのデータでバックアップ・復元できます。隔離したファイルは削除せず、保存先の「Quarantine」フォルダへ移します。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quarantine the unreadable data to back up and restore the rest. Quarantined files aren't deleted; they move to the “Quarantine” folder in the storage location."
+          }
+        }
+      }
+    },
+    "読めないデータを隔離…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quarantine Unreadable Data…"
+          }
+        }
+      }
+    },
+    "読めないデータを隔離しますか？" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quarantine unreadable data?"
+          }
+        }
+      }
+    },
+    "認証して隔離する" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Authenticate and Quarantine"
+          }
+        }
+      }
+    },
+    "復号できない資格情報は一覧から外れ、メモと任意Secretは空になります。このMacに暗号鍵がない場合はすべてが対象です。TeamとAppの登録は残ります。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Credentials that can't be decrypted are removed from the list, and their notes and custom secrets are cleared. If this Mac has no encryption key, everything is quarantined. Teams and apps stay registered."
+          }
+        }
+      }
+    },
+    "読めない保存データを隔離します" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quarantine unreadable stored data"
+          }
+        }
+      }
+    },
+    "読めないデータは見つかりませんでした。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No unreadable data was found."
+          }
+        }
+      }
+    },
+    "%lld件の保存ファイルを隔離しました。もう一度操作してください。" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Quarantined %lld stored file. Try again."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Quarantined %lld stored files. Try again."
+                }
+              }
+            }
           }
         }
       }

@@ -65,7 +65,8 @@ struct EncryptionKeychain {
             return SymmetricKey(data: bytes)
         }
         guard status == errSecItemNotFound else { throw ValidationError.security(status) }
-        guard allowCreation else { throw ValidationError.missingKey }
+        // Only a confirmed absence is reported as keyNotFound: it allows quarantining every blob.
+        guard allowCreation else { throw ValidationError.keyNotFound }
         var error: Unmanaged<CFError>?
         guard let control = SecAccessControlCreateWithFlags(nil, kSecAttrAccessibleWhenUnlockedThisDeviceOnly,
                                                            .userPresence, &error) else {

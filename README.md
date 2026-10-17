@@ -19,7 +19,7 @@ Xkeys layers several defenses so that no single failure exposes your secrets.
 ### Encryption at rest
 
 - **Original files, notes, `.p12` passwords, and custom secrets are all encrypted with AES-256-GCM.** The vault never holds plaintext secrets.
-- The encryption key lives in this Mac’s **device-only Keychain** (`WhenUnlockedThisDeviceOnly`). It never migrates to another Mac or syncs through iCloud Keychain, and it cannot be read while the Mac is locked.
+- The encryption key lives in this Mac’s **device-only Keychain** (`WhenUnlockedThisDeviceOnly`). It never migrates to another Mac or syncs through iCloud Keychain, and it cannot be read while the Mac is locked. After moving to a new Mac, use “Quarantine Unreadable Data…” in Restore from Backup, then restore a backup.
 - Each ciphertext is **cryptographically bound** to its metadata, such as kind, team, and key purpose, as AES-GCM additional authenticated data. Swapping or reassigning encrypted files makes decryption fail, so tampering is detected.
 - Metadata such as names, identifiers, and expiry dates is stored separately in SwiftData.
 

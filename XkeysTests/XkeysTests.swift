@@ -558,7 +558,7 @@ final class XkeysTests: XCTestCase {
         let (vault, root, child, other) = try makeVault()
         defer { try? FileManager.default.removeItem(at: vault.blobs.directory) }
         let key = SymmetricKey(size: .bits256)
-        let profile = CredentialFile(data: try fixture("mobileprovision"), name: "sample.mobileprovision")
+        let profile = CredentialFile(data: try fixture("mobileprovision", name: "certs"), name: "certs.mobileprovision")
         let parsed = try CredentialParser.parse(profile.data, extension: "mobileprovision")
         // The fixture's profile belongs to root; use that existing target as the extension.
         try AppCatalog(context: vault.context).setParent(child.id, for: root, name: root.name, platform: root.platform)
@@ -988,7 +988,7 @@ final class XkeysTests: XCTestCase {
         _ = try vault.importFile(file, parsed: CredentialParser.parse(file.data, extension: "cer"), app: app, password: nil, confirmUnknownTeam: true, key: key)
         let identity = CredentialFile(data: try fixture("p12"), name: "sample.p12")
         _ = try vault.importFile(identity, parsed: CredentialParser.parse(identity.data, extension: "p12", password: "fixture-only"), app: app, password: nil, confirmUnknownTeam: false, key: key)
-        let profile = CredentialFile(data: try fixture("mobileprovision"), name: "sample.mobileprovision")
+        let profile = CredentialFile(data: try fixture("mobileprovision", name: "certs"), name: "certs.mobileprovision")
         _ = try vault.importFile(profile, parsed: CredentialParser.parse(profile.data, extension: "mobileprovision"), app: app,
                                  password: nil, confirmUnknownTeam: false, key: key)
         let catalog = AppCatalog(context: vault.context)
@@ -1346,7 +1346,7 @@ final class XkeysTests: XCTestCase {
         let key = SymmetricKey(size: .bits256)
         let cert = CredentialFile(data: try fixture("cer"), name: "sample.cer")
         _ = try vault.importFile(cert, parsed: CredentialParser.parse(cert.data, extension: "cer"), app: app, password: nil, confirmUnknownTeam: true, key: key)
-        let profile = CredentialFile(data: try fixture("mobileprovision"), name: "sample.mobileprovision")
+        let profile = CredentialFile(data: try fixture("mobileprovision", name: "certs"), name: "certs.mobileprovision")
         _ = try vault.importFile(profile, parsed: CredentialParser.parse(profile.data, extension: "mobileprovision"), app: app, password: nil, confirmUnknownTeam: true, key: key)
         let manager = VaultManagement(vault: vault)
         try manager.trash(app, key: key)
@@ -1619,7 +1619,7 @@ final class XkeysTests: XCTestCase {
         XCTAssertThrowsError(try vault.importFile(file, parsed: parsed, app: nil, team: team, password: nil, confirmUnknownTeam: false, key: key, p8: metadata))
         XCTAssertThrowsError(try vault.validate(file: file, parsed: parsed, app: app, team: team, confirmUnknownTeam: false, p8: metadata))
         XCTAssertTrue(team.apps.isEmpty)
-        let profile = CredentialFile(data: try fixture("mobileprovision"), name: "sample.mobileprovision")
+        let profile = CredentialFile(data: try fixture("mobileprovision", name: "certs"), name: "certs.mobileprovision")
         XCTAssertThrowsError(try vault.validate(file: profile, parsed: CredentialParser.parse(profile.data, extension: "mobileprovision"), app: nil, team: try XCTUnwrap(app.team), confirmUnknownTeam: true))
     }
 
@@ -1889,7 +1889,7 @@ final class XkeysTests: XCTestCase {
         let p12 = CredentialFile(data: try fixture("p12"), name: "sample.p12")
         let p12ID = try source.importFile(p12, parsed: CredentialParser.parse(p12.data, extension: "p12", password: "fixture-only"), app: app,
                                           password: "fixture-only", confirmUnknownTeam: true, key: sourceKey)
-        let profile = CredentialFile(data: try fixture("mobileprovision"), name: "sample.mobileprovision")
+        let profile = CredentialFile(data: try fixture("mobileprovision", name: "certs"), name: "certs.mobileprovision")
         let profileID = try source.importFile(profile, parsed: CredentialParser.parse(profile.data, extension: "mobileprovision"), app: app,
                                               password: nil, confirmUnknownTeam: false, key: sourceKey)
         let first = p8File(), next = p8File()
@@ -2458,6 +2458,14 @@ final class XkeysTests: XCTestCase {
         XCTAssertFalse(CredentialVault.directory.path.contains("/XkeysVault/"))
     }
 
+    /// Quarantine sits next to the blob directory, so these vaults get a parent folder of their own.
+    @MainActor
+    private func makeIsolatedVault() throws -> (CredentialVault, ManagedApp) {
+        let (base, app, _, _) = try makeVault()
+        let directory = base.blobs.directory.appendingPathComponent("blobs", isDirectory: true)
+        return (CredentialVault(context: base.context, blobs: EncryptedBlobStore(directory: directory)), app)
+    }
+
     @MainActor
     private func makeVault() throws -> (CredentialVault, ManagedApp, ManagedApp, ManagedApp) {
         let container = try ModelContainer(for: DeveloperTeam.self, ManagedApp.self, StoredCredential.self, BackupChange.self, BackupCheckpoint.self,
@@ -2695,6 +2703,84 @@ final class XkeysTests: XCTestCase {
         XCTAssertEqual(value.signingCertificateDigests, [sha(try fixture("cer")), sha(try fixture("cer", name: "renewed"))])
         XCTAssertEqual(try CredentialParser.parse(fixture("mobileprovision"), extension: "mobileprovision").signingCertificateDigests, [])
         XCTAssertNil(try CredentialParser.parse(fixture("cer"), extension: "cer").signingCertificateDigests)
+    }
+
+    @MainActor
+    func testQuarantineMovesOnlyUnreadableDataAndKeepsItsAADSoBackupRunsAgain() throws {
+        let (vault, app) = try makeIsolatedVault()
+        defer { try? FileManager.default.removeItem(at: vault.blobs.directory.deletingLastPathComponent()) }
+        let key = SymmetricKey(size: .bits256)
+        let cer = CredentialFile(data: try fixture("cer"), name: "sample.cer")
+        try vault.importFile(cer, parsed: CredentialParser.parse(cer.data, extension: "cer"), app: app, password: nil, confirmUnknownTeam: false, key: key)
+        let profile = CredentialFile(data: try fixture("mobileprovision", name: "certs"), name: "certs.mobileprovision")
+        try vault.importFile(profile, parsed: CredentialParser.parse(profile.data, extension: "mobileprovision"), app: app, password: nil, confirmUnknownTeam: true, key: key)
+        let management = VaultManagement(vault: vault)
+        try management.saveNote("kept note", app: app, key: key)
+        let broken = try XCTUnwrap(vault.records().first { $0.fileExtension == "cer" })
+        let brokenBlob = broken.blobID
+        let aad = try broken.authenticatedData()
+        var corrupted = try Data(contentsOf: vault.blobs.file(brokenBlob))
+        corrupted[corrupted.count - 1] ^= 0xFF
+        try corrupted.write(to: vault.blobs.file(brokenBlob))
+        XCTAssertThrowsError(try BackupSnapshot.capture(vault: vault, key: key))
+
+        XCTAssertEqual(try management.quarantineUnreadable(key: key), 1)
+        XCTAssertEqual(try vault.records().map(\.fileExtension), ["mobileprovision"])
+        XCTAssertEqual(try management.readNote(app, key: key), "kept note")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: vault.blobs.file(brokenBlob).path))
+        let quarantine = vault.blobs.directory.deletingLastPathComponent().appendingPathComponent("Quarantine")
+        let folder = try XCTUnwrap(FileManager.default.contentsOfDirectory(at: quarantine, includingPropertiesForKeys: nil).first)
+        XCTAssertEqual(try Data(contentsOf: folder.appendingPathComponent(brokenBlob.uuidString + ".blob")), corrupted)
+        XCTAssertEqual(try Data(contentsOf: folder.appendingPathComponent(brokenBlob.uuidString + ".aad")), aad)
+        XCTAssertEqual(try BackupSnapshot.capture(vault: vault, key: key).credentials.count, 1)
+        XCTAssertEqual(try management.quarantineUnreadable(key: key), 0)
+    }
+
+    @MainActor
+    func testQuarantineWithoutVaultKeyMovesEveryBlobKeepsCatalogAndAllowsNewKey() throws {
+        let (vault, app) = try makeIsolatedVault()
+        defer { try? FileManager.default.removeItem(at: vault.blobs.directory.deletingLastPathComponent()) }
+        let key = SymmetricKey(size: .bits256)
+        let cer = CredentialFile(data: try fixture("cer"), name: "sample.cer")
+        try vault.importFile(cer, parsed: CredentialParser.parse(cer.data, extension: "cer"), app: app, password: nil, confirmUnknownTeam: false, key: key)
+        let management = VaultManagement(vault: vault)
+        try management.saveNote("note", app: app, key: key)
+        try management.saveCustomSecrets([AppSecret(name: "API_TOKEN", value: "fixture")], app: app, key: key)
+        try Data("orphan".utf8).write(to: vault.blobs.file(UUID()))
+        let blobs = try FileManager.default.contentsOfDirectory(atPath: vault.blobs.directory.path).count
+        let apps = try vault.context.fetchCount(FetchDescriptor<ManagedApp>())
+        XCTAssertFalse(try vault.canCreateKey())
+
+        XCTAssertEqual(try management.quarantineUnreadable(key: nil), blobs)
+        XCTAssertTrue(try vault.records().isEmpty)
+        XCTAssertNil(app.noteBlobID)
+        XCTAssertNil(app.customSecretsBlobID)
+        XCTAssertNil(app.customSecretNames)
+        XCTAssertEqual(try vault.context.fetchCount(FetchDescriptor<ManagedApp>()), apps)
+        XCTAssertTrue(try vault.canCreateKey())
+        XCTAssertGreaterThan(try vault.context.fetchCount(FetchDescriptor<BackupChange>()), 0)
+    }
+
+    @MainActor
+    func testVaultAccessQuarantinesEverythingOnlyWhenKeyIsConfirmedMissing() async throws {
+        let (vault, app) = try makeIsolatedVault()
+        defer { try? FileManager.default.removeItem(at: vault.blobs.directory.deletingLastPathComponent()) }
+        let key = SymmetricKey(size: .bits256)
+        let cer = CredentialFile(data: try fixture("cer"), name: "sample.cer")
+        try vault.importFile(cer, parsed: CredentialParser.parse(cer.data, extension: "cer"), app: app, password: nil, confirmUnknownTeam: false, key: key)
+        let present = VaultAccess { _, _ in key }
+        let unchanged = try await present.quarantineUnreadable(reason: "test", vault: vault)
+        XCTAssertEqual(unchanged, 0)
+        let failing = VaultAccess { _, _ in throw ValidationError.missingKey }
+        do { _ = try await failing.quarantineUnreadable(reason: "test", vault: vault); XCTFail("Other key errors must not quarantine") } catch {}
+        XCTAssertEqual(try vault.records().count, 1)
+        let missing = VaultAccess { _, _ in throw ValidationError.keyNotFound }
+        let moved = try await missing.quarantineUnreadable(reason: "test", vault: vault)
+        XCTAssertEqual(moved, 1)
+        XCTAssertTrue(try vault.records().isEmpty)
+        XCTAssertTrue(QuarantineAction.applies(to: ValidationError.keyNotFound))
+        XCTAssertTrue(QuarantineAction.applies(to: VaultError.undecryptable("sample.cer")))
+        XCTAssertFalse(QuarantineAction.applies(to: ValidationError.missingKey))
     }
 
     @MainActor

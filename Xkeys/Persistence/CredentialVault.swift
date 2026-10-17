@@ -209,8 +209,8 @@ enum VaultError: LocalizedError {
         case .invalidKeyID: String(localized: "Key IDは英大文字と数字の10文字で入力してください。")
         case .invalidIssuerID: String(localized: "App Store Connect APIのIssuer IDをUUID形式で入力してください。")
         case .missingPurpose: String(localized: ".p8の用途とKey IDを確認してください。App Store Connect APIはほかの用途と組み合わせられません。")
-        case .undecryptable(let name?): String(localized: "「\(name)」の保存データを復号できません。保存ファイルの破損か、暗号鍵の不一致が考えられます。バックアップから復元してください。")
-        case .undecryptable(nil): String(localized: "保存データを復号できません。保存ファイルの破損か、暗号鍵の不一致が考えられます。バックアップから復元してください。")
+        case .undecryptable(let name?): String(localized: "「\(name)」の保存データを復号できません。保存ファイルの破損か、暗号鍵の不一致が考えられます。「バックアップから戻す」で読めないデータを隔離してから復元してください。")
+        case .undecryptable(nil): String(localized: "保存データを復号できません。保存ファイルの破損か、暗号鍵の不一致が考えられます。「バックアップから戻す」で読めないデータを隔離してから復元してください。")
         }
     }
 }
@@ -367,5 +367,25 @@ final class VaultAccess {
             guard self.generation == generation, !Task.isCancelled else { throw VaultError.cancelled }
         }
         return try operation(key)
+    }
+
+    /// Authenticates and quarantines unreadable data. Every blob moves only when the Keychain confirms the vault key is absent.
+    func quarantineUnreadable(reason: String, vault: CredentialVault) async throws -> Int {
+        guard !busy else { throw VaultError.cancelled }
+        busy = true
+        let generation = self.generation
+        defer { busy = false; authentication.cancel() }
+        var key: SymmetricKey?
+        do {
+            if let keyProvider {
+                key = try await keyProvider(reason, false)
+            } else {
+                try EncryptionKeychain.requireSigning()
+                let context = try await authentication.authenticate(reason: reason)
+                key = try EncryptionKeychain.vault.key(context: context, allowCreation: false)
+            }
+        } catch ValidationError.keyNotFound { key = nil }
+        guard self.generation == generation, !Task.isCancelled else { throw VaultError.cancelled }
+        return try VaultManagement(vault: vault).quarantineUnreadable(key: key)
     }
 }

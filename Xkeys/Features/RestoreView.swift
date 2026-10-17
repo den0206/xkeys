@@ -18,6 +18,7 @@ struct RestoreView: View {
     @State private var choices: [String: RestoreChoice] = [:]
     @State private var result: BackupRestore.Result?
     @State private var error: String?
+    @State private var unreadable = false
     @State private var replaceAll = false
     @State private var makingSafetyBackup = false
     @State private var safetyBackup: SafetyBackup?
@@ -140,6 +141,7 @@ struct RestoreView: View {
                     }
                 }
                 if let error { Text(error).foregroundStyle(.red).textSelection(.enabled) }
+                if unreadable { QuarantineAction(vault: restore.vault, access: access) { error = nil } }
                 HStack {
                     if working { ProgressView().controlSize(.small); Text("確認・認証中…").foregroundStyle(.secondary) }
                     else if snapshot != nil { Button("差分を更新") { refresh() } }
@@ -173,7 +175,7 @@ struct RestoreView: View {
         .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.willSleepNotification)) { _ in clear(); dismiss() }
         .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.sessionDidResignActiveNotification)) { _ in clear(); dismiss() }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didResignActiveNotification)) { _ in
-            if !working && !access.presentingPanel && !makingSafetyBackup && !verifyingTeams && result == nil { clear() }
+            if !working && !access.busy && !access.presentingPanel && !makingSafetyBackup && !verifyingTeams && result == nil { clear() }
         }
     }
 
@@ -204,6 +206,13 @@ struct RestoreView: View {
         choices = [:]
         safetyBackup = nil
         error = nil
+        unreadable = false
+    }
+
+    private func fail(_ error: Error, generation: UUID) {
+        guard generation == access.generation else { return }
+        self.error = error.localizedDescription
+        unreadable = QuarantineAction.applies(to: error)
     }
 
     private func choose() {
@@ -231,7 +240,7 @@ struct RestoreView: View {
                 lastActivity = .now
                 if needsPassword { passwordFocused = true }
                 else { try await prepare(loaded, password: nil, generation: generation) }
-            } catch { if generation == access.generation { self.error = error.localizedDescription } }
+            } catch { fail(error, generation: generation) }
         }
     }
 
@@ -240,18 +249,21 @@ struct RestoreView: View {
         let secret = password
         password = ""
         error = nil
+        unreadable = false
         working = true
         let generation = access.generation
         work = Task { @MainActor in
             defer { working = false; work = nil }
             do { try await prepare(file, password: secret, generation: generation) }
-            catch { if generation == access.generation { self.error = error.localizedDescription; passwordFocused = true } }
+            catch { fail(error, generation: generation); if generation == access.generation { passwordFocused = true } }
         }
     }
 
     private func prepare(_ file: CredentialFile, password: String?, generation: UUID) async throws {
         let decoded = try await Task.detached(priority: .userInitiated) { try BackupArchive.decode(file.data, password: password) }.value
         guard access.generation == generation, !Task.isCancelled else { throw VaultError.cancelled }
+        // Kept even if the comparison fails, so "差分を更新" can retry after quarantining unreadable data.
+        snapshot = decoded
         let canCreate = try restore.vault.canCreateKey()
         let prepared = try await access.withKey(reason: String(localized: "バックアップと現在の資格情報を比較します"), allowCreation: canCreate, vault: restore.vault) { key in
             try restore.prepare(decoded, key: key)
@@ -269,6 +281,7 @@ struct RestoreView: View {
         guard !working, let snapshot else { return }
         working = true
         error = nil
+        unreadable = false
         let generation = access.generation
         work = Task { @MainActor in
             defer { working = false; work = nil }
@@ -280,7 +293,7 @@ struct RestoreView: View {
                 guard generation == access.generation, !Task.isCancelled else { throw VaultError.cancelled }
                 authorization.clear()
                 plan = refreshed; choices = [:]; lastActivity = .now
-            } catch { if generation == access.generation { self.error = error.localizedDescription } }
+            } catch { fail(error, generation: generation) }
         }
     }
 
@@ -289,6 +302,7 @@ struct RestoreView: View {
         let selected = choices
         working = true
         error = nil
+        unreadable = false
         let generation = access.generation
         work = Task { @MainActor in
             defer { working = false; work = nil }
@@ -299,7 +313,7 @@ struct RestoreView: View {
                 }
                 result = merged
                 self.snapshot = nil; self.plan = nil; file = nil; choices = [:]
-            } catch { if generation == access.generation { self.error = error.localizedDescription } }
+            } catch { fail(error, generation: generation) }
         }
     }
 }

@@ -20,6 +20,7 @@ struct BackupView: View {
     @State private var confirmUnprotected = false
     @State private var working = false
     @State private var error: String?
+    @State private var unreadable = false
     @State private var completed = false
     @State private var trackingWarning = false
     @State private var access = VaultAccess()
@@ -148,6 +149,7 @@ struct BackupView: View {
                     }.padding(.top, 8).padding(.leading, 14)
                 }.font(.system(size: 12)).foregroundStyle(XkeysStyle.text.opacity(0.8))
                 if let error { Text(error).foregroundStyle(.red).textSelection(.enabled) }
+                if unreadable { QuarantineAction(vault: vault, access: access) { error = nil } }
                 Divider()
                 HStack(spacing: 10) {
                     if working { ProgressView().controlSize(.small); Text("認証・バックアップ作成中…").foregroundStyle(.secondary) }
@@ -203,6 +205,7 @@ struct BackupView: View {
         confirmation = ""
         working = true
         error = nil
+        unreadable = false
         let generation = access.generation
         work = Task { @MainActor in
             defer { working = false; work = nil }
@@ -231,7 +234,60 @@ struct BackupView: View {
                     trackingWarning = try !BackupHistory.export(archive, to: destination, covering: watermark, in: vault.context)
                 }
                 completed = true
-            } catch { self.error = error.localizedDescription }
+            } catch {
+                self.error = error.localizedDescription
+                unreadable = QuarantineAction.applies(to: error)
+            }
+        }
+    }
+}
+
+/// Offered after backup or restore failed on unreadable vault data. Moves that data aside so both can run again.
+struct QuarantineAction: View {
+    let vault: CredentialVault
+    let access: VaultAccess
+    let onQuarantined: () -> Void
+    @State private var confirming = false
+    @State private var message: String?
+    @State private var failed = false
+
+    static func applies(to error: Error) -> Bool {
+        if case VaultError.undecryptable = error { return true }
+        if case ValidationError.keyNotFound = error { return true }
+        return false
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if let message {
+                Text(message).font(.caption).foregroundStyle(failed ? XkeysStyle.dangerText : XkeysStyle.secondary).textSelection(.enabled)
+            }
+            if message == nil || failed {
+                Text("読めないデータを隔離すると、残りのデータでバックアップ・復元できます。隔離したファイルは削除せず、保存先の「Quarantine」フォルダへ移します。")
+                    .font(.caption).foregroundStyle(XkeysStyle.secondary).fixedSize(horizontal: false, vertical: true)
+                Button("読めないデータを隔離…") { confirming = true }.disabled(access.busy)
+            }
+        }
+        .confirmationDialog("読めないデータを隔離しますか？", isPresented: $confirming, titleVisibility: .visible) {
+            Button("認証して隔離する", role: .destructive, action: quarantine)
+            Button("キャンセル", role: .cancel) {}
+        } message: {
+            Text("復号できない資格情報は一覧から外れ、メモと任意Secretは空になります。このMacに暗号鍵がない場合はすべてが対象です。TeamとAppの登録は残ります。")
+        }
+    }
+
+    private func quarantine() {
+        Task { @MainActor in
+            do {
+                let count = try await access.quarantineUnreadable(reason: String(localized: "読めない保存データを隔離します"), vault: vault)
+                failed = false
+                message = count == 0 ? String(localized: "読めないデータは見つかりませんでした。")
+                    : String(localized: "\(count)件の保存ファイルを隔離しました。もう一度操作してください。")
+                onQuarantined()
+            } catch {
+                failed = true
+                message = error.localizedDescription
+            }
         }
     }
 }
