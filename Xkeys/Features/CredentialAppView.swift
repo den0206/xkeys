@@ -93,6 +93,8 @@ struct CredentialAppView: View {
     @State private var revealedPassword: String?
     @State private var editingNote = false
     @State private var editingCustomSecrets = false
+    @State private var addingCustomSecret = false
+    @State private var showingCustomSecrets = false
     @State private var editingPurposes = false
     @State private var editingApp = false
     @State private var editingTarget: ManagedApp?
@@ -145,7 +147,7 @@ struct CredentialAppView: View {
                 }.modelContainer(container)
             }
         }
-        .sheet(isPresented: $editingCustomSecrets) { if let app { AppSecretEditor(vault: vault, app: app.product) } }
+        .sheet(isPresented: $editingCustomSecrets) { if let app { AppSecretEditor(vault: vault, app: app.product, startAdding: addingCustomSecret) } }
         .sheet(isPresented: $editingNote) { NoteEditor(vault: vault, app: selectedRecord == nil ? app : nil, record: selectedRecord) }
         .sheet(isPresented: $editingPurposes) { if let record = selectedRecord { P8PurposeEditor(vault: vault, record: record) } }
         .sheet(isPresented: $addingTarget, onDismiss: { if !droppedSources.isEmpty { importing = true } }) {
@@ -176,6 +178,7 @@ struct CredentialAppView: View {
                 deleteBatch(deletion.records)
             }
         }
+        .onChange(of: app?.id) { _, _ in showingCustomSecrets = false }
         .onChange(of: app?.targets.map(\.id)) { _, ids in
             if let targetFilter, ids?.contains(targetFilter) != true { self.targetFilter = nil }
         }
@@ -226,6 +229,9 @@ struct CredentialAppView: View {
                     }
                 }
                 if let app, let owner = app.team, !CredentialSearch.hasQuery(search) { teamLink(owner) }
+                if let app, !CredentialSearch.hasQuery(search), typeFilter == .all, !selectingForDeletion {
+                    customSecretsSection(app.product)
+                }
                 if access.busy { ProgressView("認証しています…").font(.caption) }
                 if let error { Label(error, systemImage: "exclamationmark.triangle").foregroundStyle(XkeysStyle.dangerText).font(.caption).textSelection(.enabled) }
                 if !status.isEmpty { Text(status).font(.caption).foregroundStyle(XkeysStyle.secondary) }
@@ -313,7 +319,6 @@ struct CredentialAppView: View {
                     checkedIDs = []
                 }.disabled(visible.isEmpty || access.busy)
                 if app != nil {
-                    Button("任意のSecretを管理…") { editingCustomSecrets = true }.disabled(access.busy)
                     Button("CI 用の Secret ファイルを作成…") { creatingSecretFile = true }.disabled(access.busy)
                     Divider()
                     Button("ターゲットを追加…") { addingTarget = true }
@@ -428,6 +433,61 @@ struct CredentialAppView: View {
     }
 
     private var isTeamScope: Bool { if case .team = scope { true } else { false } }
+
+    private func customSecretsSection(_ app: ManagedApp) -> some View {
+        let names = (app.customSecretNames ?? "").split(separator: "\n").map(String.init)
+        return DisclosureGroup(isExpanded: $showingCustomSecrets) {
+            VStack(alignment: .leading, spacing: 14) {
+                if names.isEmpty {
+                    Text("APIキーやURLなど、アプリ専用のKeyとValueを登録できます。")
+                        .font(.system(size: 12)).foregroundStyle(XkeysStyle.secondary)
+                } else {
+                    ForEach(names, id: \.self) { name in
+                        HStack {
+                            Text(name).font(.system(size: 12, design: .monospaced)).textSelection(.enabled)
+                            Spacer()
+                            Button("コピー") { copyCustomSecret(name, app: app) }
+                                .buttonStyle(XkeysButtonStyle(primary: true, compact: true)).disabled(access.busy)
+                                .help("値をコピー")
+                        }
+                        if name != names.last { Divider() }
+                    }
+                }
+                Divider()
+                HStack {
+                    Button("Secretを追加", systemImage: "plus") { addingCustomSecret = true; editingCustomSecrets = true }
+                        .buttonStyle(XkeysButtonStyle()).disabled(access.busy || names.count >= 100)
+                    Spacer()
+                    if !names.isEmpty {
+                        Button("編集") { addingCustomSecret = false; editingCustomSecrets = true }
+                            .buttonStyle(XkeysButtonStyle()).disabled(access.busy)
+                    }
+                }
+            }.padding(.top, 12)
+        } label: {
+            HStack {
+                Text("任意のSecret").font(.system(size: 14, weight: .semibold))
+                Text("\(names.count)項目").font(.system(size: 12)).foregroundStyle(XkeysStyle.secondary)
+            }
+        }.padding(16).frame(maxWidth: .infinity, alignment: .leading)
+            .background(XkeysStyle.sidebar, in: RoundedRectangle(cornerRadius: 12))
+            .overlay(RoundedRectangle(cornerRadius: 12).stroke(XkeysStyle.border))
+    }
+
+    private func copyCustomSecret(_ name: String, app: ManagedApp) {
+        error = nil
+        Task { @MainActor in
+            do {
+                try await access.withKey(reason: String(localized: "任意Secretをコピーします"), allowCreation: false, vault: vault) { key in
+                    guard let secret = try VaultManagement(vault: vault).readCustomSecrets(app, key: key).first(where: { $0.name == name }) else {
+                        throw ValidationError.invalidFile
+                    }
+                    try SecretClipboard.copy(secret.value)
+                }
+                status = String(localized: "「\(name)」の値をコピーしました")
+            } catch { self.error = error.localizedDescription }
+        }
+    }
 
     private func teamLink(_ owner: DeveloperTeam) -> some View {
         Button { openTeam(owner.id) } label: {

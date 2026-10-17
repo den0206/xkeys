@@ -13,6 +13,7 @@ struct AppSecretEditor: View {
 
     let vault: CredentialVault
     let app: ManagedApp
+    let startAdding: Bool
     @Environment(\.dismiss) private var dismiss
     @State private var access: VaultAccess
     @State private var secrets: [Draft] = []
@@ -22,9 +23,10 @@ struct AppSecretEditor: View {
     @State private var error: String?
     @State private var activity = Date.now
 
-    init(vault: CredentialVault, app: ManagedApp, access: VaultAccess = VaultAccess()) {
+    init(vault: CredentialVault, app: ManagedApp, startAdding: Bool = false, access: VaultAccess = VaultAccess()) {
         self.vault = vault
         self.app = app
+        self.startAdding = startAdding
         _access = State(initialValue: access)
     }
 
@@ -145,6 +147,7 @@ struct AppSecretEditor: View {
                     else {
                         originalSecrets = try management.readCustomSecrets(app, key: key)
                         secrets = originalSecrets.map { Draft(name: $0.name, value: $0.value) }
+                        if startAdding { add() }
                     }
                 }
                 loaded = true

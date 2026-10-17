@@ -710,13 +710,13 @@ final class XkeysTests: XCTestCase {
         let (vault, app, _, _) = try makeVault()
         defer { try? FileManager.default.removeItem(at: vault.blobs.directory) }
         let key = SymmetricKey(size: .bits256)
-        for state in ["empty", "populated"] {
+        for state in ["empty", "adding", "populated"] {
             let populated = state == "populated"
             let secrets = populated ? [AppSecret(name: "HOTPEPPER_API_KEY", value: "fixture-only"),
                                        AppSecret(name: "SUPABASE_URL", value: "https://example.invalid")] : []
             try VaultManagement(vault: vault).saveCustomSecrets(secrets, app: app, key: key)
             for width in [960, 1232] {
-                let screen = AppSecretEditor(vault: vault, app: app, access: VaultAccess(keyProvider: { _, _ in key }))
+                let screen = AppSecretEditor(vault: vault, app: app, startAdding: state == "adding", access: VaultAccess(keyProvider: { _, _ in key }))
                     .frame(width: CGFloat(width), height: 640).environment(\.colorScheme, .light)
                 let view = NSHostingView(rootView: screen)
                 let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: width, height: 640), styleMask: [.borderless], backing: .buffered, defer: false)

@@ -12,6 +12,10 @@ The format follows Keep a Changelog conventions and releases use semantic versio
 
 ### Changed
 
+- Collapse custom secrets by default, add authenticated copying on app pages, and clarify saving multiple keys together.
+
+- Show custom secret names and an add button at the bottom of each app page.
+
 - Keep custom secret drafts open when switching apps so values can be copied from other applications.
 
 - Warn during import when a .p12 contains the same certificates as an existing or queued item, even if its password or filename differs.

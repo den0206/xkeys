@@ -21,12 +21,52 @@
         }
       }
     },
+    "「%@」の値をコピーしました" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copied the value of “%@”."
+          }
+        }
+      }
+    },
     "編集" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Edit"
+          }
+        }
+      }
+    },
+    "APIキーやURLなど、アプリ専用のKeyとValueを登録できます。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add app-specific keys and values, such as API keys and URLs."
+          }
+        }
+      }
+    },
+    "値は非表示" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Value is hidden"
+          }
+        }
+      }
+    },
+    "Secretを追加" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add secret"
           }
         }
       }
