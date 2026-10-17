@@ -135,7 +135,8 @@ final class AppleDeveloperSession {
                 let saved = try SavedAppleDeveloperSession.read(data)
                 savedAccount = saved.account; hasSavedSession = true
                 active = makeTransport()
-                try active.importCookies(saved.cookies)
+                // A URLSession stays alive until invalidated, so a transport that is not kept must be cancelled.
+                do { try active.importCookies(saved.cookies) } catch { active.cancel(); throw error }
                 transport = active
             }
             let state = try await active.validate()

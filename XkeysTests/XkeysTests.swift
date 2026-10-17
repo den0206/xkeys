@@ -131,7 +131,11 @@ final class FakeAppleDeveloperTransport: AppleDeveloperTransport {
         return file
     }
     func exportCookies() throws -> Data { Data("fixture-cookie".utf8) }
-    func importCookies(_ data: Data) throws { imported = true }
+    var importFailure: Error?
+    func importCookies(_ data: Data) throws {
+        if let importFailure { throw importFailure }
+        imported = true
+    }
     func cancel() { cancelled = true }
 }
 

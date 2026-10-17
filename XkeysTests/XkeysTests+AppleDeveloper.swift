@@ -37,6 +37,18 @@ extension XkeysTests {
     }
 
     @MainActor
+    func testRejectedSavedCookiesCancelTheUnusedTransport() async throws {
+        let store = MemoryAppleSessionStore()
+        store.data = try SavedAppleDeveloperSession(version: 1, cookies: Data("fixture-cookie".utf8), account: nil).encoded()
+        let transport = FakeAppleDeveloperTransport()
+        transport.importFailure = AppleDeveloperError.sessionStorage
+        let session = AppleDeveloperSession(store: store, makeTransport: { transport }, observeLock: false)
+        do { try await session.resume(); XCTFail("Rejected cookies must fail") } catch {}
+        XCTAssertTrue(transport.cancelled)
+        XCTAssertFalse(session.connected)
+    }
+
+    @MainActor
     func testAppleAccountPersistsWithoutConnecting() async throws {
         let store = MemoryAppleSessionStore()
         let transport = FakeAppleDeveloperTransport()
