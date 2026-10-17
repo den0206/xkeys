@@ -498,11 +498,14 @@ struct RegistrationForm: View {
                 Text(parentApp.map { "\($0.name) の配下にBundle IDを登録します。" } ?? "最初のターゲット（本体）のBundle IDを登録します。")
                     .foregroundStyle(XkeysStyle.secondary)
             }
-            Label("プロファイルをここにドロップすると、下の項目を自動で入力します", systemImage: "arrow.down.to.line")
-                .font(.system(size: 13)).foregroundStyle(XkeysStyle.accent)
-                .frame(maxWidth: .infinity).frame(height: 64)
-                .background(XkeysStyle.selectedRow, in: RoundedRectangle(cornerRadius: 10))
-                .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(XkeysStyle.accent.opacity(0.4), style: StrokeStyle(lineWidth: 1.5, dash: [6, 4])))
+            Button(action: chooseProfile) {
+                Label("プロファイルをドロップするか、クリックして選ぶと下の項目を自動で入力します", systemImage: "arrow.down.to.line")
+                    .font(.system(size: 13)).foregroundStyle(XkeysStyle.accent)
+                    .frame(maxWidth: .infinity).frame(height: 64)
+                    .background(XkeysStyle.selectedRow, in: RoundedRectangle(cornerRadius: 10))
+                    .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(XkeysStyle.accent.opacity(0.4), style: StrokeStyle(lineWidth: 1.5, dash: [6, 4])))
+                    .contentShape(RoundedRectangle(cornerRadius: 10))
+            }.buttonStyle(.plain)
                 .dropDestination(for: URL.self) { urls, _ in
                     guard let url = urls.first else { return false }
                     readProfile(url)
@@ -569,6 +572,12 @@ struct RegistrationForm: View {
         }
     }
 
+
+    private func chooseProfile() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = ["mobileprovision", "provisionprofile"].compactMap { UTType(filenameExtension: $0) }
+        if panel.runModal() == .OK, let url = panel.url { readProfile(url) }
+    }
 
     private func readProfile(_ url: URL) {
         let scoped = url.startAccessingSecurityScopedResource()

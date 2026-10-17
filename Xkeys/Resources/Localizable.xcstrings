@@ -3527,12 +3527,12 @@
         }
       }
     },
-    "プロファイルをここにドロップすると、下の項目を自動で入力します" : {
+    "プロファイルをドロップするか、クリックして選ぶと下の項目を自動で入力します" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Drop a profile here to fill in the fields below"
+            "value" : "Drop a profile or click to choose one to fill in the fields below"
           }
         }
       }
