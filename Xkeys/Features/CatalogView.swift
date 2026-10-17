@@ -789,8 +789,7 @@ struct OnboardingView: View {
     @State private var step: Int
     @State private var sources: [URL] = []
     @AppStorage(GuideMode.storageKey) private var guideMode = false
-    // The second step draws its picture in SwiftUI; the others use the bundled artwork.
-    private let artwork: [String?] = ["OnboardingWelcome", nil, "OnboardingImport", "OnboardingSecurity"]
+    private let artwork = ["OnboardingWelcome", "OnboardingFiles", "OnboardingImport", "OnboardingSecurity"]
     private let titles = [String(localized: "Xkeys へ\nようこそ"), String(localized: "3種類のファイルを\n分けて持ちます"),
                           String(localized: "今ある鍵を\n取り込みましょう"), String(localized: "安心して使うための\n設定")]
 
@@ -801,9 +800,7 @@ struct OnboardingView: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            Group {
-                if let name = artwork[step] { Image(name).resizable() } else { howItWorksArt }
-            }.frame(width: 320, height: 518).accessibilityHidden(true)
+            Image(artwork[step]).resizable().frame(width: 320, height: 518).accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 0) {
                 Text("STEP \(step + 1) / \(Self.stepCount)").font(.system(size: 12, weight: .bold)).tracking(1).foregroundStyle(XkeysStyle.accent)
                 Text(titles[step]).font(.system(size: step == 0 ? 30 : 28, weight: .heavy)).lineSpacing(3).padding(.top, 8)
@@ -875,42 +872,6 @@ struct OnboardingView: View {
                 }
             }.padding(.top, 46).padding(.horizontal, 40).padding(.bottom, 26).frame(maxWidth: .infinity)
         }.frame(width: 760, height: 518).background(XkeysStyle.canvas).foregroundStyle(XkeysStyle.text)
-    }
-
-    /// Team at the top, shared keys and certificates on one side and per-app profiles on the other.
-    private var howItWorksArt: some View {
-        ZStack {
-            XkeysStyle.selectedRow
-            VStack(spacing: 0) {
-                artCard(String(localized: "チーム"), symbol: "person.2", tint: XkeysStyle.accent)
-                Rectangle().fill(XkeysStyle.selectionBorder).frame(width: 2, height: 22)
-                Rectangle().fill(XkeysStyle.selectionBorder).frame(width: 138, height: 2)
-                HStack(spacing: 0) {
-                    Rectangle().fill(XkeysStyle.selectionBorder).frame(width: 2, height: 22)
-                    Spacer().frame(width: 134)
-                    Rectangle().fill(XkeysStyle.selectionBorder).frame(width: 2, height: 22)
-                }
-                HStack(alignment: .top, spacing: 16) {
-                    VStack(spacing: 8) {
-                        artCard(String(localized: "証明書"), symbol: CredentialGroup.certificate.symbol, tint: CredentialGroup.certificate.tint)
-                        artCard(String(localized: "鍵"), symbol: CredentialGroup.key.symbol, tint: CredentialGroup.key.tint)
-                    }
-                    VStack(spacing: 8) {
-                        artCard(String(localized: "アプリ"), symbol: "app", tint: XkeysStyle.text.opacity(0.7))
-                        artCard(String(localized: "プロファイル"), symbol: CredentialGroup.profile.symbol, tint: CredentialGroup.profile.tint)
-                    }
-                }
-            }
-        }
-    }
-
-    private func artCard(_ title: String, symbol: String, tint: Color) -> some View {
-        HStack(spacing: 8) {
-            Image(systemName: symbol).font(.system(size: 14, weight: .semibold)).foregroundStyle(tint).frame(width: 20)
-            Text(title).font(.system(size: 13, weight: .bold))
-        }.frame(width: 120, height: 40)
-            .background(XkeysStyle.canvas, in: RoundedRectangle(cornerRadius: 10))
-            .overlay(RoundedRectangle(cornerRadius: 10).stroke(XkeysStyle.selectionBorder))
     }
 
     private func kind(_ group: CredentialGroup, _ title: String, detail: String) -> some View {
