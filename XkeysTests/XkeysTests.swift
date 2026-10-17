@@ -923,6 +923,42 @@ final class XkeysTests: XCTestCase {
     }
 
     @MainActor
+    func testSidebarOffersTeamSelectionForSavedLoginWithoutTeams() async throws {
+        let container = try ModelContainer(for: DeveloperTeam.self, ManagedApp.self, StoredCredential.self, BackupChange.self, BackupCheckpoint.self,
+                                           configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        try BackupHistory.bootstrap(in: ModelContext(container))
+        let store = MemoryAppleSessionStore()
+        let transport = FakeAppleDeveloperTransport()
+        transport.accountIdentity = AppleDeveloperAccount(email: "saved@example.invalid", name: "Fixture")
+        let previous = AppleDeveloperSession(store: store, makeTransport: { transport }, observeLock: false)
+        try await previous.login(account: "saved@example.invalid", password: "fixture-only")
+        previous.suspend()
+        let session = AppleDeveloperSession(store: store, makeTransport: { transport }, observeLock: false)
+        for (name, size) in [("sidebar-no-team", NSSize(width: 1232, height: 752)), ("sidebar-no-team-narrow", NSSize(width: 960, height: 640))] {
+            let view = NSHostingView(rootView: CatalogView(container: container, navigation: AppNavigation(), appleSession: session)
+                .modelContainer(container).environment(\.colorScheme, .light))
+            let window = NSWindow(contentRect: NSRect(origin: .zero, size: size), styleMask: [.borderless], backing: .buffered, defer: false)
+            window.isReleasedWhenClosed = false
+            window.contentView = view
+            window.orderFront(nil)
+            try await Task.sleep(for: .milliseconds(400))
+            view.layoutSubtreeIfNeeded()
+            let bitmap = try XCTUnwrap(view.bitmapImageRepForCachingDisplay(in: view.bounds))
+            view.cacheDisplay(in: view.bounds, to: bitmap)
+            let png = try XCTUnwrap(bitmap.representation(using: .png, properties: [:]))
+            try png.write(to: FileManager.default.temporaryDirectory.appendingPathComponent("xkeys-" + name + ".png"))
+            let attachment = XCTAttachment(data: png, uniformTypeIdentifier: "public.png")
+            attachment.name = name
+            attachment.lifetime = .keepAlways
+            add(attachment)
+            window.close()
+        }
+        // The prompt loads the saved account itself, since the account menu is not shown without a team.
+        XCTAssertEqual(session.savedAccount?.email, "saved@example.invalid")
+        XCTAssertFalse(session.connected)
+    }
+
+    @MainActor
     func testEditingAppIconPersistsAndRejectsInvalidChangesWithoutChangingCredentials() throws {
         let (vault, app, _, _) = try makeVault()
         defer { try? FileManager.default.removeItem(at: vault.blobs.directory) }

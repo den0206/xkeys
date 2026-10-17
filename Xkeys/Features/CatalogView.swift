@@ -257,7 +257,8 @@ struct CatalogView: View {
             Spacer(minLength: 8)
             backupStatusLine
             Divider().padding(.vertical, 4)
-            AppleDeveloperAccountView(session: appleSession, compact: true).padding(.horizontal, 6).padding(.bottom, 2)
+            if teams.isEmpty { addTeamPrompt.padding(.horizontal, 6).padding(.bottom, 2) }
+            else { AppleDeveloperAccountView(session: appleSession, compact: true).padding(.horizontal, 6).padding(.bottom, 2) }
             HStack(spacing: 4) {
                 Button { selection = .trash } label: {
                     Label("最近削除した項目", systemImage: "trash").font(.system(size: 12))
@@ -357,6 +358,21 @@ struct CatalogView: View {
                 else { Text("証明書 \(certificates) · 鍵 \(keys)").foregroundStyle(XkeysStyle.secondary) }
             }.font(.system(size: 12))
         }
+    }
+
+    // Without a team, the saved Apple login is only useful for choosing one, so lead there instead of showing the account menu.
+    private var addTeamPrompt: some View {
+        Button { addingTeam = true } label: {
+            VStack(alignment: .leading, spacing: 2) {
+                Label("チームを追加", systemImage: "person.crop.circle.badge.plus").font(.system(size: 12))
+                if let account = appleSession.currentAccount ?? appleSession.savedAccount {
+                    Text("\(account.label) の所属チームから選択").font(.system(size: 11)).foregroundStyle(XkeysStyle.tertiary)
+                        .lineLimit(1).truncationMode(.middle)
+                }
+            }.frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
+        }
+        .buttonStyle(.plain).foregroundStyle(XkeysStyle.accent)
+        .task { try? appleSession.loadSavedAccount() }
     }
 
     private var backupStatusLine: some View {
