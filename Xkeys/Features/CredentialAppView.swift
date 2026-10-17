@@ -860,6 +860,13 @@ struct CredentialImportView: View {
               !team.apps.contains(where: { $0.bundleID.lowercased() == bundle.lowercased() }) else { return nil }
         return bundle
     }
+    private var matchingP12Names: [String] {
+        guard let parsed, let fingerprints = parsed.p12CertificateFingerprints else { return [] }
+        let saved = (try? vault.matchingP12Certificates(parsed, team: team)) ?? []
+        let queued = pending.filter { $0.parsed.p12CertificateFingerprints == fingerprints }
+        return Array(Set(saved.map(\.originalName) + queued.map { $0.file.name })).sorted()
+    }
+
     private var validationIssue: String? {
         guard let file, let parsed else { return nil }
         do {
@@ -969,6 +976,13 @@ struct CredentialImportView: View {
                         let isP12 = (file?.name as NSString?)?.pathExtension.lowercased() == "p12"
                         Text(parsed.isIntermediateCA ? "中間CA証明書には個人のTeam IDはありません。選択中のTeamを保管先として保存します。" : parsed.bundleID == nil ? "チーム「\(team.name)」の鍵・証明書の一覧に保管します。" : "「\(importApp?.name ?? String(localized: "未選択"))」専用のプロファイルとして保存します。")
                         if isP12 {
+                            if !matchingP12Names.isEmpty {
+                                Label(String(localized: "同じ証明書構成の.p12が登録済み、または追加待ちです：\(matchingP12Names.joined(separator: "、"))"),
+                                      systemImage: "exclamationmark.triangle")
+                                    .foregroundStyle(.orange)
+                                Text("パスワードやファイル名が違っても重複することがあります。秘密鍵の一致は未確認です。既存の項目を確認し、不要ならこのファイルを飛ばしてください。")
+                                    .font(.caption).foregroundStyle(.secondary)
+                            }
                             Toggle(".p12のパスワードも暗号化して保存", isOn: $savePassword)
                             Text("証明書チェーンと秘密鍵を含む元の.p12全体を保存・書き出しします。証明書の選択は表示情報だけを変えます。")
                                 .font(.caption).foregroundStyle(.secondary)

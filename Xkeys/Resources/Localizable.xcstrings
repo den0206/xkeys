@@ -1,6 +1,26 @@
 {
   "sourceLanguage" : "ja",
   "strings" : {
+    "同じ証明書構成の.p12が登録済み、または追加待ちです：%@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A .p12 with the same certificates is already stored or queued: %@"
+          }
+        }
+      }
+    },
+    "パスワードやファイル名が違っても重複することがあります。秘密鍵の一致は未確認です。既存の項目を確認し、不要ならこのファイルを飛ばしてください。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Different passwords or filenames can still contain duplicate certificates. Private keys have not been compared. Check the existing item and skip this file if it is unnecessary."
+          }
+        }
+      }
+    },
     "" : {},
     " · %lldターゲット" : {
       "localizations" : {

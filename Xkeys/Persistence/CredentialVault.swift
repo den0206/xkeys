@@ -240,6 +240,16 @@ struct CredentialVault {
 
     func records() throws -> [StoredCredential] { try context.fetch(FetchDescriptor<StoredCredential>()) }
 
+    func matchingP12Certificates(_ parsed: ParsedCredential, team: DeveloperTeam) throws -> [StoredCredential] {
+        guard let fingerprints = parsed.p12CertificateFingerprints else { return [] }
+        return try records().filter { record in
+            guard record.team?.id == team.id, record.fileExtension == "p12",
+                  let data = record.p12Certificates?.data(using: .utf8),
+                  let certificates = try? JSONDecoder().decode([ContainedCertificate].self, from: data) else { return false }
+            return Set(certificates.map(\.fingerprint)) == fingerprints
+        }
+    }
+
     func canCreateKey() throws -> Bool {
         guard try records().isEmpty, (try context.fetch(FetchDescriptor<ManagedApp>())).allSatisfy({ $0.noteBlobID == nil }) else { return false }
         guard FileManager.default.fileExists(atPath: blobs.directory.path) else { return true }

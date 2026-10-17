@@ -135,6 +135,10 @@ struct DropImportPanel: View {
         }
         do {
             try vault.validate(file: file, parsed: parsed, app: destination, team: team, confirmUnknownTeam: false, p8: nil)
+            if let fingerprints = parsed.p12CertificateFingerprints {
+                guard try vault.matchingP12Certificates(parsed, team: team).isEmpty,
+                      !ready.contains(where: { $0.parsed.p12CertificateFingerprints == fingerprints }) else { return false }
+            }
             ready.append(Item(file: file, parsed: parsed, app: destination, password: password))
             return true
         } catch VaultError.duplicate {

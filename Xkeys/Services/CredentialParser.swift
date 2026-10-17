@@ -16,6 +16,11 @@ struct ParsedCredential: Equatable, Sendable {
     var signingCertificateDigests: [String]? = nil
     /// Every certificate in a .p12, including the chosen one; nil for other kinds.
     var p12Certificates: [ContainedCertificate]? = nil
+
+    var p12CertificateFingerprints: Set<String>? {
+        guard let p12Certificates, !p12Certificates.isEmpty else { return nil }
+        return Set(p12Certificates.map(\.fingerprint))
+    }
 }
 
 struct ContainedCertificate: Codable, Equatable, Sendable {

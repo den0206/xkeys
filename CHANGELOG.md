@@ -8,6 +8,8 @@ The format follows Keep a Changelog conventions and releases use semantic versio
 
 ### Changed
 
+- Warn during import when a .p12 contains the same certificates as an existing or queued item, even if its password or filename differs.
+
 - Licensed the original code under GPL-3.0-only and added the license text.
 
 - Added English and Japanese READMEs, separate usage documentation, and a pre-publication documentation security review.

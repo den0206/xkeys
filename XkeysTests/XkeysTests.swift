@@ -706,6 +706,38 @@ final class XkeysTests: XCTestCase {
     }
 
     @MainActor
+    func testP12DuplicateCandidatesCompareAllCertificatesWithinTeamWithoutChangingV1Data() throws {
+        let (vault, app, _, other) = try makeVault()
+        defer { try? FileManager.default.removeItem(at: vault.blobs.directory) }
+        let team = try XCTUnwrap(app.team)
+        let file = CredentialFile(data: try fixture("p12"), name: "sample.p12")
+        let parsed = try CredentialParser.parse(file.data, extension: "p12", password: "fixture-only")
+        let key = SymmetricKey(size: .bits256)
+        let id = try vault.importFile(file, parsed: parsed, app: app, password: "fixture-only", confirmUnknownTeam: false, key: key)
+        let stored = try XCTUnwrap(vault.records().first { $0.id == id })
+        let aad = try stored.authenticatedData()
+        XCTAssertEqual(try vault.matchingP12Certificates(parsed, team: team).map(\.id), [id])
+        XCTAssertTrue(try vault.matchingP12Certificates(parsed, team: XCTUnwrap(other.team)).isEmpty)
+        var different = parsed
+        different.p12Certificates = [ContainedCertificate(fingerprint: "different", name: "Other", expiresAt: nil)]
+        XCTAssertTrue(try vault.matchingP12Certificates(different, team: team).isEmpty)
+        var bundle = parsed
+        bundle.p12Certificates?.append(ContainedCertificate(fingerprint: "additional", name: "Installer", expiresAt: nil))
+        XCTAssertTrue(try vault.matchingP12Certificates(bundle, team: team).isEmpty)
+        stored.p12Certificates = StoredCredential.encode(Array(try XCTUnwrap(bundle.p12Certificates).reversed()))
+        XCTAssertEqual(try vault.matchingP12Certificates(bundle, team: team).map(\.id), [id])
+        stored.deletedAt = .now
+        XCTAssertEqual(try vault.matchingP12Certificates(bundle, team: team).map(\.id), [id])
+        stored.p12Certificates = nil
+        XCTAssertTrue(try vault.matchingP12Certificates(parsed, team: team).isEmpty)
+        XCTAssertTrue(try vault.matchingP12Certificates(different, team: team).isEmpty)
+        XCTAssertNil(try CredentialParser.parse(fixture("cer"), extension: "cer").p12CertificateFingerprints)
+        XCTAssertEqual(try stored.authenticatedData(), aad)
+        XCTAssertEqual(try vault.read(stored, key: key).original, file.data)
+        XCTAssertEqual(try vault.read(stored, key: key).version, 1)
+    }
+
+    @MainActor
     func testP8ImportsWithoutUnknownTeamConfirmation() throws {
         let (vault, app, sibling, other) = try makeVault()
         defer { try? FileManager.default.removeItem(at: vault.blobs.directory) }
