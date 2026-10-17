@@ -153,20 +153,12 @@ jobs:
           codesign --verify --strict --verbose=2 "$APP"
           echo "APP=$APP" >> "$GITHUB_ENV"
 
+      # The DMG window shows Xkeys.app, an arrow and the Applications link (scripts/make-dmg.sh).
       - name: Create and sign DMG
-        timeout-minutes: 5
+        timeout-minutes: 8
         run: |
           DMG="$BUILD_DIR/Xkeys-$VERSION.dmg"
-          STAGING="$RUNNER_TEMP/dmg"
-          mkdir -p "$STAGING"
-          ditto "$APP" "$STAGING/Xkeys.app"
-          ln -s /Applications "$STAGING/Applications"
-          # hdiutil occasionally reports "Resource busy" on hosted runners; retry instead of rerunning the whole job.
-          for attempt in 1 2 3; do
-            hdiutil create -volname "Xkeys $VERSION" -srcfolder "$STAGING" -format UDZO -ov "$DMG" && break
-            [ "$attempt" = 3 ] && exit 1
-            sleep 5
-          done
+          scripts/make-dmg.sh "$APP" "$DMG" "Xkeys $VERSION"
           codesign --force --timestamp --keychain "$SIGNING_KEYCHAIN" --sign "Developer ID Application" "$DMG"
           echo "DMG=$DMG" >> "$GITHUB_ENV"
 
