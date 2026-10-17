@@ -92,6 +92,7 @@ struct CredentialAppView: View {
     @State private var status = ""
     @State private var revealedPassword: String?
     @State private var editingNote = false
+    @State private var editingCustomSecrets = false
     @State private var editingPurposes = false
     @State private var editingApp = false
     @State private var editingTarget: ManagedApp?
@@ -144,6 +145,7 @@ struct CredentialAppView: View {
                 }.modelContainer(container)
             }
         }
+        .sheet(isPresented: $editingCustomSecrets) { if let app { AppSecretEditor(vault: vault, app: app.product) } }
         .sheet(isPresented: $editingNote) { NoteEditor(vault: vault, app: selectedRecord == nil ? app : nil, record: selectedRecord) }
         .sheet(isPresented: $editingPurposes) { if let record = selectedRecord { P8PurposeEditor(vault: vault, record: record) } }
         .sheet(isPresented: $addingTarget, onDismiss: { if !droppedSources.isEmpty { importing = true } }) {
@@ -196,7 +198,7 @@ struct CredentialAppView: View {
         .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.willSleepNotification)) { _ in lock() }
         .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.sessionDidResignActiveNotification)) { _ in lock() }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didResignActiveNotification)) { _ in
-            if !access.busy && !access.presentingPanel && !editingNote && !editingPurposes && !copyingCI && !creatingSecretFile && !editingApp && editingTarget == nil { lock(dismissImport: false) }
+            if !access.busy && !access.presentingPanel && !editingNote && !editingCustomSecrets && !editingPurposes && !copyingCI && !creatingSecretFile && !editingApp && editingTarget == nil { lock(dismissImport: false) }
         }
     }
 
@@ -311,6 +313,7 @@ struct CredentialAppView: View {
                     checkedIDs = []
                 }.disabled(visible.isEmpty || access.busy)
                 if app != nil {
+                    Button("任意のSecretを管理…") { editingCustomSecrets = true }.disabled(access.busy)
                     Button("CI 用の Secret ファイルを作成…") { creatingSecretFile = true }.disabled(access.busy)
                     Divider()
                     Button("ターゲットを追加…") { addingTarget = true }

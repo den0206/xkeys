@@ -706,6 +706,41 @@ final class XkeysTests: XCTestCase {
     }
 
     @MainActor
+    func testCustomSecretEditorRendersEmptyAndPopulatedAtSupportedWindowSizes() async throws {
+        let (vault, app, _, _) = try makeVault()
+        defer { try? FileManager.default.removeItem(at: vault.blobs.directory) }
+        let key = SymmetricKey(size: .bits256)
+        for state in ["empty", "populated"] {
+            let populated = state == "populated"
+            let secrets = populated ? [AppSecret(name: "HOTPEPPER_API_KEY", value: "fixture-only"),
+                                       AppSecret(name: "SUPABASE_URL", value: "https://example.invalid")] : []
+            try VaultManagement(vault: vault).saveCustomSecrets(secrets, app: app, key: key)
+            for width in [960, 1232] {
+                let screen = AppSecretEditor(vault: vault, app: app, access: VaultAccess(keyProvider: { _, _ in key }))
+                    .frame(width: CGFloat(width), height: 640).environment(\.colorScheme, .light)
+                let view = NSHostingView(rootView: screen)
+                let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: width, height: 640), styleMask: [.borderless], backing: .buffered, defer: false)
+                window.isReleasedWhenClosed = false
+                window.contentView = view
+                window.orderFront(nil)
+                try await Task.sleep(for: .milliseconds(400))
+                view.layoutSubtreeIfNeeded()
+                let bitmap = try XCTUnwrap(view.bitmapImageRepForCachingDisplay(in: view.bounds))
+                view.cacheDisplay(in: view.bounds, to: bitmap)
+                let png = try XCTUnwrap(bitmap.representation(using: .png, properties: [:]))
+                let name = "custom-secrets-\(state)-\(width)"
+                try png.write(to: FileManager.default.temporaryDirectory.appendingPathComponent("xkeys-" + name + ".png"))
+                let attachment = XCTAttachment(data: png, uniformTypeIdentifier: "public.png")
+                attachment.name = name
+                attachment.lifetime = .keepAlways
+                add(attachment)
+                XCTAssertGreaterThan(png.count, 1000)
+                window.close()
+            }
+        }
+    }
+
+    @MainActor
     func testCustomSecretsEncryptValidateRollbackRecoverAndDeleteWithApp() throws {
         let (vault, app, sibling, _) = try makeVault()
         defer { try? FileManager.default.removeItem(at: vault.blobs.directory) }
@@ -795,6 +830,42 @@ final class XkeysTests: XCTestCase {
         badApps[index].customSecrets = [AppSecret(name: "bad key", value: "fixture-only")]
         let invalid = BackupSnapshot(version: 1, createdAt: .now, appVersion: "test", teams: snapshot.teams, apps: badApps, credentials: snapshot.credentials)
         XCTAssertThrowsError(try invalid.validate())
+    }
+
+    @MainActor
+    func testCustomSecretsExportOnlySelectedValuesAndRejectNameCollisions() throws {
+        let (vault, app, _, _) = try makeVault()
+        defer { try? FileManager.default.removeItem(at: vault.blobs.directory) }
+        let key = SymmetricKey(size: .bits256)
+        let value = " quote'\" $HOME ${TOKEN} \\ literal\\n\nnext\rline "
+        let secrets = [AppSecret(name: "DATABASE_PASSWORD", value: value), AppSecret(name: "EMPTY", value: "")]
+        try VaultManagement(vault: vault).saveCustomSecrets(secrets, app: app, key: key)
+        var entries = CISecretFile.entries(for: app, records: [], at: .now)
+        XCTAssertEqual(entries.filter { $0.section == .custom }.map(\.name), secrets.map(\.name))
+        var reads = 0
+        let output = try CISecretFile.render(entries, title: app.name, at: .now, readCustom: { source in
+            reads += 1
+            return try VaultManagement(vault: vault).readCustomSecrets(source, key: key)
+        }) { _ in throw ValidationError.invalidFile }
+        XCTAssertEqual(reads, 1)
+        let text = try XCTUnwrap(String(data: output, encoding: .utf8))
+        XCTAssertTrue(text.contains("EMPTY=\"\""))
+        XCTAssertTrue(text.contains("\\$HOME"))
+        XCTAssertTrue(text.contains("\\${TOKEN}"))
+        XCTAssertTrue(text.contains("\\\\ literal\\\\n\\nnext\\rline"))
+        for ending in ["\\", "\""] {
+            XCTAssertThrowsError(try CISecretFile.render(entries, title: app.name, at: .now, readCustom: { _ in
+                [AppSecret(name: "DATABASE_PASSWORD", value: "fixture" + ending), AppSecret(name: "EMPTY", value: "")]
+            }) { _ in throw ValidationError.invalidFile })
+        }
+        entries[entries.firstIndex { $0.name == "EMPTY" }!].name = "database_password"
+        XCTAssertThrowsError(try CISecretFile.validate(entries))
+        for index in entries.indices where entries[index].section == .custom { entries[index].included = false }
+        reads = 0
+        _ = try CISecretFile.render(entries, title: app.name, at: .now, readCustom: { _ in reads += 1; throw ValidationError.invalidFile }) { _ in throw ValidationError.invalidFile }
+        XCTAssertEqual(reads, 0)
+        try VaultManagement(vault: vault).saveCustomSecrets([AppSecret(name: "APPLE_TEAM_ID", value: "custom")], app: app, key: key)
+        XCTAssertThrowsError(try CISecretFile.validate(CISecretFile.entries(for: app, records: [], at: .now)))
     }
 
     @MainActor
@@ -923,6 +994,7 @@ final class XkeysTests: XCTestCase {
         let catalog = AppCatalog(context: vault.context)
         try catalog.setParent(nil, for: app, name: "Example App Store", platform: app.platform)
         try catalog.setParent(app.id, for: child, name: "Example Share App Store Extension", platform: child.platform)
+        try VaultManagement(vault: vault).saveCustomSecrets([AppSecret(name: "HOTPEPPER_API_KEY", value: "fixture-only")], app: app, key: key)
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent("xkeys-sidebar-check", isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let screens: [(String, CredentialScope)] = [("all", .all), ("team", .team(try XCTUnwrap(app.team?.id))), ("app", .app(app.id)), ("target", .app(child.id))]
@@ -1018,6 +1090,7 @@ final class XkeysTests: XCTestCase {
             ("backup", NSSize(width: 600, height: 620), AnyView(BackupView(container: container).modelContainer(container))),
             ("restore", NSSize(width: 640, height: 300), AnyView(BackupView(container: container, restoring: true))),
             ("ci-copy", NSSize(width: 560, height: 520), AnyView(CICopyView(vault: vault, record: try XCTUnwrap(sample)))),
+            ("custom-secrets", NSSize(width: 640, height: 540), AnyView(AppSecretEditor(vault: vault, app: app, access: VaultAccess(keyProvider: { _, _ in SymmetricKey(size: .bits256) })))),
             ("ci-secret-file", NSSize(width: 640, height: 600), AnyView(CISecretFileView(vault: vault, app: app, records: try vault.records()))),
             ("import", NSSize(width: 680, height: 640), AnyView(CredentialImportView(app: app, team: team, vault: vault, onSaved: { _ in }))),
             ("p8-metadata", NSSize(width: 860, height: 640), AnyView(CredentialImportView(app: app, team: team, vault: vault, initialSources: [importURL], onSaved: { _ in }))),

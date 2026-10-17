@@ -24,6 +24,8 @@ The release workflow signs the app with Developer ID and notarizes the DMG. Xkey
 
 ## Features
 
+- Store custom per-app key/value secrets with encrypted values, authenticated editing, and dotenv export
+
 - Import `.p8`, `.cer`, `.p12`, `.mobileprovision`, and `.provisionprofile` files, individually or in batches
 - Review duplicate .p12 candidates by their complete certificate set, even when filenames or passwords differ
 - Sign in to Apple Developer to register teams and download certificates and provisioning profiles

@@ -1,6 +1,296 @@
 {
   "sourceLanguage" : "ja",
   "strings" : {
+    "Keyを追加" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add key"
+          }
+        }
+      }
+    },
+    "「Keyを追加」で複数入力し、最後にまとめて保存できます。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use Add key to enter multiple entries, then save them together."
+          }
+        }
+      }
+    },
+    "編集" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edit"
+          }
+        }
+      }
+    },
+    "「%@」の値の末尾に \\ または二重引用符があるため、この形式では出力できません。値をコピーしてCIに直接設定してください。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The value of “%@” ends with a backslash or double quote and cannot be exported in this format. Copy it directly to your CI settings."
+          }
+        }
+      }
+    },
+    "APIキーやパスワードを、このアプリ専用に保管します。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Store API keys and passwords for this app."
+          }
+        }
+      }
+    },
+    "値をコピー" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copy value"
+          }
+        }
+      }
+    },
+    "例：API_KEY" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Example: API_KEY"
+          }
+        }
+      }
+    },
+    "隠す" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hide"
+          }
+        }
+      }
+    },
+    "保存する値を入力" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enter the value to store"
+          }
+        }
+      }
+    },
+    "まだSecretがありません" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No secrets yet"
+          }
+        }
+      }
+    },
+    "Secretを開きます" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open secrets"
+          }
+        }
+      }
+    },
+    "変数名と値を登録すると、Secretファイルに出力できます。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add a variable name and value to include it in your secret file."
+          }
+        }
+      }
+    },
+    "保存した値を確認するには、Macで認証してください。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Authenticate on your Mac to view stored values."
+          }
+        }
+      }
+    },
+    "最初の項目を追加" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add your first entry"
+          }
+        }
+      }
+    },
+    "認証して開く" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Authenticate to open"
+          }
+        }
+      }
+    },
+    "値は暗号化して保存します" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Values are stored encrypted"
+          }
+        }
+      }
+    },
+    "未保存の変更があります" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You have unsaved changes"
+          }
+        }
+      }
+    },
+    "任意のSecret" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Custom secrets"
+          }
+        }
+      }
+    },
+    "任意のSecretを管理…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Manage Custom Secrets…"
+          }
+        }
+      }
+    },
+    "APIキーやURLなどを、このアプリ専用に保存します。値は暗号化し、CI用のSecretファイルに含められます。ファイルのパスを保存しても、そのファイル自体は保存されません。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Store API keys, URLs, and other values for this app. Values are encrypted and can be included in the CI secret file. Saving a file path does not save the file itself."
+          }
+        }
+      }
+    },
+    "値" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Value"
+          }
+        }
+      }
+    },
+    "項目を追加" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add entry"
+          }
+        }
+      }
+    },
+    "値を隠す" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hide values"
+          }
+        }
+      }
+    },
+    "認証して値を表示" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Authenticate to reveal values"
+          }
+        }
+      }
+    },
+    "認証してSecretを開く" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Authenticate to open secrets"
+          }
+        }
+      }
+    },
+    "任意Secretを暗号化して保存します" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save custom secrets with encryption"
+          }
+        }
+      }
+    },
+    "任意Secretを表示します" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open custom secrets"
+          }
+        }
+      }
+    },
+    "任意Secretの値を表示します" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reveal custom secret values"
+          }
+        }
+      }
+    },
+    "任意Secretをコピーします" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copy a custom secret"
+          }
+        }
+      }
+    },
     "表示名・所属アプリ・プラットフォーム・アイコン・登録日時・メモと任意Secret（非表示）・削除状態" : {
       "localizations" : {
         "en" : {

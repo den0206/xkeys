@@ -24,6 +24,8 @@ Apple開発者向けの鍵・証明書・プロビジョニングプロファイ
 
 ## 主な機能
 
+- アプリごとの任意Key・Valueの登録、値の暗号化保存、本人認証付き編集、dotenv出力
+
 - `.p8`・`.cer`・`.p12`・`.mobileprovision`・`.provisionprofile`の取り込み、一括取り込み
 - Apple Developerへのログイン、所属チームの登録、証明書・プロファイルのダウンロード
 - 本体・拡張・Widgetなど、Bundle IDが異なるターゲットをアプリ単位で管理

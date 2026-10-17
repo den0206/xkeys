@@ -4,9 +4,10 @@ import SwiftUI
 /// One line of the CI secret file. Values are read only while writing, so the sheet never holds secrets.
 struct CISecretEntry: Identifiable {
     enum Section: CaseIterable {
-        case team, certificate, profile, key
+        case team, certificate, profile, key, custom
         var title: String {
             switch self {
+            case .custom: String(localized: "任意のSecret")
             case .team: String(localized: "チーム")
             case .certificate: String(localized: "証明書（.p12）")
             case .profile: String(localized: "プロファイル")
@@ -15,7 +16,7 @@ struct CISecretEntry: Identifiable {
         }
     }
     enum Source {
-        case file(StoredCredential), password(StoredCredential), text(String)
+        case file(StoredCredential), password(StoredCredential), text(String), custom(ManagedApp, String)
     }
 
     let id: String
@@ -31,13 +32,14 @@ struct CISecretEntry: Identifiable {
 }
 
 enum CISecretError: LocalizedError {
-    case empty, invalidName(String), reservedName(String), duplicateName(String), unsupportedPassword
+    case empty, invalidName(String), reservedName(String), duplicateName(String), unsupportedPassword, unsupportedCustomValue(String)
     var errorDescription: String? {
         switch self {
         case .empty: String(localized: "書き出す項目を1つ以上選んでください。")
         case .invalidName(let name): String(localized: "変数名「\(name)」は使えません。英字・数字・_ で、先頭は英字か _ にしてください。")
         case .reservedName(let name): String(localized: "変数名「\(name)」は GITHUB_ で始まるため使えません。")
         case .duplicateName(let name): String(localized: "変数名「\(name)」が重複しています。")
+        case .unsupportedCustomValue(let name): String(localized: "「\(name)」の値の末尾に \\ または二重引用符があるため、この形式では出力できません。値をコピーしてCIに直接設定してください。")
         case .unsupportedPassword: String(localized: ".p12 のパスワードに ' または改行が含まれるため、ファイルに書けません。CI に直接設定してください。")
         }
     }
@@ -97,6 +99,10 @@ enum CISecretError: LocalizedError {
                                              parent: "p8-\(key.id)"))
             }
         }
+        for name in (product.customSecretNames ?? "").split(separator: "\n").map(String.init) {
+            entries.append(CISecretEntry(id: "custom-\(product.id)-\(name)", section: .custom, title: name, name: name,
+                                         source: .custom(product, name), included: true))
+        }
         return entries
     }
 
@@ -110,6 +116,15 @@ enum CISecretError: LocalizedError {
     nonisolated static func validateName(_ name: String) throws {
         guard name.range(of: "^[A-Za-z_][A-Za-z0-9_]{0,127}$", options: .regularExpression) == name.startIndex..<name.endIndex else { throw CISecretError.invalidName(name) }
         guard !name.uppercased().hasPrefix("GITHUB_") else { throw CISecretError.reservedName(name) }
+    }
+
+    nonisolated static func customValue(_ value: String) -> String {
+        let escaped = value.replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+            .replacingOccurrences(of: "$", with: "\\$")
+            .replacingOccurrences(of: "\n", with: "\\n")
+            .replacingOccurrences(of: "\r", with: "\\r")
+        return "\"" + escaped + "\""
     }
 
     /// GitHub treats secret names case-insensitively and reserves the GITHUB_ prefix.
@@ -126,6 +141,7 @@ enum CISecretError: LocalizedError {
 
     /// Writes dotenv lines. Single quotes keep values literal in dotenv parsers.
     static func render(_ entries: [CISecretEntry], title: String, at now: Date,
+                       readCustom: (ManagedApp) throws -> [AppSecret] = { _ in throw ValidationError.invalidFile },
                        read: (StoredCredential) throws -> CredentialPayload) throws -> Data {
         try validate(entries)
         let included = entries.filter(\.included)
@@ -134,6 +150,7 @@ enum CISecretError: LocalizedError {
                      String(localized: "# 値を変える場合は、Xkeys で書き出し直してください。"),
                      String(localized: "# 生成元: \(label) · \(now.formatted(.iso8601.year().month().day()))"),
                      String(localized: "# このファイルは暗号化されていません。CI に登録したら削除してください。")]
+        var custom: [UUID: [AppSecret]] = [:]
         var payloads: [UUID: CredentialPayload] = [:]
         func payload(_ record: StoredCredential) throws -> CredentialPayload {
             if let cached = payloads[record.id] { return cached }
@@ -145,6 +162,13 @@ enum CISecretError: LocalizedError {
             let name = entry.name.trimmingCharacters(in: .whitespaces)
             let value: String
             switch entry.source {
+            case .custom(let app, let originalName):
+                if custom[app.id] == nil { custom[app.id] = try readCustom(app) }
+                guard let secret = custom[app.id]?.first(where: { $0.name == originalName }) else { throw ValidationError.invalidFile }
+                // shortcut: godotenv 1.5.1 misreads these endings; remove when supported CI parsers handle them.
+                guard !secret.value.hasSuffix("\\"), !secret.value.hasSuffix("\"") else { throw CISecretError.unsupportedCustomValue(name) }
+                lines.append("\(name)=\(customValue(secret.value))")
+                continue
             case .text(let text): value = text
             case .file(let record): value = try payload(record).original.base64EncodedString()
             case .password(let record):
@@ -293,7 +317,8 @@ struct CISecretFileView: View {
         Task { @MainActor in
             do {
                 try await access.withKey(reason: String(localized: "CI 用の Secret ファイルを書き出します"), allowCreation: false, vault: vault) { key in
-                    let data = try CISecretFile.render(entries, title: app.product.name, at: .now) { try vault.read($0, key: key) }
+                    let data = try CISecretFile.render(entries, title: app.product.name, at: .now,
+                                                       readCustom: { try VaultManagement(vault: vault).readCustomSecrets($0, key: key) }) { try vault.read($0, key: key) }
                     try CredentialFile(data: data, name: url.lastPathComponent).export(to: url)
                 }
                 written = url

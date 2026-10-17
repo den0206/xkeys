@@ -8,9 +8,11 @@ The format follows Keep a Changelog conventions and releases use semantic versio
 
 ### Added
 
-- Encrypted per-app key/value storage with validation and backup v1 support.
+- Custom per-app key/value secrets with encrypted storage, authenticated editing and copying, dotenv export, and backup v1 support.
 
 ### Changed
+
+- Keep custom secret drafts open when switching apps so values can be copied from other applications.
 
 - Warn during import when a .p12 contains the same certificates as an existing or queued item, even if its password or filename differs.
 

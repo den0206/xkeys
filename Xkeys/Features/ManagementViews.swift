@@ -3,6 +3,185 @@ import AppKit
 import SwiftData
 import SwiftUI
 
+struct AppSecretEditor: View {
+    struct Draft: Identifiable, Equatable {
+        let id = UUID()
+        var name: String
+        var value: String
+        var revealed = false
+    }
+
+    let vault: CredentialVault
+    let app: ManagedApp
+    @Environment(\.dismiss) private var dismiss
+    @State private var access: VaultAccess
+    @State private var secrets: [Draft] = []
+    @State private var originalSecrets: [AppSecret] = []
+    @State private var loaded = false
+    @State private var addedID: UUID?
+    @State private var error: String?
+    @State private var activity = Date.now
+
+    init(vault: CredentialVault, app: ManagedApp, access: VaultAccess = VaultAccess()) {
+        self.vault = vault
+        self.app = app
+        _access = State(initialValue: access)
+    }
+
+    private var hasChanges: Bool {
+        secrets.map { AppSecret(name: $0.name, value: $0.value) } != originalSecrets
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("任意のSecret").font(.system(size: 20, weight: .bold))
+                Text(app.name).font(.system(size: 13)).foregroundStyle(XkeysStyle.secondary)
+                Text("「Keyを追加」で複数入力し、最後にまとめて保存できます。")
+                    .font(.system(size: 13)).foregroundStyle(XkeysStyle.secondary)
+            }.padding(24)
+            Divider()
+            if loaded && !secrets.isEmpty {
+                HStack {
+                    Text("\(secrets.count)項目").font(.system(size: 12)).foregroundStyle(XkeysStyle.secondary)
+                    Spacer()
+                    Button("Keyを追加", systemImage: "plus") { add() }
+                        .buttonStyle(XkeysButtonStyle()).disabled(secrets.count >= 100)
+                }.padding(.horizontal, 24).padding(.vertical, 12)
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        VStack(spacing: 12) {
+                            ForEach($secrets) { $secret in
+                                VStack(alignment: .leading, spacing: 12) {
+                                    HStack {
+                                        Text("変数名").font(.system(size: 12, weight: .semibold))
+                                        Spacer()
+                                        Button("コピー") { copy(secret) }.buttonStyle(XkeysButtonStyle(compact: true))
+                                            .help("値をコピー")
+                                        Button("削除", role: .destructive) { secrets.removeAll { $0.id == secret.id } }
+                                            .buttonStyle(XkeysButtonStyle(compact: true))
+                                    }
+                                    TextField("例：API_KEY", text: $secret.name)
+                                        .textFieldStyle(.roundedBorder).font(.system(size: 13, design: .monospaced))
+                                        .accessibilityLabel("変数名")
+                                    HStack {
+                                        Text("値").font(.system(size: 12, weight: .semibold))
+                                        Spacer()
+                                        Button { reveal(secret.id) } label: {
+                                            Label(secret.revealed ? String(localized: "隠す") : String(localized: "表示"), systemImage: secret.revealed ? "eye.slash" : "eye")
+                                        }.buttonStyle(XkeysButtonStyle(compact: true))
+                                    }
+                                    if secret.revealed {
+                                        TextEditor(text: $secret.value).font(.system(size: 13, design: .monospaced)).frame(height: 64)
+                                            .border(XkeysStyle.border).accessibilityLabel("値").privacySensitive()
+                                    } else {
+                                        SecureField("保存する値を入力", text: $secret.value).textFieldStyle(.roundedBorder)
+                                            .accessibilityLabel("値").privacySensitive()
+                                    }
+                                }.padding(16).background(XkeysStyle.canvas, in: RoundedRectangle(cornerRadius: 12))
+                                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(XkeysStyle.border))
+                                    .id(secret.id)
+                            }
+                        }.padding(.horizontal, 24).padding(.bottom, 16)
+                    }.background(XkeysStyle.sidebar)
+                        .onChange(of: addedID) { _, id in if let id { proxy.scrollTo(id, anchor: .bottom) } }
+                        .onAppear { if let addedID { proxy.scrollTo(addedID, anchor: .bottom) } }
+                }
+            } else {
+                VStack(spacing: 12) {
+                    Image(systemName: "key.horizontal").font(.system(size: 28)).foregroundStyle(XkeysStyle.accent)
+                        .frame(width: 60, height: 60).background(XkeysStyle.selection, in: RoundedRectangle(cornerRadius: 16))
+                    Text(loaded ? String(localized: "まだSecretがありません") : String(localized: "Secretを開きます"))
+                        .font(.system(size: 16, weight: .semibold))
+                    Text(loaded ? String(localized: "変数名と値を登録すると、Secretファイルに出力できます。") : String(localized: "保存した値を確認するには、Macで認証してください。"))
+                        .font(.system(size: 13)).foregroundStyle(XkeysStyle.secondary)
+                    if loaded {
+                        Button("最初の項目を追加", systemImage: "plus") { add() }.buttonStyle(XkeysButtonStyle(primary: true))
+                    } else {
+                        Button("認証して開く", systemImage: "touchid") { perform(save: false) }.buttonStyle(XkeysButtonStyle(primary: true))
+                    }
+                }.frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+            if let error {
+                Label(error, systemImage: "exclamationmark.triangle").font(.caption)
+                    .foregroundStyle(XkeysStyle.dangerText).padding(.horizontal, 24).padding(.bottom, 12)
+            }
+            Divider()
+            HStack {
+                Label(hasChanges ? String(localized: "未保存の変更があります") : String(localized: "値は暗号化して保存します"), systemImage: "lock").font(.system(size: 11)).foregroundStyle(XkeysStyle.secondary)
+                Spacer()
+                Button("キャンセル") { close() }.buttonStyle(XkeysButtonStyle()).keyboardShortcut(.cancelAction)
+                Button("保存", systemImage: "touchid") { perform(save: true) }
+                    .buttonStyle(XkeysButtonStyle(primary: true)).disabled(!loaded || !hasChanges)
+            }.padding(.horizontal, 24).padding(.vertical, 16)
+        }.disabled(access.busy).frame(width: 640, height: 540)
+            .background(XkeysStyle.canvas).foregroundStyle(XkeysStyle.text).tint(XkeysStyle.accent)
+            .task { perform(save: false) }
+            .onChange(of: secrets) { _, _ in activity = .now }
+            .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { _ in
+                if Date.now.timeIntervalSince(activity) >= 300 { close() }
+            }
+            .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.willSleepNotification)) { _ in close() }
+            .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.sessionDidResignActiveNotification)) { _ in close() }
+            .onDisappear { access.lock(); secrets = []; originalSecrets = [] }
+    }
+
+    private func add() {
+        let draft = Draft(name: "", value: "")
+        secrets.append(draft)
+        addedID = draft.id
+    }
+
+    private func close() { access.lock(); secrets = []; originalSecrets = []; dismiss() }
+
+    private func perform(save: Bool) {
+        error = nil
+        Task { @MainActor in
+            do {
+                let create = try vault.canCreateKey()
+                try await access.withKey(reason: save ? String(localized: "任意Secretを暗号化して保存します") : String(localized: "任意Secretを表示します"), allowCreation: create, vault: vault) { key in
+                    let management = VaultManagement(vault: vault)
+                    if save { try management.saveCustomSecrets(secrets.map { AppSecret(name: $0.name, value: $0.value) }, app: app, key: key) }
+                    else {
+                        originalSecrets = try management.readCustomSecrets(app, key: key)
+                        secrets = originalSecrets.map { Draft(name: $0.name, value: $0.value) }
+                    }
+                }
+                loaded = true
+                activity = .now
+                if save { close() }
+            } catch { self.error = error.localizedDescription }
+        }
+    }
+
+    private func reveal(_ id: UUID) {
+        guard let index = secrets.firstIndex(where: { $0.id == id }) else { return }
+        if secrets[index].revealed { secrets[index].revealed = false; return }
+        error = nil
+        Task { @MainActor in
+            do {
+                try await access.withKey(reason: String(localized: "任意Secretの値を表示します"), allowCreation: false, vault: vault) { _ in
+                    if let index = secrets.firstIndex(where: { $0.id == id }) { secrets[index].revealed = true }
+                }
+                activity = .now
+            } catch { self.error = error.localizedDescription }
+        }
+    }
+
+    private func copy(_ secret: Draft) {
+        let value = secret.value
+        error = nil
+        Task { @MainActor in
+            do {
+                try await access.withKey(reason: String(localized: "任意Secretをコピーします"), allowCreation: false, vault: vault) { _ in
+                    try SecretClipboard.copy(value)
+                }
+                activity = .now
+            } catch { self.error = error.localizedDescription }
+        }
+    }
+}
+
 struct NoteEditor: View {
     let vault: CredentialVault
     var app: ManagedApp? = nil
