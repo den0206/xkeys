@@ -7789,16 +7789,6 @@
         }
       }
     },
-    "鍵" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Key"
-          }
-        }
-      }
-    },
     "はじめての方へ" : {
       "localizations" : {
         "en" : {
