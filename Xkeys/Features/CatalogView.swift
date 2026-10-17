@@ -798,16 +798,10 @@ struct OnboardingView: View {
         _step = State(initialValue: step)
     }
 
-    /// The artwork has words in it. Japanese is the default; artwork with words has an English copy named `…EN`.
-    static var showsJapanese: Bool { Bundle.main.preferredLocalizations.first?.hasPrefix("ja") ?? true }
-
-    static func artworkName(_ name: String, japanese: Bool) -> String {
-        !japanese && NSImage(named: name + "EN") != nil ? name + "EN" : name
-    }
-
     var body: some View {
         HStack(spacing: 0) {
-            Image(Self.artworkName(artwork[step], japanese: Self.showsJapanese)).resizable().frame(width: 320, height: 518).accessibilityHidden(true)
+            // Artwork with words is localized in the asset catalog.
+            Image(artwork[step]).resizable().frame(width: 320, height: 518).accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 0) {
                 Text("STEP \(step + 1) / \(Self.stepCount)").font(.system(size: 12, weight: .bold)).tracking(1).foregroundStyle(XkeysStyle.accent)
                 Text(titles[step]).font(.system(size: step == 0 ? 30 : 28, weight: .heavy)).lineSpacing(3).padding(.top, 8)
