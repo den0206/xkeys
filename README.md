@@ -10,6 +10,50 @@
 
 A macOS app for managing Apple Developer keys, certificates, and provisioning profiles. Organize credentials by team, app, and target, keep the original files encrypted on your Mac, and track expiry dates in the app and Dock badge.
 
+**Xkeys is built security-first, because signing keys, certificates, and API keys are secrets you cannot afford to leak.** Secrets are always encrypted at rest, every access requires you to authenticate, and nothing is ever sent to a third-party server.
+
+## Security
+
+Xkeys layers several defenses so that no single failure exposes your secrets.
+
+### Encryption at rest
+
+- **Original files, notes, `.p12` passwords, and custom secrets are all encrypted with AES-256-GCM.** The vault never holds plaintext secrets.
+- The encryption key lives in this Mac’s **device-only Keychain** (`WhenUnlockedThisDeviceOnly`). It never migrates to another Mac or syncs through iCloud Keychain, and it cannot be read while the Mac is locked.
+- Each ciphertext is **cryptographically bound** to its metadata, such as kind, team, and key purpose, as AES-GCM additional authenticated data. Swapping or reassigning encrypted files makes decryption fail, so tampering is detected.
+- Metadata such as names, identifiers, and expiry dates is stored separately in SwiftData.
+
+### Authentication for every access
+
+- The encryption key cannot be used without **Touch ID or your Mac password** (Keychain access control `userPresence`).
+- **Every operation that touches a secret requires authentication**: viewing, copying, exporting, editing, and deleting. A single authentication never leaves the vault unlocked.
+
+### No leak paths
+
+- **Nothing is sent to third-party servers.** Network requests go only to Apple (`idmsa.apple.com`, `developer.apple.com`, and `appstoreconnect.apple.com`) for sign-in, team verification, and online imports. There are no analytics, advertising, or tracking services.
+- No iCloud sync and no automatic launch at login.
+- **Clipboard** copies stay on this Mac (excluded from Universal Clipboard), are marked `ConcealedType` so clipboard managers skip them, and are **cleared automatically after 60 seconds**.
+- Apple Developer sign-in uses [XcodesLoginKit](https://github.com/XcodesOrg/XcodesLoginKit). Apple Account passwords and verification codes are never saved. Session cookies are stored in the device-only Keychain and removed on logout.
+- Responses from Apple are validated for size and item count before processing.
+
+### Backups
+
+- Password-protected backups derive their key with **PBKDF2-HMAC-SHA256 (600,000 iterations)** and are encrypted with AES-256-GCM. Tampered backups are rejected on restore.
+- Restoring a backup containing unregistered teams requires verification of membership in every such team. If membership cannot be verified, those backups cannot be restored. Backups containing only registered teams can be restored offline.
+
+### The app itself
+
+- **App Sandbox** and **Hardened Runtime** are enabled. The app can access only its own container and files you choose.
+- Release builds are signed with Developer ID and **notarized by Apple**. Building, signing, and notarization run in GitHub Actions, never on a personal Mac.
+
+### What stays in your hands
+
+- Exported original files, **backups without a password**, and CI `.env` files are outside the vault’s encryption. Store backups safely and delete exported secret files after registering their values in CI.
+
+Online integration uses Apple’s private web APIs and may need updates when Apple changes them. Trusted-device and SMS verification codes are supported; federated authentication and security keys are not supported. Xkeys cannot retrieve previously downloaded `.p8` files or certificate private keys, and does not check online revocation status.
+
+Details (Japanese): [Design and storage format](docs/DESIGN.md).
+
 ## Requirements
 
 - macOS 26.0 or later
@@ -19,6 +63,15 @@ A macOS app for managing Apple Developer keys, certificates, and provisioning pr
 ## Install
 
 Release builds are distributed through [this repository’s GitHub Releases](https://github.com/den0206/xkeys/releases). When a release is available, download `Xkeys-X.Y.Z.dmg`, open it, and move `Xkeys.app` to `/Applications`.
+
+You can also install it with [Homebrew](https://brew.sh). This repository serves as the tap:
+
+```sh
+brew tap den0206/xkeys https://github.com/den0206/xkeys
+brew install --cask xkeys
+```
+
+`brew uninstall --cask --zap xkeys` also deletes the app’s container (`~/Library/Containers/com.yuuki.xkeys`), including the encrypted vault. Create a backup first. The encryption key and Apple Developer session in the Keychain are not removed.
 
 The release workflow signs the app with Developer ID and notarizes the DMG. Xkeys is not distributed through the Mac App Store.
 
@@ -41,20 +94,6 @@ The release workflow signs the app with Developer ID and notarizes the DMG. Xkey
 To get started, sign in to Apple Developer, choose a team, add your apps, and import files. Keys and certificates are shared within a team; provisioning profiles belong to individual app targets.
 
 Detailed instructions (Japanese): [User guide](docs/USAGE.md).
-
-## Privacy and security
-
-- Original credential files, notes, and saved `.p12` passwords are encrypted locally with AES-GCM. The encryption key is stored in this Mac’s device-only Keychain. Credential metadata, such as names, identifiers, and expiry dates, is stored separately in SwiftData.
-- Sensitive operations require Touch ID or your Mac password. There is no iCloud sync or automatic launch at login.
-- Apple Developer connections use [XcodesLoginKit](https://github.com/XcodesOrg/XcodesLoginKit). Apple Account passwords and verification codes are not saved. Session cookies are stored in this Mac’s Keychain and removed on logout.
-- Network requests go to Apple (`idmsa.apple.com`, `developer.apple.com`, and `appstoreconnect.apple.com`) for sign-in, team verification, online imports, and key service lookup. There are no analytics, advertising, or tracking services.
-- Exported original files, unprotected backups, and CI `.env` files are outside the vault’s encryption protection. Store backups safely and delete exported secret files after registering their values in CI.
-
-Online integration uses Apple’s private web APIs and may need updates when Apple changes them. Trusted-device and SMS verification codes are supported; federated authentication and security keys are not supported. Xkeys cannot retrieve previously downloaded `.p8` files or certificate private keys, and does not check online revocation status.
-
-Restoring a backup containing unregistered teams requires verification of membership in every such team. If membership cannot be verified, those backups cannot be restored. Backups containing only registered teams can be restored offline.
-
-Details (Japanese): [Design and storage format](docs/DESIGN.md).
 
 ## Development
 
@@ -88,7 +127,7 @@ Signing troubleshooting and verification scope (Japanese): [Development guide](d
 
 ## Release
 
-Pushing a `release/Ver_X.Y.Z` branch runs the Release workflow: validate the version, release notes, and required secrets; run tests; build and sign the app and DMG; notarize the DMG; publish it to GitHub Releases; and move the English `[Unreleased]` notes in `CHANGELOG.md` into the released version on `main`.
+Pushing a `release/Ver_X.Y.Z` branch runs the Release workflow: validate the version, release notes, and required secrets; run tests; build and sign the app and DMG; notarize the DMG; publish it to GitHub Releases; and move the English `[Unreleased]` notes in `CHANGELOG.md` into the released version on `main`, along with the version and sha256 in the Homebrew cask `Casks/xkeys.rb`.
 
 Distribution runs through GitHub Actions. Signing credentials belong in GitHub Actions Secrets; never commit their values or exported `.env` files.
 
@@ -116,6 +155,7 @@ Xkeys/Persistence/      Encrypted storage, backups, and restore
 Xkeys/Resources/        Assets and localization
 XkeysTests/             XCTest and synthetic fixtures
 scripts/                Notarization script
+Casks/                  Homebrew cask
 .github/workflows/      Release workflow
 docs/                   User, design, development, and release guides
 ```
