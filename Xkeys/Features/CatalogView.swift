@@ -90,7 +90,6 @@ struct CatalogView: View {
         .task {
             loadHistory()
             do { try VaultManagement(vault: CredentialVault(context: container.mainContext, blobs: EncryptedBlobStore(directory: CredentialVault.directory))).pruneExpired() }
-            catch ManagementError.replacementInUse { /* Re-encrypt surviving history after owner authentication. */ }
             catch { historyError = String(localized: "削除済みデータの整理を完了できませんでした。再起動して確認してください。") }
             selection = navigation.scope == .all ? (rootApps.first { $0.team?.id == currentTeam?.id }.map { .app($0.id) } ?? currentTeam.map { .team($0.id) } ?? .all) : navigation.scope
             onboarding = !onboardingCompleted && ProcessInfo.processInfo.environment["XKEYS_TESTING"] != "1"

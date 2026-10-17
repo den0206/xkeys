@@ -5687,46 +5687,6 @@
         }
       }
     },
-    "置き換え履歴" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Replacement history"
-          }
-        }
-      }
-    },
-    "置き換え履歴で参照されています。新旧の関連項目を一緒に完全削除してください。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "It's referenced by replacement history. Permanently delete the old and new related items together."
-          }
-        }
-      }
-    },
-    "置き換え履歴のある鍵は、バックアップとの整合性を保つため用途を変更できません。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "A key with replacement history can't change purpose, to stay consistent with backups."
-          }
-        }
-      }
-    },
-    "置き換え済み" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Replaced"
-          }
-        }
-      }
-    },
     "署名" : {
       "localizations" : {
         "en" : {
@@ -6435,16 +6395,6 @@
         }
       }
     },
-    "通常一覧" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Active"
-          }
-        }
-      }
-    },
     "通知" : {
       "localizations" : {
         "en" : {
@@ -6509,12 +6459,12 @@
         }
       }
     },
-    "選択した内容では置き換え履歴などの関連が一致しません。関連する項目の選択を確認してください。" : {
+    "選択した内容では所属アプリなどの関連が一致しません。関連する項目の選択を確認してください。" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "The selection doesn't keep relationships such as replacement history consistent. Check the choices for related items."
+            "value" : "The selection doesn't keep relationships such as parent apps consistent. Check the choices for related items."
           }
         }
       }

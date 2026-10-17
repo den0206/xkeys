@@ -10,7 +10,7 @@ enum RestoreError: LocalizedError {
         case .identity: String(localized: "同じ識別子が異なるTeam・App・ファイルを指しています。既存データを保護するため、このバックアップはまとめられません。")
         case .stale: String(localized: "確認後に現在のデータが変更されました。「差分を更新」で確認し直してください。")
         case .choices: String(localized: "内容が異なる項目ごとに、どちらを使うか選択してください。")
-        case .relationships: String(localized: "選択した内容では置き換え履歴などの関連が一致しません。関連する項目の選択を確認してください。")
+        case .relationships: String(localized: "選択した内容では所属アプリなどの関連が一致しません。関連する項目の選択を確認してください。")
         case .pendingChanges: String(localized: "別の操作が保存待ちです。その操作を完了してから復元してください。")
         }
     }
@@ -101,9 +101,8 @@ struct RestorePlan: Sendable {
                          fingerprint: value.fingerprint, sourceTeamID: value.sourceTeamID, bundleID: value.bundleID,
                          expiresAt: value.expiresAt, createdAt: value.createdAt, isTeamShared: value.isTeamShared,
                          hasSavedPassword: value.hasSavedPassword, team: team, app: value.app.flatMap { appIDs[$0] },
-                         metadataVersion: value.metadataVersion, keyPurpose: value.keyPurpose, keyID: value.keyID,
-                         issuerID: value.issuerID, replacesCredentialID: value.replacesCredentialID.flatMap { credentialIDs[$0] },
-                         replacedByID: value.replacedByID.flatMap { credentialIDs[$0] }, original: value.original, password: value.password, note: value.note, deletedAt: value.deletedAt, revokedAt: value.revokedAt)
+                         keyPurpose: value.keyPurpose, keyID: value.keyID, issuerID: value.issuerID,
+                         original: value.original, password: value.password, note: value.note, deletedAt: value.deletedAt)
         }
         let normalized = BackupSnapshot(version: source.version, createdAt: source.createdAt, appVersion: source.appVersion,
                                         teams: teams, apps: apps, credentials: credentials, preferences: source.preferences)
@@ -130,13 +129,10 @@ struct RestorePlan: Sendable {
                 if local.note != record.note { differences.append(String(localized: "暗号化メモ（値は非表示）")) }
                 if local.deletedAt != record.deletedAt { differences.append(String(localized: "削除状態")) }
                 if local.password != record.password { differences.append(String(localized: "保存済みパスワード（値は非表示）")) }
-                if local.replacesCredentialID != record.replacesCredentialID || local.replacedByID != record.replacedByID { differences.append(String(localized: "置き換え履歴")) }
                 if local.keyID != record.keyID || local.issuerID != record.issuerID || local.keyPurpose != record.keyPurpose { differences.append(String(localized: "鍵の識別情報")) }
                 if differences.isEmpty { differences.append(String(localized: "期限・登録日時などのメタデータ")) }
             }
-            func summary(_ value: BackupSnapshot.Credential) -> String {
-                "\(value.name) · \(value.originalName) · \(value.replacedByID == nil ? String(localized: "通常一覧") : String(localized: "置き換え済み"))"
-            }
+            func summary(_ value: BackupSnapshot.Credential) -> String { "\(value.name) · \(value.originalName)" }
             items.append(Item(kind: .credential, target: record.id, title: String(localized: "資格情報 · \(record.originalName)"),
                               detail: differences.joined(separator: String(localized: "・")), current: local.map(summary), incoming: summary(record),
                               state: local == nil ? .added : local == record ? .duplicate : .conflict))
@@ -159,7 +155,7 @@ struct RestorePlan: Sendable {
         for value in incoming.teams where selected.contains("team:" + value.id.uuidString) { teams[value.id] = value }
         for value in incoming.apps where selected.contains("app:" + value.id.uuidString) { apps[value.id] = value }
         for value in incoming.credentials where selected.contains("credential:" + value.id.uuidString) { credentials[value.id] = value }
-        let result = BackupSnapshot(version: 3, createdAt: .now, appVersion: current.appVersion,
+        let result = BackupSnapshot(version: 1, createdAt: .now, appVersion: current.appVersion,
                                     teams: Array(teams.values), apps: Array(apps.values), credentials: Array(credentials.values), preferences: selected.contains("preferences:" + Self.preferencesID.uuidString) ? incoming.preferences : current.preferences)
         do { try result.validate() }
         catch BackupError.tooLarge { throw BackupError.tooLarge }
@@ -194,7 +190,6 @@ struct BackupRestore {
             if plan.requiresSafetyBackup && safetyBackup == nil { throw RestoreError.safetyBackupRequired }
             if let safetyBackup, safetyBackup.revision != plan.localRevision { throw RestoreError.stale }
             var replacement = plan.incoming
-            replacement.version = 3
             if replacement.preferences == nil { replacement.preferences = current.preferences }
             final = replacement
             try final.validate()

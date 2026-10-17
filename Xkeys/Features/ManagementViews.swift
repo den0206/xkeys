@@ -367,7 +367,7 @@ struct TrashView: View {
         }.font(.system(size: 13)).padding(.horizontal, 32).padding(.vertical, 22)
             .background(XkeysStyle.canvas).foregroundStyle(XkeysStyle.text).disabled(access.busy)
             .confirmationDialog("すべて完全に削除しますか？元に戻せません。", isPresented: $purging, titleVisibility: .visible) {
-                Button("認証して完全削除", role: .destructive) { perform { key in try VaultManagement(vault: vault).purge(records: deletedRecords, apps: deletedApps, key: key) } }
+                Button("認証して完全削除", role: .destructive) { perform { _ in try VaultManagement(vault: vault).purge(records: deletedRecords, apps: deletedApps) } }
             }
             .onDisappear { access.lock() }
     }

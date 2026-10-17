@@ -81,15 +81,10 @@ final class StoredCredential {
     var team: DeveloperTeam?
     var app: ManagedApp?
     var deletedAt: Date?
-    // Set only by older versions' manual revocation; kept for stores and backups, no longer shown.
-    var revokedAt: Date?
-    var blobID: UUID?
-    var metadataVersion: Int = 1
+    var blobID: UUID
     var keyPurpose: String?
     var keyID: String?
     var issuerID: String?
-    var replacesCredentialID: UUID?
-    var replacedByID: UUID?
     // Derived from the profile file. Kept out of the AAD and backups; nil means "not read yet".
     var signingCertificateDigests: String?
     // JSON of every certificate in a .p12, read like signingCertificateDigests; nil means "not read yet".
@@ -99,7 +94,9 @@ final class StoredCredential {
         let ext = (file.name as NSString).pathExtension.lowercased()
         let shared = ext == "cer" || ext == "p12" || ext == "p8"
         let hash = SHA256.hash(data: file.data).map { String(format: "%02x", $0) }.joined()
-        id = UUID()
+        let id = UUID()
+        self.id = id
+        blobID = id
         name = p8.map { "\($0.title)（\($0.keyID)）" } ?? parsed.name
         kind = p8?.title ?? parsed.kind
         originalName = file.name
@@ -115,7 +112,6 @@ final class StoredCredential {
         self.team = team
         self.app = shared ? nil : app
         registrationKey = "\(team.id)|\(shared ? "team" : app?.id.uuidString ?? "")|\(hash)"
-        metadataVersion = 2
         keyPurpose = p8?.storedPurpose
         keyID = p8?.keyID
         issuerID = p8?.issuerID
@@ -132,6 +128,7 @@ final class StoredCredential {
 
     init(restoring value: BackupSnapshot.Credential, team: DeveloperTeam, app: ManagedApp?) {
         id = value.id
+        blobID = value.id
         registrationKey = value.registrationKey
         name = value.name
         kind = value.kind
@@ -147,14 +144,10 @@ final class StoredCredential {
         hasSavedPassword = value.hasSavedPassword
         self.team = team
         self.app = app
-        metadataVersion = value.metadataVersion
         keyPurpose = value.keyPurpose
         keyID = value.keyID
         issuerID = value.issuerID
-        replacesCredentialID = value.replacesCredentialID
-        replacedByID = value.replacedByID
         deletedAt = value.deletedAt
-        revokedAt = value.revokedAt
     }
 
     func apply(_ value: BackupSnapshot.Credential) {
@@ -167,14 +160,10 @@ final class StoredCredential {
         expiresAt = value.expiresAt
         createdAt = value.createdAt
         hasSavedPassword = value.hasSavedPassword
-        metadataVersion = value.metadataVersion
         keyPurpose = value.keyPurpose
         keyID = value.keyID
         issuerID = value.issuerID
-        replacesCredentialID = value.replacesCredentialID
-        replacedByID = value.replacedByID
         deletedAt = value.deletedAt
-        revokedAt = value.revokedAt
     }
 
     func isVisible(in app: ManagedApp) -> Bool {
@@ -186,17 +175,13 @@ final class StoredCredential {
 
     func authenticatedData() throws -> Data {
         guard let team else { throw VaultError.invalidAssociation }
-        var fields = [
-            "AppMateCredential-v1", id.uuidString, registrationKey, team.id.uuidString,
+        let fields = [
+            "XkeysCredential-v1", id.uuidString, registrationKey, team.id.uuidString,
             app?.id.uuidString ?? "", String(isTeamShared), name, kind, originalName, fileExtension,
             digest, fingerprint ?? "", sourceTeamID ?? "", bundleID ?? "",
-            expiresAt.map { String($0.timeIntervalSinceReferenceDate.bitPattern) } ?? "", String(hasSavedPassword)
+            expiresAt.map { String($0.timeIntervalSinceReferenceDate.bitPattern) } ?? "", String(hasSavedPassword),
+            keyPurpose ?? "", keyID ?? "", issuerID ?? "", blobID.uuidString
         ]
-        if metadataVersion == 2 {
-            fields[0] = "AppMateCredential-v2"
-            fields += [keyPurpose ?? "", keyID ?? "", issuerID ?? "", replacesCredentialID?.uuidString ?? ""]
-        } else if metadataVersion != 1 { throw ValidationError.invalidFile }
-        if let blobID { fields += ["blob-reference-v1", blobID.uuidString] }
         return try JSONEncoder().encode(fields)
     }
 }
@@ -261,7 +246,7 @@ struct CredentialVault {
 
     func recover() throws {
         let records = try records()
-        try blobs.removeOrphans(keeping: Set(records.map { $0.blobID ?? $0.id } + (try context.fetch(FetchDescriptor<ManagedApp>())).compactMap(\.noteBlobID)))
+        try blobs.removeOrphans(keeping: Set(records.map(\.blobID) + (try context.fetch(FetchDescriptor<ManagedApp>())).compactMap(\.noteBlobID)))
     }
 
     func validate(file: CredentialFile, parsed: ParsedCredential, app: ManagedApp?, team explicitTeam: DeveloperTeam? = nil, confirmUnknownTeam: Bool,
@@ -301,8 +286,8 @@ struct CredentialVault {
             let record = StoredCredential(file: file, parsed: parsed, app: app, team: team, savePassword: password != nil, p8: metadata)
             let payload = CredentialPayload(original: file.data, password: record.hasSavedPassword ? password : nil)
             let bytes = try JSONEncoder().encode(payload)
-            try blobs.write(bytes, id: record.id, key: key, authenticating: record.authenticatedData())
-            writtenID = record.id
+            try blobs.write(bytes, id: record.blobID, key: key, authenticating: record.authenticatedData())
+            writtenID = record.blobID
             context.insert(record)
             BackupHistory.record(in: context)
             try beforeCommit()
@@ -316,7 +301,7 @@ struct CredentialVault {
     }
 
     func read(_ record: StoredCredential, key: SymmetricKey) throws -> CredentialPayload {
-        let bytes = try blobs.read(record.blobID ?? record.id, key: key, authenticating: record.authenticatedData())
+        let bytes = try blobs.read(record.blobID, key: key, authenticating: record.authenticatedData())
         let payload = try JSONDecoder().decode(CredentialPayload.self, from: bytes)
         guard payload.version == 1, !payload.original.isEmpty, payload.original.count <= CredentialParser.maximumBytes,
               SHA256.hash(data: payload.original).map({ String(format: "%02x", $0) }).joined() == record.digest else {
@@ -362,7 +347,7 @@ final class VaultAccess {
         guard self.generation == generation, !Task.isCancelled else { throw VaultError.cancelled }
         if let vault {
             let management = VaultManagement(vault: vault)
-            try management.pruneExpired(key: key)
+            try management.pruneExpired()
             // Display-only metadata: a failure here must not block the requested operation.
             try? management.backfillSigningCertificates(key: key)
         }

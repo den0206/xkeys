@@ -39,17 +39,13 @@ struct BackupSnapshot: Codable, Sendable, Equatable {
         let hasSavedPassword: Bool
         let team: UUID
         let app: UUID?
-        let metadataVersion: Int
         let keyPurpose: String?
         let keyID: String?
         let issuerID: String?
-        let replacesCredentialID: UUID?
-        let replacedByID: UUID?
         let original: Data
         let password: String?
         var note: String? = nil
         var deletedAt: Date? = nil
-        var revokedAt: Date? = nil
     }
     var version: Int
     let createdAt: Date
@@ -81,11 +77,10 @@ struct BackupSnapshot: Codable, Sendable, Equatable {
                 fingerprint: record.fingerprint, sourceTeamID: record.sourceTeamID, bundleID: record.bundleID,
                 expiresAt: record.expiresAt, createdAt: record.createdAt, isTeamShared: record.isTeamShared,
                 hasSavedPassword: record.hasSavedPassword, team: team.id, app: record.app?.id,
-                metadataVersion: record.metadataVersion, keyPurpose: record.keyPurpose, keyID: record.keyID,
-                issuerID: record.issuerID, replacesCredentialID: record.replacesCredentialID, replacedByID: record.replacedByID,
-                original: payload.original, password: payload.password, note: payload.note, deletedAt: record.deletedAt, revokedAt: record.revokedAt))
+                keyPurpose: record.keyPurpose, keyID: record.keyID, issuerID: record.issuerID,
+                original: payload.original, password: payload.password, note: payload.note, deletedAt: record.deletedAt))
         }
-        let snapshot = BackupSnapshot(version: 3, createdAt: .now,
+        let snapshot = BackupSnapshot(version: 1, createdAt: .now,
                                       appVersion: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "development",
                                       teams: teams, apps: apps, credentials: credentials, preferences: try PreferencesStore.read(in: vault.context))
         try snapshot.validate()
@@ -115,11 +110,7 @@ struct BackupSnapshot: Codable, Sendable, Equatable {
 
     func validate() throws {
         guard apps.allSatisfy({ ($0.note?.utf8.count ?? 0) <= 65536 }), credentials.allSatisfy({ ($0.note?.utf8.count ?? 0) <= 65536 }) else { throw BackupError.tooLarge }
-        if version == 1 {
-            guard preferences == nil, apps.allSatisfy({ $0.note == nil && $0.deletedAt == nil && $0.iconColor == nil && $0.iconImage == nil }), credentials.allSatisfy({ $0.note == nil && $0.deletedAt == nil && $0.revokedAt == nil }) else { throw BackupError.invalid }
-        }
-        if version < 3 && apps.contains(where: { $0.parentAppID != nil }) { throw BackupError.invalid }
-        guard [1, 2, 3].contains(version), teams.count <= 1000, apps.count <= 10000, credentials.count <= 10000,
+        guard version == 1, teams.count <= 1000, apps.count <= 10000, credentials.count <= 10000,
               Set(teams.map(\.id)).count == teams.count, Set(teams.map(\.teamID)).count == teams.count,
               Set(apps.map(\.id)).count == apps.count, Set(credentials.map(\.id)).count == credentials.count,
               Set(credentials.map(\.registrationKey)).count == credentials.count else { throw BackupError.invalid }
@@ -127,7 +118,6 @@ struct BackupSnapshot: Codable, Sendable, Equatable {
         let teamValues = Dictionary(uniqueKeysWithValues: teams.map { ($0.id, $0) })
         let appValues = Dictionary(uniqueKeysWithValues: apps.map { ($0.id, $0) })
         let appTeams = Dictionary(uniqueKeysWithValues: apps.map { ($0.id, $0.team) })
-        let records = Dictionary(uniqueKeysWithValues: credentials.map { ($0.id, $0) })
         for team in teams {
             guard !team.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
                   team.teamID.range(of: "^[A-Z0-9]{10}$", options: .regularExpression) != nil else { throw BackupError.invalid }
@@ -153,8 +143,7 @@ struct BackupSnapshot: Codable, Sendable, Equatable {
         for record in credentials {
             totalBytes += record.original.count
             guard totalBytes <= BackupArchive.maximumPayloadBytes / 2 else { throw BackupError.tooLarge }
-            guard teamIDs.contains(record.team), record.metadataVersion == 1 || record.metadataVersion == 2,
-                  !record.original.isEmpty, record.original.count <= CredentialParser.maximumBytes,
+            guard teamIDs.contains(record.team), !record.original.isEmpty, record.original.count <= CredentialParser.maximumBytes,
                   BackupArchive.digest(record.original) == record.digest,
                   record.isTeamShared ? record.app == nil : record.app.map({ appTeams[$0] == record.team }) == true,
                   record.hasSavedPassword == (record.password != nil),
@@ -177,23 +166,6 @@ struct BackupSnapshot: Codable, Sendable, Equatable {
                 let metadata = try P8Metadata(purposes: purposes, keyID: keyID, issuerID: record.issuerID).validated()
                 guard metadata.issuerID == record.issuerID, metadata.storedPurpose == raw else { throw BackupError.invalid }
             } else if record.keyPurpose != nil || record.keyID != nil || record.issuerID != nil { throw BackupError.invalid }
-            if let old = record.replacesCredentialID {
-                guard old != record.id, let previous = records[old], previous.team == record.team, previous.app == record.app,
-                      previous.fileExtension == record.fileExtension, previous.keyPurpose == record.keyPurpose else { throw BackupError.invalid }
-            }
-            if let next = record.replacedByID {
-                guard next != record.id, let replacement = records[next], replacement.replacesCredentialID == record.id else { throw BackupError.invalid }
-            }
-        }
-        var finished = Set<UUID>()
-        for record in credentials {
-            var path = Set<UUID>()
-            var cursor: UUID? = record.id
-            while let id = cursor, !finished.contains(id) {
-                guard path.insert(id).inserted else { throw BackupError.invalid }
-                cursor = records[id]?.replacesCredentialID
-            }
-            finished.formUnion(path)
         }
     }
 }
@@ -217,7 +189,7 @@ enum BackupArchive {
     static let maximumPayloadBytes = 64 * 1024 * 1024
     static let maximumFileBytes = maximumPayloadBytes + 8192
     static let iterations: UInt32 = 600_000
-    private static let magic = Data("APPMATE\0".utf8)
+    private static let magic = Data("XKEYS\0\0\0".utf8)
     struct Header: Codable {
         let version: Int
         let protection: String

@@ -11,15 +11,10 @@ struct SavedAppleDeveloperSession: Codable {
 
     static func read(_ data: Data) throws -> Self {
         guard data.count <= maximumBytes else { throw AppleDeveloperError.sessionStorage }
-        if data.starts(with: Data("bplist00".utf8)) {
-            let saved = try PropertyListDecoder().decode(Self.self, from: data)
-            guard saved.version == 1, !saved.cookies.isEmpty, saved.cookies.count <= 262_144 else { throw AppleDeveloperError.sessionStorage }
-            try saved.account?.validate()
-            return saved
-        }
-        // Read the original cookie-only JSON without forcing another login.
-        guard (try? JSONSerialization.jsonObject(with: data)) is [[String: Any]] else { throw AppleDeveloperError.sessionStorage }
-        return Self(version: 1, cookies: data, account: nil)
+        let saved = try PropertyListDecoder().decode(Self.self, from: data)
+        guard saved.version == 1, !saved.cookies.isEmpty, saved.cookies.count <= 262_144 else { throw AppleDeveloperError.sessionStorage }
+        try saved.account?.validate()
+        return saved
     }
 
     func encoded() throws -> Data {

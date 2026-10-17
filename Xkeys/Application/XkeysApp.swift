@@ -9,7 +9,7 @@ struct XkeysApp: App {
     init() {
         container = Result {
             let testing = ProcessInfo.processInfo.environment["XKEYS_TESTING"] == "1"
-            return try ModelContainer(for: DeveloperTeam.self, ManagedApp.self, StoredCredential.self, VerificationRecord.self, BackupChange.self, BackupCheckpoint.self,
+            return try ModelContainer(for: DeveloperTeam.self, ManagedApp.self, StoredCredential.self, BackupChange.self, BackupCheckpoint.self,
                                       configurations: ModelConfiguration(isStoredInMemoryOnly: testing))
         }
     }

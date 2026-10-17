@@ -41,17 +41,3 @@ struct EncryptedBlobStore {
         }
     }
 }
-
-// Kept only so stores created by the removed verification screen still open; nothing writes it.
-@Model
-final class VerificationRecord {
-    @Attribute(.unique) var id: UUID
-    var createdAt: Date
-    var digest: String
-
-    init(id: UUID, digest: String) {
-        self.id = id
-        self.createdAt = .now
-        self.digest = digest
-    }
-}

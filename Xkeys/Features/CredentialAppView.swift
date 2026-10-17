@@ -616,8 +616,7 @@ struct CredentialAppView: View {
             Menu {
                 Button("書き出して Finder で表示") { export(record, revealInFinder: true) }
                 if record.fileExtension == "p8" {
-                    let linked = record.replacesCredentialID != nil || record.replacedByID != nil
-                    Button("用途を変更…") { editingPurposes = true }.disabled(linked)
+                    Button("用途を変更…") { editingPurposes = true }
                 }
                 if record.fileExtension == "p12" && record.hasSavedPassword {
                     if revealedPassword != nil { Button("パスワードを隠す") { revealedPassword = nil } }

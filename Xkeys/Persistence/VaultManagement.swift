@@ -8,7 +8,7 @@ struct VaultManagement {
     private var context: ModelContext { vault.context }
 
     static func noteAAD(_ app: ManagedApp) -> Data {
-        Data("AppMate-AppNote-v1|\(app.id)|\(app.team?.id.uuidString ?? "")".utf8)
+        Data("XkeysAppNote-v1|\(app.id)|\(app.team?.id.uuidString ?? "")".utf8)
     }
 
     func readNote(_ app: ManagedApp, key: SymmetricKey) throws -> String? {
@@ -68,8 +68,6 @@ struct VaultManagement {
         guard record.modelContext === context, record.fileExtension == "p8", record.deletedAt == nil, let keyID = record.keyID else {
             throw VaultError.invalidAssociation
         }
-        // Backups require a replacement pair to share purposes; keep that rule instead of loosening the format.
-        guard record.replacesCredentialID == nil, record.replacedByID == nil else { throw ManagementError.purposeLocked }
         let value = try P8Metadata(purposes: metadata.purposes, keyID: keyID, issuerID: metadata.issuerID).validated()
         guard !context.hasChanges else { throw RestoreError.pendingChanges }
         let payload = try vault.read(record, key: key)
@@ -79,7 +77,6 @@ struct VaultManagement {
         var staged = false
         do {
             try BackupHistory.prepare(in: context)
-            record.metadataVersion = 2
             record.keyPurpose = value.storedPurpose
             record.issuerID = value.issuerID
             record.name = "\(value.title)（\(keyID)）"
@@ -162,7 +159,7 @@ struct VaultManagement {
     }
 
     // The database commits first; unreferenced encrypted bytes are collected by recover().
-    func purge(records: [StoredCredential], apps: [ManagedApp], at now: Date = .now, expiredOnly: Bool = false, key: SymmetricKey? = nil) throws {
+    func purge(records: [StoredCredential], apps: [ManagedApp], at now: Date = .now, expiredOnly: Bool = false) throws {
         let cutoff = now.addingTimeInterval(-30 * 86400)
         let all = try vault.records()
         let children = Dictionary(grouping: all, by: { $0.app?.id })
@@ -176,40 +173,17 @@ struct VaultManagement {
             record.app.map { appIDs.contains($0.id) } == true || selectedIDs.contains(record.id)
         }
         guard !selected.isEmpty || !selectedApps.isEmpty else { return }
-        let deletedIDs = Set(selected.map(\.id))
-        let survivors = all.filter { !deletedIDs.contains($0.id) && $0.replacesCredentialID.map(deletedIDs.contains) == true }
-        if !survivors.isEmpty && key == nil { throw ManagementError.replacementInUse }
-        let payloads = try survivors.map { record -> (StoredCredential, CredentialPayload) in
-            guard let key else { throw ManagementError.replacementInUse }
-            return (record, try vault.read(record, key: key))
-        }
-        var staged: [UUID] = []
-        do {
-            try change {
-                for (record, payload) in payloads {
-                    guard let key else { throw ManagementError.replacementInUse }
-                    record.replacesCredentialID = nil
-                    let id = UUID()
-                    record.blobID = id
-                    try vault.blobs.write(JSONEncoder().encode(payload), id: id, key: key, authenticating: record.authenticatedData())
-                    staged.append(id)
-                    _ = try vault.read(record, key: key)
-                }
-                for record in all where record.replacedByID.map(deletedIDs.contains) == true { record.replacedByID = nil }
-                for record in selected { context.delete(record) }
-                for app in try context.fetch(FetchDescriptor<ManagedApp>()) where app.parentAppID.map(appIDs.contains) == true && !appIDs.contains(app.id) {
-                    app.parentAppID = nil
-                }
-                for app in selectedApps { app.team = nil; context.delete(app) }
+        try change {
+            for record in selected { context.delete(record) }
+            for app in try context.fetch(FetchDescriptor<ManagedApp>()) where app.parentAppID.map(appIDs.contains) == true && !appIDs.contains(app.id) {
+                app.parentAppID = nil
             }
-        } catch {
-            for id in staged { try? FileManager.default.removeItem(at: vault.blobs.file(id)) }
-            throw error
+            for app in selectedApps { app.team = nil; context.delete(app) }
         }
         try vault.recover()
     }
-    func pruneExpired(key: SymmetricKey? = nil) throws {
-        try purge(records: vault.records(), apps: context.fetch(FetchDescriptor<ManagedApp>()), expiredOnly: true, key: key)
+    func pruneExpired() throws {
+        try purge(records: vault.records(), apps: context.fetch(FetchDescriptor<ManagedApp>()), expiredOnly: true)
     }
 
     /// Reads embedded certificates of profiles and .p12 files stored before these fields existed (or restored from a backup).
@@ -235,13 +209,11 @@ struct VaultManagement {
 }
 
 enum ManagementError: LocalizedError {
-    case parentDeleted, teamNotEmpty, replacementInUse, purposeLocked
+    case parentDeleted, teamNotEmpty
     var errorDescription: String? {
         switch self {
         case .parentDeleted: String(localized: "先に、所属するアプリを復元してください。")
         case .teamNotEmpty: String(localized: "Appまたは共有資格情報が残っているTeamは削除できません。最近削除した項目も確認してください。")
-        case .replacementInUse: String(localized: "置き換え履歴で参照されています。新旧の関連項目を一緒に完全削除してください。")
-        case .purposeLocked: String(localized: "置き換え履歴のある鍵は、バックアップとの整合性を保つため用途を変更できません。")
         }
     }
 }

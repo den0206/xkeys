@@ -13,7 +13,6 @@ enum CIValue: CaseIterable {
     }
 }
 
-// Older versions also stored CI templates here; decoding ignores that key.
 struct AppPreferences: Codable, Equatable, Sendable {
     var showDockBadge = true
 }
