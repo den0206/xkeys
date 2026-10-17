@@ -42,6 +42,7 @@ The format follows Keep a Changelog conventions and releases use semantic versio
 
 - Adding an app whose Bundle ID belongs to an app in Recently Deleted now says so.
 - Notes can no longer be saved to an app in Recently Deleted.
+- Reading certificates in stored profiles and .p12 files, and reading a profile when adding an app, no longer blocks the main window.
 
 - Added English and Japanese READMEs, separate usage documentation, and a pre-publication documentation security review.
 

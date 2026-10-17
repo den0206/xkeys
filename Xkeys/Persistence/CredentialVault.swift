@@ -363,7 +363,8 @@ final class VaultAccess {
             let management = VaultManagement(vault: vault)
             try management.pruneExpired()
             // Display-only metadata: a failure here must not block the requested operation.
-            try? management.backfillSigningCertificates(key: key)
+            try? await management.backfillSigningCertificates(key: key)
+            guard self.generation == generation, !Task.isCancelled else { throw VaultError.cancelled }
         }
         return try operation(key)
     }

@@ -2727,7 +2727,7 @@ final class XkeysTests: XCTestCase {
     }
 
     @MainActor
-    func testBackfillReadsProfileCertificatesWithoutChangingAADOrBackupHistory() throws {
+    func testBackfillReadsProfileCertificatesWithoutChangingAADOrBackupHistory() async throws {
         let (vault, app, _, _) = try makeVault()
         let key = SymmetricKey(size: .bits256)
         let file = CredentialFile(data: try fixture("mobileprovision", name: "certs"), name: "certs.mobileprovision")
@@ -2741,7 +2741,7 @@ final class XkeysTests: XCTestCase {
         try vault.context.save()
         let history = try vault.context.fetchCount(FetchDescriptor<BackupChange>())
 
-        try VaultManagement(vault: vault).backfillSigningCertificates(key: key)
+        try await VaultManagement(vault: vault).backfillSigningCertificates(key: key)
         XCTAssertEqual(record.signingCertificateDigests, expected)
         XCTAssertEqual(try record.authenticatedData(), aad)
         XCTAssertEqual(try vault.read(record, key: key).original, file.data)
@@ -2750,7 +2750,7 @@ final class XkeysTests: XCTestCase {
     }
 
     @MainActor
-    func testBackfillMarksUnreadableProfileOnceAndKeepsOtherProfiles() throws {
+    func testBackfillMarksUnreadableProfileOnceAndKeepsOtherProfiles() async throws {
         let (vault, app, _, _) = try makeVault()
         let key = SymmetricKey(size: .bits256)
         let file = CredentialFile(data: try fixture("mobileprovision", name: "certs"), name: "certs.mobileprovision")
@@ -2759,7 +2759,7 @@ final class XkeysTests: XCTestCase {
         record.signingCertificateDigests = nil
         try vault.context.save()
         // A different key cannot decrypt the blob: the profile is marked "" and is not retried.
-        try VaultManagement(vault: vault).backfillSigningCertificates(key: SymmetricKey(size: .bits256))
+        try await VaultManagement(vault: vault).backfillSigningCertificates(key: SymmetricKey(size: .bits256))
         XCTAssertEqual(record.signingCertificateDigests, "")
         XCTAssertEqual(try vault.read(record, key: key).original, file.data)
     }
@@ -2839,7 +2839,7 @@ final class XkeysTests: XCTestCase {
     }
 
     @MainActor
-    func testBackfillReadsPKCS12CertificatesOnlyWithSavedPassword() throws {
+    func testBackfillReadsPKCS12CertificatesOnlyWithSavedPassword() async throws {
         let (vault, app, _, _) = try makeVault()
         defer { try? FileManager.default.removeItem(at: vault.blobs.directory) }
         let key = SymmetricKey(size: .bits256)
@@ -2860,7 +2860,7 @@ final class XkeysTests: XCTestCase {
         try vault.context.save()
         let history = try vault.context.fetchCount(FetchDescriptor<BackupChange>())
 
-        try VaultManagement(vault: vault).backfillSigningCertificates(key: key)
+        try await VaultManagement(vault: vault).backfillSigningCertificates(key: key)
         XCTAssertEqual(withPassword.p12Certificates, expected)
         XCTAssertNil(withoutPassword.p12Certificates)
         XCTAssertEqual(try withPassword.authenticatedData(), aad)

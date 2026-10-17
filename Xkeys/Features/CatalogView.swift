@@ -637,21 +637,23 @@ struct RegistrationForm: View {
     }
 
     private func readProfile(_ url: URL) {
-        let scoped = url.startAccessingSecurityScopedResource()
-        defer { if scoped { url.stopAccessingSecurityScopedResource() } }
-        do {
-            let ext = url.pathExtension.lowercased()
-            guard ["mobileprovision", "provisionprofile"].contains(ext) else { throw ValidationError.invalidFile }
-            let file = try CredentialFile(url: url)
-            let profile = try CredentialParser.parse(file.data, extension: ext)
-            guard let bundle = profile.bundleID, !bundle.contains("*") else { throw RegistrationError.invalidBundleID }
-            if let parentApp, let sourceTeam = profile.teamID, sourceTeam != parentApp.team?.teamID { throw VaultError.teamMismatch }
-            name = profile.name
-            identifier = bundle
-            self.profile = (url, bundle)
-            if parentApp == nil, let sourceTeam = profile.teamID { teamID = registeredTeams.first { $0.teamID == sourceTeam }?.id }
-            error = nil
-        } catch { self.error = error.localizedDescription }
+        Task { @MainActor in
+            do {
+                let ext = url.pathExtension.lowercased()
+                guard ["mobileprovision", "provisionprofile"].contains(ext) else { throw ValidationError.invalidFile }
+                // CredentialFile opens the security-scoped URL itself; reading and CMS decoding stay off the main actor.
+                let profile = try await Task.detached(priority: .userInitiated) {
+                    try CredentialParser.parse(CredentialFile(url: url).data, extension: ext)
+                }.value
+                guard let bundle = profile.bundleID, !bundle.contains("*") else { throw RegistrationError.invalidBundleID }
+                if let parentApp, let sourceTeam = profile.teamID, sourceTeam != parentApp.team?.teamID { throw VaultError.teamMismatch }
+                name = profile.name
+                identifier = bundle
+                self.profile = (url, bundle)
+                if parentApp == nil, let sourceTeam = profile.teamID { teamID = registeredTeams.first { $0.teamID == sourceTeam }?.id }
+                error = nil
+            } catch { self.error = error.localizedDescription }
+        }
     }
 
     private func save() {

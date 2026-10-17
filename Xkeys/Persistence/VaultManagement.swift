@@ -256,22 +256,35 @@ struct VaultManagement {
 
     /// Reads embedded certificates of profiles and .p12 files stored before these fields existed (or restored from a backup).
     /// A .p12 without a saved password stays unread. Not a user change, so it is not recorded in the backup history.
-    func backfillSigningCertificates(key: SymmetricKey) throws {
+    func backfillSigningCertificates(key: SymmetricKey) async throws {
         guard !context.hasChanges else { return }
         let records = try vault.records()
         let profiles = records.filter { $0.signingCertificateDigests == nil && ["mobileprovision", "provisionprofile"].contains($0.fileExtension) }
         let p12s = records.filter { $0.p12Certificates == nil && $0.fileExtension == "p12" && $0.hasSavedPassword }
         guard !profiles.isEmpty || !p12s.isEmpty else { return }
-        for record in profiles {
-            // An unreadable file gets "" (no links shown) so it is not decrypted again on every authentication.
-            let parsed = try? CredentialParser.parse(vault.read(record, key: key).original, extension: record.fileExtension)
-            record.signingCertificateDigests = parsed?.signingCertificateDigests?.joined(separator: ",") ?? ""
+        let targets = profiles + p12s
+        let payloads = targets.map { (extension: $0.fileExtension, payload: try? vault.read($0, key: key)) }
+        // PKCS#12 import blocks, so parsing runs off the main actor. An unreadable file gets "" (no links shown)
+        // so it is not decrypted again on every authentication.
+        let values = await Task.detached(priority: .utility) {
+            payloads.map { item -> String in
+                guard let payload = item.payload else { return "" }
+                if item.extension == "p12" {
+                    let parsed = try? CredentialParser.parseAll(payload.original, extension: "p12", password: payload.password ?? "")
+                    return parsed?.first?.p12Certificates.flatMap(StoredCredential.encode) ?? ""
+                }
+                let parsed = try? CredentialParser.parse(payload.original, extension: item.extension)
+                return parsed?.signingCertificateDigests?.joined(separator: ",") ?? ""
+            }
+        }.value
+        // Another operation may have committed or deleted records while parsing.
+        guard !context.hasChanges else { return }
+        for (record, value) in zip(targets, values) where record.modelContext === context {
+            if record.fileExtension == "p12" {
+                if record.p12Certificates == nil { record.p12Certificates = value }
+            } else if record.signingCertificateDigests == nil { record.signingCertificateDigests = value }
         }
-        for record in p12s {
-            let payload = try? vault.read(record, key: key)
-            let parsed = payload.flatMap { try? CredentialParser.parseAll($0.original, extension: "p12", password: $0.password ?? "") }
-            record.p12Certificates = parsed?.first?.p12Certificates.flatMap(StoredCredential.encode) ?? ""
-        }
+        guard context.hasChanges else { return }
         do { try context.save() } catch { context.rollback(); throw error }
     }
 }
