@@ -71,7 +71,7 @@ Apple DeveloperログインにはXcodesLoginKitのリビジョン `929f9aac3140c
 - 全画面の長文・多数件の表示（明るい表示に固定）、キーボードとVoiceOver
 - 実データでのプロファイル内証明書と.p12の同梱の証明書の読み直し（初回の所有者認証後）、複数証明書を含む.p12とプロファイルのつながりの表示と、ドロップ取り込み・Touch ID 1回での一括保存の通し操作
 - CI用Secretファイルの値をGitHub Actions等のSecretsに登録し、署名に使う通し操作
-- 配布版の公証・DMGからのインストールと起動（Developer ID署名での export とプロファイルの埋め込みは2026-10-17に確認。手順は [RELEASE.md](RELEASE.md)）
+- GitHub Actionsでのリリース（`release.yml`）の実行、公証・DMGからのインストールと起動。手動署名（`Xkeys Developer ID`）での export、署名なしでのテスト実行、ワークフローの構文は2026-10-17に手元で確認。手順は [RELEASE.md](RELEASE.md)
 
 既知の検証時警告は、AppIntents未使用によるメタデータ抽出省略、テスト内PKCS#12解析のメインスレッド警告、テスト終了後のOSログ収集権限警告。実装に不明点がある場合はSDKヘッダとApple公式資料を確認し、認証や暗号化を省略して回避しない。
 

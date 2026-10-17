@@ -33,6 +33,8 @@ F5のビルドはプロビジョニングプロファイルの自動更新を許
 
 Bundle IDはRelease `com.yuuki.xkeys`、Debug `com.yuuki.xkeys.dev`。開発ビルドは配布版とコンテナ・暗号鍵を共有しません。Bundle IDや署名Teamを変更すると、既存のコンテナ・暗号鍵をそのまま利用できない場合があります。データの移行にはバックアップを使用してください。
 
+ReleaseはDeveloper ID Applicationと手動管理のプロファイル `Xkeys Developer ID` で署名します。配布版はGitHub ActionsがビルドするのでF5の開発には影響しません。手元でReleaseをビルドする場合は、XcodeのSettings → Accountsで「Download Manual Profiles」を実行してください。
+
 ## アプリとターゲット
 
 本体・Share Extension・Widgetなど、Bundle IDが異なるターゲットを1つのアプリにまとめて管理できます。既存のAppはそのまま本体ターゲットになります。
@@ -79,7 +81,7 @@ Bundle IDはRelease `com.yuuki.xkeys`、Debug `com.yuuki.xkeys.dev`。開発ビ�
 
 - [仕様と保存形式](docs/DESIGN.md)：実装に対応する動作・制約・安全設計
 - [開発と確認状況](docs/IMPLEMENTATION.md)：コード構成、テスト手順、未確認項目
-- [リリース手順](docs/RELEASE.md)：バージョンの付け方、Developer ID署名・公証・DMG作成
+- [リリース手順](docs/RELEASE.md)：バージョンの付け方、GitHub ActionsでのDeveloper ID署名・公証・DMG作成とSecrets
 - [変更履歴](CHANGELOG.md)
 
 画面の確認範囲は[開発と確認状況](docs/IMPLEMENTATION.md)に記載しています。
