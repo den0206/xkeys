@@ -110,8 +110,7 @@ struct BackupView: View {
                                     .foregroundStyle(canSave ? XkeysStyle.successText : XkeysStyle.secondary)
                             }
                         }
-                        (Text("このパスワードは保存しません。") + Text("忘れると戻せなくなる").foregroundStyle(XkeysStyle.dangerText).fontWeight(.semibold)
-                         + Text("ので、パスワード管理アプリなどに控えてください。Mac のログインパスワードとは別にしてください。"))
+                        Text("このパスワードは保存しません。\(Text("忘れると戻せなくなる").foregroundStyle(XkeysStyle.dangerText).fontWeight(.semibold))ので、パスワード管理アプリなどに控えてください。Mac のログインパスワードとは別にしてください。")
                             .font(.system(size: 12)).foregroundStyle(XkeysStyle.secondary).fixedSize(horizontal: false, vertical: true)
                     }
                 } else {

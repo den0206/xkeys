@@ -2391,16 +2391,6 @@
         }
       }
     },
-    "このパスワードは保存しません。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "This password isn't saved. "
-          }
-        }
-      }
-    },
     "このファイルには秘密鍵と保存済みのパスワードが含まれます。外付けドライブなど、安全な場所に保管してください。" : {
       "localizations" : {
         "en" : {
@@ -2679,16 +2669,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "None"
-          }
-        }
-      }
-    },
-    "ので、パスワード管理アプリなどに控えてください。Mac のログインパスワードとは別にしてください。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : ", so keep it in a password manager. Use a different password from your Mac login."
           }
         }
       }
@@ -7950,6 +7930,19 @@
           }
         }
       }
+    },
+    "このパスワードは保存しません。%@ので、パスワード管理アプリなどに控えてください。Mac のログインパスワードとは別にしてください。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This password isn't saved. %@, so keep it in a password manager. Use a different password from your Mac login."
+          }
+        }
+      }
+    },
+    "%@%@" : {
+      "shouldTranslate" : false
     }
   },
   "version" : "1.0"

@@ -378,13 +378,13 @@ struct CatalogView: View {
             Text(app.name).fontWeight(.bold).lineLimit(1)
         } status: {
             Group {
-                if relevant.isEmpty { Text("まだファイルはありません").foregroundStyle(XkeysStyle.tertiary) + targets }
+                if relevant.isEmpty { Text.joined(Text("まだファイルはありません").foregroundStyle(XkeysStyle.tertiary), targets) }
                 else if attention {
-                    Text(Image(systemName: "circle.fill")).font(.system(size: 6)).foregroundStyle(expired ? XkeysStyle.danger : XkeysStyle.warningText)
-                    + Text(expired ? " 対応が必要" : " 期限が近い").foregroundStyle(expired ? XkeysStyle.dangerText : XkeysStyle.warningText) + targets
+                    Text.joined(Text(Image(systemName: "circle.fill")).font(.system(size: 6)).foregroundStyle(expired ? XkeysStyle.danger : XkeysStyle.warningText),
+                                Text(expired ? " 対応が必要" : " 期限が近い").foregroundStyle(expired ? XkeysStyle.dangerText : XkeysStyle.warningText), targets)
                 } else {
-                    Text(Image(systemName: "circle.fill")).font(.system(size: 6)).foregroundStyle(XkeysStyle.successText)
-                    + Text(" 問題なし").foregroundStyle(XkeysStyle.successText) + targets
+                    Text.joined(Text(Image(systemName: "circle.fill")).font(.system(size: 6)).foregroundStyle(XkeysStyle.successText),
+                                Text(" 問題なし").foregroundStyle(XkeysStyle.successText), targets)
                 }
             }.font(.system(size: 12))
         }
@@ -911,5 +911,12 @@ struct AppIcon: View {
             } else { XkeysStyle.appColor(app) }
         }.frame(width: size, height: size).clipShape(RoundedRectangle(cornerRadius: size / 4))
             .accessibilityHidden(true)
+    }
+}
+
+extension Text {
+    /// Replaces the deprecated `Text + Text`. Each part keeps its own styling; "%@%@" is not translated.
+    static func joined(_ first: Text, _ rest: Text...) -> Text {
+        rest.reduce(first) { Text("\($0)\($1)") }
     }
 }
