@@ -15,7 +15,7 @@ Apple Developer認証には[XcodesLoginKit](https://github.com/XcodesOrg/XcodesL
 1. リポジトリを開き、推奨拡張機能 **CodeLLDB** をインストールする。
 2. 「実行とデバッグ」で **Run Xkeys Debug.app** を選び、**F5** を押す。
 
-ビルドだけなら **⇧⌘B**。通常ビルドの出力先は `.build/xcode/Build/Products/Debug/Xkeys.app` です。
+ビルドだけなら **⇧⌘B**。通常ビルドの出力先は `.build/xcode/Build/Products/Debug/Xkeys Dev.app` です。
 
 ### Xcodeと署名
 
@@ -31,7 +31,7 @@ F5で `No Account for Team` / `No profiles` が出る場合は、最初に次の
 
 F5のビルドはプロビジョニングプロファイルの自動更新を許可しますが、Apple Accountの追加・再認証はXcodeで行う必要があります。
 
-Bundle IDはRelease `com.yuuki.xkeys`、Debug `com.yuuki.xkeys.dev`。DebugはDockやFinderで「Xkeys Dev」と表示します。開発ビルドは配布版とコンテナ・暗号鍵を共有しません。Bundle IDや署名Teamを変更すると、既存のコンテナ・暗号鍵をそのまま利用できない場合があります。データの移行にはバックアップを使用してください。
+Bundle IDはRelease `com.yuuki.xkeys`、Debug `com.yuuki.xkeys.dev`。Debugはアプリ名を「Xkeys Dev」にし、アイコンに「DEBUG」のリボンを付けているので、DockやFinder、メニューバーで配布版と区別できます。開発ビルドは配布版とコンテナ・暗号鍵を共有しません。Bundle IDや署名Teamを変更すると、既存のコンテナ・暗号鍵をそのまま利用できない場合があります。データの移行にはバックアップを使用してください。
 
 ReleaseはDeveloper ID Applicationと手動管理のプロファイル `Xkeys Developer ID` で署名します。配布版はGitHub ActionsがビルドするのでF5の開発には影響しません。手元でReleaseをビルドする場合は、XcodeのSettings → Accountsで「Download Manual Profiles」を実行してください。
 

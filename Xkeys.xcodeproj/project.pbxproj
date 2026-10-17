@@ -393,7 +393,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.yuuki.xkeys.tests;
 				PRODUCT_NAME = XkeysTests;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Xkeys.app/Contents/MacOS/Xkeys";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Xkeys Dev.app/Contents/MacOS/Xkeys Dev";
 			};
 			name = Debug;
 		};
@@ -442,7 +442,7 @@
 		B00CCDD09424E369308D67FA /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIconDev;
 				CODE_SIGN_ENTITLEMENTS = Xkeys/Xkeys.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
@@ -460,7 +460,7 @@
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = com.yuuki.xkeys.dev;
 				PRODUCT_MODULE_NAME = Xkeys;
-				PRODUCT_NAME = "Xkeys";
+				PRODUCT_NAME = "Xkeys Dev";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 			};
