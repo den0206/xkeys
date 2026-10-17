@@ -220,7 +220,7 @@ final class AppleDeveloperSession {
     }
 
     // Revalidates the session and team membership before each online team operation.
-    private func withTeam<T>(_ teamID: String, _ operation: (any AppleDeveloperTransport, UUID) async throws -> T) async throws -> T {
+    private func withTeam<T>(_ teamID: String, _ operation: @MainActor (any AppleDeveloperTransport, UUID) async throws -> T) async throws -> T {
         try await resume()
         guard teams.contains(where: { $0.teamID == teamID }), let transport else { throw AppleDeveloperError.teamAccessRequired }
         guard !busy else { throw AppleDeveloperError.busy }
