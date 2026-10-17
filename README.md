@@ -62,7 +62,7 @@ Details (Japanese): [Design and storage format](docs/DESIGN.md).
 
 ## Install
 
-Release builds are distributed through [this repository’s GitHub Releases](https://github.com/den0206/xkeys/releases). When a release is available, download `Xkeys-X.Y.Z.dmg`, open it, and move `Xkeys.app` to `/Applications`.
+Release builds are distributed through [this repository’s GitHub Releases](https://github.com/den0206/xkeys/releases). When a release is available, download `Xkeys-X.Y.Z.dmg`, open it, and drag `Xkeys.app` to `/Applications` along the arrow in the window. If you open Xkeys directly from the DMG, it shows how to move it first.
 
 You can also install it with [Homebrew](https://brew.sh). This repository serves as the tap:
 

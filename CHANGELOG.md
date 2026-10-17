@@ -8,11 +8,23 @@ The format follows Keep a Changelog conventions and releases use semantic versio
 
 ### Added
 
+- Guide mode for first-time developers: a five-step tour of the main window, “?” explanations beside profile, certificate, key, and Bundle ID headings, and a glossary. Turn it on from the toolbar, the onboarding, or Settings.
+
+- A step-by-step renewal guide from “How to Fix” that explains why files stopped working and links to Apple Developer, import, deletion, and backup.
+
+- A prompt to move Xkeys to the Applications folder when it is opened from the DMG or a translocated location, with a button that opens Finder.
+
+- A laid-out DMG window with a background that shows dragging Xkeys to Applications.
+
 - Homebrew cask (`brew tap den0206/xkeys https://github.com/den0206/xkeys && brew install --cask xkeys`).
 
 - Custom per-app key/value secrets with encrypted storage, authenticated editing and copying, dotenv export, and backup v1 support.
 
 ### Changed
+
+- The onboarding has four steps, adding an overview of certificates, keys, and profiles, and a guide mode switch on the last step. It can be shown again from Settings.
+
+- The welcome screen no longer mentions notifications, which Xkeys does not send.
 
 - Collapse custom secrets by default, add authenticated copying on app pages, and clarify saving multiple keys together.
 
