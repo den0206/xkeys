@@ -1,0 +1,181 @@
+name: Release
+
+on:
+  push:
+    branches: ['release/Ver_*']
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: xcode-27
+    timeout-minutes: 60
+    env:
+      BUILD_DIR: ${{ github.workspace }}/.build/release
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Resolve version and release notes
+        id: meta
+        run: |
+          VERSION="${GITHUB_REF_NAME#release/Ver_}"
+          if ! printf '%s' "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::Release branch must be release/Ver_X.Y.Z (received: $GITHUB_REF_NAME)"
+            exit 1
+          fi
+          if git ls-remote --exit-code --tags origin "refs/tags/v$VERSION" >/dev/null; then
+            echo "::error::v$VERSION is already released. Use the next version."
+            exit 1
+          fi
+          NOTES="$RUNNER_TEMP/notes.md"
+          awk -v v="$VERSION" '
+            index($0, "## [" v "]") == 1 { found = 1; next }
+            found && /^## \[/ { exit }
+            found { print }
+          ' CHANGELOG.md > "$NOTES"
+          if ! grep -q '[^[:space:]]' "$NOTES"; then
+            echo "::error::CHANGELOG.md has no '## [$VERSION]' section. Rename [Unreleased] before pushing."
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "notes=$NOTES" >> "$GITHUB_OUTPUT"
+          echo "dmg=$BUILD_DIR/Xkeys-$VERSION.dmg" >> "$GITHUB_OUTPUT"
+
+      - name: Require signing and notarization secrets
+        env:
+          BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
+          P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
+          BUILD_PROVISION_PROFILE_BASE64: ${{ secrets.BUILD_PROVISION_PROFILE_BASE64 }}
+          ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          for name in BUILD_CERTIFICATE_BASE64 P12_PASSWORD BUILD_PROVISION_PROFILE_BASE64 ASC_KEY_P8_BASE64 ASC_KEY_ID ASC_ISSUER_ID; do
+            if [ -z "${!name}" ]; then
+              echo "::error::$name is required for a signed release"
+              exit 1
+            fi
+          done
+
+      - name: Verify toolchain
+        run: |
+          xcodebuild -version
+          swift --version | grep -q 'Apple Swift version 6.4'
+
+      # The test host only needs injected keys, so CI runs it without the developer's signing identity.
+      - name: Run tests
+        run: |
+          xcodebuild -project Xkeys.xcodeproj -scheme Xkeys \
+            -destination 'platform=macOS,arch=arm64' \
+            -derivedDataPath "$RUNNER_TEMP/tests" CODE_SIGNING_ALLOWED=NO test
+
+      - name: Install certificate and provisioning profile
+        env:
+          BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
+          P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
+          BUILD_PROVISION_PROFILE_BASE64: ${{ secrets.BUILD_PROVISION_PROFILE_BASE64 }}
+        run: |
+          umask 077
+          KEYCHAIN="$RUNNER_TEMP/signing.keychain-db"
+          KEYCHAIN_PASSWORD="$(openssl rand -base64 32)"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          printf '%s' "$BUILD_CERTIFICATE_BASE64" | base64 --decode > "$RUNNER_TEMP/certificate.p12"
+          security import "$RUNNER_TEMP/certificate.p12" -k "$KEYCHAIN" -P "$P12_PASSWORD" -T /usr/bin/codesign
+          rm -f "$RUNNER_TEMP/certificate.p12"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" >/dev/null
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
+          security find-identity -v -p codesigning "$KEYCHAIN" | grep -q 'Developer ID Application' \
+            || { echo "::error::The .p12 does not contain a Developer ID Application identity"; exit 1; }
+
+          PROFILE="$RUNNER_TEMP/profile.provisionprofile"
+          printf '%s' "$BUILD_PROVISION_PROFILE_BASE64" | base64 --decode > "$PROFILE"
+          UUID="$(security cms -D -i "$PROFILE" | plutil -extract UUID raw -)"
+          NAME="$(security cms -D -i "$PROFILE" | plutil -extract Name raw -)"
+          [ "$NAME" = "Xkeys Developer ID" ] || { echo "::error::Expected profile 'Xkeys Developer ID', got '$NAME'"; exit 1; }
+          for dir in "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles" "$HOME/Library/MobileDevice/Provisioning Profiles"; do
+            mkdir -p "$dir"
+            cp "$PROFILE" "$dir/$UUID.provisionprofile"
+          done
+          echo "SIGNING_KEYCHAIN=$KEYCHAIN" >> "$GITHUB_ENV"
+          echo "PROFILE_UUID=$UUID" >> "$GITHUB_ENV"
+
+      - name: Prepare notarization key
+        env:
+          ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+        run: |
+          umask 077
+          mkdir -p "$RUNNER_TEMP/keys"
+          printf '%s' "$ASC_KEY_P8_BASE64" | base64 --decode > "$RUNNER_TEMP/keys/AuthKey_$ASC_KEY_ID.p8"
+          echo "ASC_KEY_PATH=$RUNNER_TEMP/keys/AuthKey_$ASC_KEY_ID.p8" >> "$GITHUB_ENV"
+
+      - name: Archive and export
+        run: |
+          xcodebuild -project Xkeys.xcodeproj -scheme Xkeys -configuration Release \
+            -destination 'generic/platform=macOS' -derivedDataPath "$RUNNER_TEMP/release" \
+            -archivePath "$BUILD_DIR/Xkeys.xcarchive" archive \
+            MARKETING_VERSION="${{ steps.meta.outputs.version }}" \
+            CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
+            OTHER_CODE_SIGN_FLAGS="--keychain $SIGNING_KEYCHAIN"
+          xcodebuild -exportArchive -archivePath "$BUILD_DIR/Xkeys.xcarchive" \
+            -exportOptionsPlist ExportOptions.plist -exportPath "$BUILD_DIR/export"
+          APP="$BUILD_DIR/export/Xkeys.app"
+          plutil -extract CFBundleShortVersionString raw "$APP/Contents/Info.plist" | grep -Fxq "${{ steps.meta.outputs.version }}"
+          codesign --verify --strict --verbose=2 "$APP"
+          echo "APP=$APP" >> "$GITHUB_ENV"
+
+      - name: Notarize and staple app
+        timeout-minutes: 20
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          ditto -c -k --keepParent --sequesterRsrc "$APP" "$RUNNER_TEMP/Xkeys.zip"
+          scripts/notarize.sh "$RUNNER_TEMP/Xkeys.zip"
+          xcrun stapler staple "$APP"
+          xcrun stapler validate "$APP"
+
+      - name: Create, sign, notarize and staple DMG
+        timeout-minutes: 20
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          DMG="${{ steps.meta.outputs.dmg }}"
+          STAGING="$RUNNER_TEMP/dmg"
+          mkdir -p "$STAGING"
+          ditto "$APP" "$STAGING/Xkeys.app"
+          ln -s /Applications "$STAGING/Applications"
+          hdiutil create -volname "Xkeys ${{ steps.meta.outputs.version }}" -srcfolder "$STAGING" -format UDZO -ov "$DMG"
+          codesign --force --timestamp --keychain "$SIGNING_KEYCHAIN" --sign "Developer ID Application" "$DMG"
+          scripts/notarize.sh "$DMG"
+          xcrun stapler staple "$DMG"
+          xcrun stapler validate "$DMG"
+          spctl -a -vv "$APP"
+          spctl -a -t open --context context:primary-signature -vv "$DMG"
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="${{ steps.meta.outputs.version }}"
+          gh release create "v$VERSION" "${{ steps.meta.outputs.dmg }}" \
+            --target "$GITHUB_SHA" --title "Xkeys $VERSION" \
+            --notes-file "${{ steps.meta.outputs.notes }}"
+
+      - name: Remove signing files
+        if: always()
+        run: |
+          if [ -n "${SIGNING_KEYCHAIN:-}" ]; then security delete-keychain "$SIGNING_KEYCHAIN" || true; fi
+          if [ -n "${PROFILE_UUID:-}" ]; then
+            rm -f "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles/$PROFILE_UUID.provisionprofile" \
+              "$HOME/Library/MobileDevice/Provisioning Profiles/$PROFILE_UUID.provisionprofile"
+          fi
+          rm -rf "$RUNNER_TEMP/keys" "$RUNNER_TEMP/profile.provisionprofile" "$RUNNER_TEMP/certificate.p12"
