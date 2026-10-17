@@ -68,9 +68,18 @@ Bundle IDはRelease `com.yuuki.xkeys`、Debug `com.yuuki.xkeys.dev`。開発ビ�
 
 秘密情報の操作はTouch IDまたはMacのパスワードで毎回認証します。バックアップは元ファイル・メモ・保存済みパスワード等を含むため、安全な場所で保管してください。パスワードなしの書き出しには再確認が必要です。
 
+## プライバシー
+
+- 鍵・証明書・プロファイル・メモ・.p12パスワードはこのMacにだけ保存し、AES-GCMで暗号化します。暗号鍵はこのMac専用のKeychainにあり、iCloud同期やほかの端末への移行はしません。
+- 通信先はApple（`idmsa.apple.com`・`developer.apple.com`・`appstoreconnect.apple.com`）だけです。ログイン・チーム確認・オンライン取り込み・.p8の用途取得の時に通信します。開発者や第三者のサーバーへは送信しません。
+- Apple Accountのパスワードと確認コードは保存しません。ログインセッションのCookieはこのMac専用のKeychainに保存し、ログアウトで削除します。
+- 解析・広告・トラッキングの仕組みはありません。
+
 ## ドキュメント
 
 - [仕様と保存形式](docs/DESIGN.md)：実装に対応する動作・制約・安全設計
 - [開発と確認状況](docs/IMPLEMENTATION.md)：コード構成、テスト手順、未確認項目
+- [リリース手順](docs/RELEASE.md)：バージョンの付け方、Developer ID署名・公証・DMG作成
+- [変更履歴](CHANGELOG.md)
 
 画面の確認範囲は[開発と確認状況](docs/IMPLEMENTATION.md)に記載しています。
