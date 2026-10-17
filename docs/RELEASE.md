@@ -49,33 +49,35 @@ Xkeys が出力する `APPLE_TEAM_ID` は登録しても構いませんが、ワ
 
 ## リリース
 
-1. `main` から `release/Ver_X.Y.Z` ブランチを作る。
-2. `CHANGELOG.md` の `## [Unreleased]` を `## [X.Y.Z] — YYYY-MM-DD` に変え、その上に空の `## [Unreleased]` を残してコミットする。この節がリリースノートになる。
-3. ブランチを push する。
+リリースノートは `CHANGELOG.md` の `## [Unreleased]` から自動で作ります。利用者に見える変更は、開発中に `[Unreleased]` へ英語で書いておきます。
+
+1. `main` から `release/Ver_X.Y.Z` ブランチを作り、push する。
 
 ```sh
 git switch -c release/Ver_0.1.0
-# CHANGELOG.md を編集してコミット
 git push origin release/Ver_0.1.0
 ```
 
-4. Actions の **Release** が成功すると、`vX.Y.Z` の GitHub Release に DMG が添付される。
-5. リリースブランチを `main` にマージし、CHANGELOG の変更を戻す。
+2. Actions の **Release**（check → build → publish）が成功すると、`vX.Y.Z` の GitHub Release に DMG が添付される。ノートは `[Unreleased]` の内容。
+3. 続けて CI が `main` の `CHANGELOG.md` で `[Unreleased]` の内容を `## [X.Y.Z] — YYYY-MM-DD` の下に移し、`[skip ci]` 付きでコミットする。
+
+`[Unreleased]` が空なら CI は最初に止まります。リリースブランチを作ったあとに `main` の `[Unreleased]` へ追記した項目も、`main` 側ではこのバージョンの節に入るので、必要なら手で直してください。`main` に保護ルールを設定する場合は、`github-actions[bot]` の push を許可してください。
 
 ## CI が行うこと
 
-1. ブランチ名からバージョンを取り出し、公開済みでないことと CHANGELOG の節を確認する
-2. 必要な Secrets が揃っているか確認する（欠けていれば署名前に止める）
-3. Swift 6.4 を確認し、署名なしでテストを実行する
-4. .p12 を一時キーチェーンに、プロファイルを Xcode のプロファイル置き場に入れる
-5. Release を archive し、`ExportOptions.plist`（developer-id・手動署名）で export する
-6. .app を zip にして公証し（`scripts/notarize.sh`）、staple する
-7. .app と `/Applications` へのリンクを入れた DMG を作り、Developer ID で署名・公証・staple する
-8. `spctl` で Gatekeeper の判定を確認する
-9. GitHub Release を作って DMG を添付する
-10. 成否にかかわらず一時キーチェーン・プロファイル・.p8 を削除する
+macOS の実行時間は Linux より高く数えられるため、macOS で動かすのはテスト・署名・公証・staple だけにしています。
 
-公証に失敗した場合は、Actions のログに Apple の判定結果（`notarytool log`）が出ます。
+| ジョブ | ランナー | 時間上限 | 内容 |
+| --- | --- | --- | --- |
+| check | Ubuntu | 5分 | ブランチ名からバージョンを取り出し、公開済みでないこと・`[Unreleased]` に内容があること・Secrets が揃っていることを確認する。失敗すれば macOS は起動しない |
+| build | macOS | 40分 | 署名なしでテスト → .p12 とプロファイルを一時キーチェーン等に入れる → archive・export（developer-id・手動署名） → DMG を作って Developer ID で署名 → DMG を1回だけ公証して staple → DMG を artifact に保存 → 成否にかかわらず一時キーチェーン・プロファイル・.p8 を削除 |
+| publish | Ubuntu | 10分 | GitHub Release を作って DMG を添付し、`main` の CHANGELOG で `[Unreleased]` を `[X.Y.Z]` の節に移してコミットする |
+
+- 公証は DMG だけに行います。中のアプリも同じ提出で公証されますが、チケットを staple するのは DMG だけです。DMG からコピーしたアプリを初めて開くときは、Gatekeeper がオンラインで公証を確認します。
+- 公証の待ち時間は15分まで（`scripts/notarize.sh`）です。Apple 側が混んで15分を超えたときや、却下されたときはジョブを失敗にし、Actions のログに Apple の判定（`notarytool log`）を出します。
+- 各ステップに時間上限があり、超えたりキャンセルしたりするとジョブは失敗します。GitHub Release は publish でしか作らないので、途中で止まっても中途半端なリリースは残りません。
+- 同じリリースブランチに新しく push すると、古い実行の check・build は取り消され、新しい実行だけが続きます。publish はすでに始まっていれば最後まで続けます（Release の作成と CHANGELOG の反映を途中で止めないため）。その場合、古いコミットが先に公開されるので、新しい実行は check の「公開済み」で止まります。修正は次のバージョンで出してください。
+- publish だけが失敗した場合は、Actions の「Re-run failed jobs」で publish だけをやり直せます。macOS で再ビルドはしません（DMG の artifact は3日間保存）。作成済みの Release や反映済みの CHANGELOG があれば、その処理は飛ばします。
 
 ## 手元での確認
 

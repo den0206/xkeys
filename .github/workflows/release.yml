@@ -5,18 +5,20 @@ on:
     branches: ['release/Ver_*']
 
 permissions:
-  contents: write
+  contents: read
 
-concurrency:
-  group: release-${{ github.ref }}
-  cancel-in-progress: false
-
+# macOS minutes cost several times Linux minutes, so only signing, notarization and stapling run on macOS.
+# A newer push to the same release branch cancels the older run's check and build (one group shared by both),
+# but never a publish that is already creating the Release or pushing the CHANGELOG.
 jobs:
-  release:
-    runs-on: xcode-27
-    timeout-minutes: 60
-    env:
-      BUILD_DIR: ${{ github.workspace }}/.build/release
+  check:
+    concurrency:
+      group: release-build-${{ github.ref }}
+      cancel-in-progress: true
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
     steps:
       - uses: actions/checkout@v7
 
@@ -32,19 +34,17 @@ jobs:
             echo "::error::v$VERSION is already released. Use the next version."
             exit 1
           fi
-          NOTES="$RUNNER_TEMP/notes.md"
-          awk -v v="$VERSION" '
-            index($0, "## [" v "]") == 1 { found = 1; next }
+          # The [Unreleased] section becomes the release notes; it is moved under [X.Y.Z] on main after publishing.
+          awk '
+            $0 == "## [Unreleased]" { found = 1; next }
             found && /^## \[/ { exit }
             found { print }
-          ' CHANGELOG.md > "$NOTES"
-          if ! grep -q '[^[:space:]]' "$NOTES"; then
-            echo "::error::CHANGELOG.md has no '## [$VERSION]' section. Rename [Unreleased] before pushing."
+          ' CHANGELOG.md > "$RUNNER_TEMP/notes.md"
+          if ! grep -q '[^[:space:]]' "$RUNNER_TEMP/notes.md"; then
+            echo "::error::CHANGELOG.md has nothing under '## [Unreleased]'. Add the changes for $VERSION before releasing."
             exit 1
           fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "notes=$NOTES" >> "$GITHUB_OUTPUT"
-          echo "dmg=$BUILD_DIR/Xkeys-$VERSION.dmg" >> "$GITHUB_OUTPUT"
 
       - name: Require signing and notarization secrets
         env:
@@ -62,28 +62,55 @@ jobs:
             fi
           done
 
+      - name: Save release notes
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-notes
+          path: ${{ runner.temp }}/notes.md
+          if-no-files-found: error
+          retention-days: 3
+
+  build:
+    needs: check
+    concurrency:
+      group: release-build-${{ github.ref }}
+      cancel-in-progress: true
+    runs-on: xcode-27
+    timeout-minutes: 40
+    env:
+      VERSION: ${{ needs.check.outputs.version }}
+      BUILD_DIR: ${{ github.workspace }}/.build/release
+    steps:
+      - uses: actions/checkout@v7
+
       - name: Verify toolchain
+        timeout-minutes: 2
         run: |
           xcodebuild -version
           swift --version | grep -q 'Apple Swift version 6.4'
 
       # The test host only needs injected keys, so CI runs it without the developer's signing identity.
       - name: Run tests
+        timeout-minutes: 15
         run: |
-          xcodebuild -project Xkeys.xcodeproj -scheme Xkeys \
+          xcodebuild -project Xkeys.xcodeproj -scheme Xkeys -quiet \
             -destination 'platform=macOS,arch=arm64' \
             -derivedDataPath "$RUNNER_TEMP/tests" CODE_SIGNING_ALLOWED=NO test
 
-      - name: Install certificate and provisioning profile
+      - name: Install certificate, provisioning profile and notarization key
+        timeout-minutes: 2
         env:
           BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
           P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
           BUILD_PROVISION_PROFILE_BASE64: ${{ secrets.BUILD_PROVISION_PROFILE_BASE64 }}
+          ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
         run: |
           umask 077
           KEYCHAIN="$RUNNER_TEMP/signing.keychain-db"
           KEYCHAIN_PASSWORD="$(openssl rand -base64 32)"
           security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          echo "SIGNING_KEYCHAIN=$KEYCHAIN" >> "$GITHUB_ENV"
           security set-keychain-settings -lut 21600 "$KEYCHAIN"
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
           printf '%s' "$BUILD_CERTIFICATE_BASE64" | base64 --decode > "$RUNNER_TEMP/certificate.p12"
@@ -99,76 +126,69 @@ jobs:
           UUID="$(security cms -D -i "$PROFILE" | plutil -extract UUID raw -)"
           NAME="$(security cms -D -i "$PROFILE" | plutil -extract Name raw -)"
           [ "$NAME" = "Xkeys Developer ID" ] || { echo "::error::Expected profile 'Xkeys Developer ID', got '$NAME'"; exit 1; }
+          echo "PROFILE_UUID=$UUID" >> "$GITHUB_ENV"
           for dir in "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles" "$HOME/Library/MobileDevice/Provisioning Profiles"; do
             mkdir -p "$dir"
             cp "$PROFILE" "$dir/$UUID.provisionprofile"
           done
-          echo "SIGNING_KEYCHAIN=$KEYCHAIN" >> "$GITHUB_ENV"
-          echo "PROFILE_UUID=$UUID" >> "$GITHUB_ENV"
+          rm -f "$PROFILE"
 
-      - name: Prepare notarization key
-        env:
-          ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
-          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
-        run: |
-          umask 077
           mkdir -p "$RUNNER_TEMP/keys"
           printf '%s' "$ASC_KEY_P8_BASE64" | base64 --decode > "$RUNNER_TEMP/keys/AuthKey_$ASC_KEY_ID.p8"
           echo "ASC_KEY_PATH=$RUNNER_TEMP/keys/AuthKey_$ASC_KEY_ID.p8" >> "$GITHUB_ENV"
 
       - name: Archive and export
+        timeout-minutes: 15
         run: |
-          xcodebuild -project Xkeys.xcodeproj -scheme Xkeys -configuration Release \
+          xcodebuild -project Xkeys.xcodeproj -scheme Xkeys -configuration Release -quiet \
             -destination 'generic/platform=macOS' -derivedDataPath "$RUNNER_TEMP/release" \
             -archivePath "$BUILD_DIR/Xkeys.xcarchive" archive \
-            MARKETING_VERSION="${{ steps.meta.outputs.version }}" \
+            MARKETING_VERSION="$VERSION" \
             CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
             OTHER_CODE_SIGN_FLAGS="--keychain $SIGNING_KEYCHAIN"
           xcodebuild -exportArchive -archivePath "$BUILD_DIR/Xkeys.xcarchive" \
             -exportOptionsPlist ExportOptions.plist -exportPath "$BUILD_DIR/export"
           APP="$BUILD_DIR/export/Xkeys.app"
-          plutil -extract CFBundleShortVersionString raw "$APP/Contents/Info.plist" | grep -Fxq "${{ steps.meta.outputs.version }}"
+          plutil -extract CFBundleShortVersionString raw "$APP/Contents/Info.plist" | grep -Fxq "$VERSION"
           codesign --verify --strict --verbose=2 "$APP"
           echo "APP=$APP" >> "$GITHUB_ENV"
 
-      - name: Notarize and staple app
-        timeout-minutes: 20
-        env:
-          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
-          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      - name: Create and sign DMG
+        timeout-minutes: 5
         run: |
-          ditto -c -k --keepParent --sequesterRsrc "$APP" "$RUNNER_TEMP/Xkeys.zip"
-          scripts/notarize.sh "$RUNNER_TEMP/Xkeys.zip"
-          xcrun stapler staple "$APP"
-          xcrun stapler validate "$APP"
-
-      - name: Create, sign, notarize and staple DMG
-        timeout-minutes: 20
-        env:
-          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
-          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
-        run: |
-          DMG="${{ steps.meta.outputs.dmg }}"
+          DMG="$BUILD_DIR/Xkeys-$VERSION.dmg"
           STAGING="$RUNNER_TEMP/dmg"
           mkdir -p "$STAGING"
           ditto "$APP" "$STAGING/Xkeys.app"
           ln -s /Applications "$STAGING/Applications"
-          hdiutil create -volname "Xkeys ${{ steps.meta.outputs.version }}" -srcfolder "$STAGING" -format UDZO -ov "$DMG"
+          # hdiutil occasionally reports "Resource busy" on hosted runners; retry instead of rerunning the whole job.
+          for attempt in 1 2 3; do
+            hdiutil create -volname "Xkeys $VERSION" -srcfolder "$STAGING" -format UDZO -ov "$DMG" && break
+            [ "$attempt" = 3 ] && exit 1
+            sleep 5
+          done
           codesign --force --timestamp --keychain "$SIGNING_KEYCHAIN" --sign "Developer ID Application" "$DMG"
+          echo "DMG=$DMG" >> "$GITHUB_ENV"
+
+      # One submission covers the DMG and the app inside it; only the DMG carries the stapled ticket.
+      - name: Notarize and staple DMG
+        timeout-minutes: 20
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
           scripts/notarize.sh "$DMG"
           xcrun stapler staple "$DMG"
           xcrun stapler validate "$DMG"
-          spctl -a -vv "$APP"
           spctl -a -t open --context context:primary-signature -vv "$DMG"
 
-      - name: Create GitHub Release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          VERSION="${{ steps.meta.outputs.version }}"
-          gh release create "v$VERSION" "${{ steps.meta.outputs.dmg }}" \
-            --target "$GITHUB_SHA" --title "Xkeys $VERSION" \
-            --notes-file "${{ steps.meta.outputs.notes }}"
+      - name: Save DMG
+        uses: actions/upload-artifact@v7
+        with:
+          name: dmg
+          path: ${{ env.DMG }}
+          if-no-files-found: error
+          retention-days: 3
 
       - name: Remove signing files
         if: always()
@@ -179,3 +199,53 @@ jobs:
               "$HOME/Library/MobileDevice/Provisioning Profiles/$PROFILE_UUID.provisionprofile"
           fi
           rm -rf "$RUNNER_TEMP/keys" "$RUNNER_TEMP/profile.provisionprofile" "$RUNNER_TEMP/certificate.p12"
+
+  # Runs on Linux so a failed upload or CHANGELOG push can be retried with "Re-run failed jobs" without rebuilding.
+  publish:
+    needs: [check, build]
+    concurrency:
+      group: release-publish-${{ github.ref }}
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ needs.check.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v8
+        with:
+          path: ${{ runner.temp }}/artifacts
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "v$VERSION" >/dev/null 2>&1; then
+            echo "::notice::v$VERSION already exists; skipping"
+            exit 0
+          fi
+          gh release create "v$VERSION" "$RUNNER_TEMP/artifacts/dmg/Xkeys-$VERSION.dmg" \
+            --target "$GITHUB_SHA" --title "Xkeys $VERSION" \
+            --notes-file "$RUNNER_TEMP/artifacts/release-notes/notes.md"
+
+      - name: Move released notes under the version on main
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git fetch --depth 1 origin main
+          git switch -f -C main FETCH_HEAD
+          if grep -Fq "## [$VERSION]" CHANGELOG.md; then
+            echo "::notice::CHANGELOG on main already has $VERSION"
+            exit 0
+          fi
+          awk -v v="$VERSION" -v d="$(date -u +%F)" '
+            !done && $0 == "## [Unreleased]" { print; print ""; print "## [" v "] — " d; done = 1; next }
+            { print }
+          ' CHANGELOG.md > "$RUNNER_TEMP/CHANGELOG.md"
+          mv "$RUNNER_TEMP/CHANGELOG.md" CHANGELOG.md
+          git add CHANGELOG.md
+          git commit -m "chore: v$VERSION の CHANGELOG を反映 [skip ci]"
+          git push origin main
