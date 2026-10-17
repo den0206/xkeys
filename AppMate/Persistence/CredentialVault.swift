@@ -121,8 +121,11 @@ final class StoredCredential {
         p12Certificates = parsed.p12Certificates.flatMap(Self.encode)
     }
 
+    /// Sorted keys keep the stored text identical when the same file is read again.
     static func encode(_ certificates: [ContainedCertificate]) -> String? {
-        (try? JSONEncoder().encode(certificates)).flatMap { String(data: $0, encoding: .utf8) }
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .sortedKeys
+        return (try? encoder.encode(certificates)).flatMap { String(data: $0, encoding: .utf8) }
     }
 
     init(restoring value: BackupSnapshot.Credential, team: DeveloperTeam, app: ManagedApp?) {
