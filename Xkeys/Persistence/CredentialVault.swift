@@ -195,7 +195,7 @@ struct CredentialPayload: Codable {
 
 enum VaultError: LocalizedError {
     case invalidAssociation, teamMismatch, bundleMismatch, confirmTeam, duplicate, unsupported, cancelled
-    case invalidKeyID, invalidIssuerID, missingPurpose
+    case invalidKeyID, invalidIssuerID, missingPurpose, undecryptable(String?)
 
     var errorDescription: String? {
         switch self {
@@ -209,6 +209,8 @@ enum VaultError: LocalizedError {
         case .invalidKeyID: String(localized: "Key IDは英大文字と数字の10文字で入力してください。")
         case .invalidIssuerID: String(localized: "App Store Connect APIのIssuer IDをUUID形式で入力してください。")
         case .missingPurpose: String(localized: ".p8の用途とKey IDを確認してください。App Store Connect APIはほかの用途と組み合わせられません。")
+        case .undecryptable(let name?): String(localized: "「\(name)」の保存データを復号できません。保存ファイルの破損か、暗号鍵の不一致が考えられます。バックアップから復元してください。")
+        case .undecryptable(nil): String(localized: "保存データを復号できません。保存ファイルの破損か、暗号鍵の不一致が考えられます。バックアップから復元してください。")
         }
     }
 }
@@ -301,7 +303,9 @@ struct CredentialVault {
     }
 
     func read(_ record: StoredCredential, key: SymmetricKey) throws -> CredentialPayload {
-        let bytes = try blobs.read(record.blobID, key: key, authenticating: record.authenticatedData())
+        let bytes: Data
+        do { bytes = try blobs.read(record.blobID, key: key, authenticating: record.authenticatedData()) }
+        catch VaultError.undecryptable { throw VaultError.undecryptable(record.originalName) }
         let payload = try JSONDecoder().decode(CredentialPayload.self, from: bytes)
         guard payload.version == 1, !payload.original.isEmpty, payload.original.count <= CredentialParser.maximumBytes,
               SHA256.hash(data: payload.original).map({ String(format: "%02x", $0) }).joined() == record.digest else {

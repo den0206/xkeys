@@ -29,7 +29,8 @@ struct EncryptedBlobStore {
         defer { try? handle.close() }
         let bytes = try handle.read(upToCount: CredentialParser.maximumBytes * 2 + 1) ?? Data()
         guard bytes.count <= CredentialParser.maximumBytes * 2 else { throw ValidationError.tooLarge }
-        return try AES.GCM.open(AES.GCM.SealedBox(combined: bytes), using: key, authenticating: aad)
+        do { return try AES.GCM.open(AES.GCM.SealedBox(combined: bytes), using: key, authenticating: aad) }
+        catch { throw VaultError.undecryptable(nil) }
     }
 
     func removeOrphans(keeping ids: Set<UUID>) throws {

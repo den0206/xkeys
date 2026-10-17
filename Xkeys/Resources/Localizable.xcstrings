@@ -6728,6 +6728,26 @@
           }
         }
       }
+    },
+    "「%@」の保存データを復号できません。保存ファイルの破損か、暗号鍵の不一致が考えられます。バックアップから復元してください。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Can't decrypt the stored data for “%@”. The stored file may be damaged or the encryption key doesn't match. Restore from a backup."
+          }
+        }
+      }
+    },
+    "保存データを復号できません。保存ファイルの破損か、暗号鍵の不一致が考えられます。バックアップから復元してください。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Can't decrypt the stored data. The stored file may be damaged or the encryption key doesn't match. Restore from a backup."
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

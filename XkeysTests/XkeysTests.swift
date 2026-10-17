@@ -2157,7 +2157,10 @@ final class XkeysTests: XCTestCase {
         XCTAssertEqual(try vault.context.fetchCount(FetchDescriptor<BackupChange>()), history + 1)
         _ = try BackupSnapshot.capture(vault: vault, key: key)
         record.keyPurpose = "apns,weatherkit"
-        XCTAssertThrowsError(try vault.read(record, key: key))
+        XCTAssertThrowsError(try vault.read(record, key: key)) { error in
+            guard case VaultError.undecryptable(record.originalName) = error else { return XCTFail("Unexpected error: \(error)") }
+            XCTAssertTrue(error.localizedDescription.contains(record.originalName))
+        }
         vault.context.rollback()
     }
 
