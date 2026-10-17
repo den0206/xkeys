@@ -53,7 +53,7 @@ ReleaseはDeveloper ID Applicationと手動管理のプロファイル `Xkeys De
 | `Xkeys/Features/` | 一覧・詳細、取り込み、編集・削除・メモ、バックアップ・復元、CIコピー、設定 |
 | `Xkeys/Services/` | ファイル解析、所有者認証、検索、一括取り込みの探索、設定 |
 | `Xkeys/Persistence/` | 暗号化blob、資格情報管理、バックアップ形式・復元・変更記録 |
-| `XkeysTests/` | XCTestと架空fixture。保存形式v1（AAD・バックアップ）を固定する確認も含む |
+| `XkeysTests/` | XCTestと架空fixture。保存形式v1（AAD・バックアップ）を固定する確認も含む。`XkeysTests.swift` に共通部品、領域ごとの `XkeysTests+*.swift` にテスト |
 
 製品メタデータはSwiftData、暗号化blobはApplication Supportの `XkeysVault/blobs`、暗号鍵は端末専用Keychainへ保存する。保存先はApp Sandboxのコンテナ内。Bundle IDや署名Teamの変更時は既存データへのアクセスに注意する。
 

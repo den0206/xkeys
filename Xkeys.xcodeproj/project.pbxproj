@@ -14,6 +14,11 @@
 		DE1000000000000000000002 /* Features/DropImportPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE2000000000000000000002 /* Features/DropImportPanel.swift */; };
 		3490D0655DC60B16ADB47404 /* Features/CatalogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22CAFBB626C0E80C30E7D31D /* Features/CatalogView.swift */; };
 		587854A59EFBF8969CAFD37F /* XkeysTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D37B9395C2BAF168F977CE9F /* XkeysTests.swift */; };
+		95F83B99CF97C0D3432558F8 /* XkeysTests+AppleDeveloper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B600E980BCDADBBB705E7D1 /* XkeysTests+AppleDeveloper.swift */; };
+		72A8F77CC43F05902466DC7D /* XkeysTests+Views.swift in Sources */ = {isa = PBXBuildFile; fileRef = BADDEB41460A837BFD767DA8 /* XkeysTests+Views.swift */; };
+		4C6A3154C31C3E4138BE82D9 /* XkeysTests+Parsing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A1B0E0BCB579F3C71712100 /* XkeysTests+Parsing.swift */; };
+		C45555B879368F6A51312CAF /* XkeysTests+Backup.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D868D548A53E2D3090F3B85 /* XkeysTests+Backup.swift */; };
+		026BD1408D73F68E89A87F34 /* XkeysTests+Vault.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4657864BD5B107DBA460A95B /* XkeysTests+Vault.swift */; };
 		8AAD9CB9833BC16230BD9766 /* Services/CredentialParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E1814744B33849C5EC9325F /* Services/CredentialParser.swift */; };
 		8F70FEAAA107ADEF37464932 /* Persistence/CredentialVault.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D0C25BD41FF872EF528DB22 /* Persistence/CredentialVault.swift */; };
 		AA1000000000000000000001 /* Resources/DesignAssets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AA1000000000000000000002 /* Resources/DesignAssets.xcassets */; };
@@ -36,6 +41,8 @@
 		BB0000000000000000000005 /* Features/CICopyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC0000000000000000000005 /* Features/CICopyView.swift */; };
 		BB0000000000000000000006 /* Services/ImportSources.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC0000000000000000000006 /* Services/ImportSources.swift */; };
 		D5AB3D6787FE83109935B0E3 /* Features/CredentialAppView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF4E022172D3641297064FC2 /* Features/CredentialAppView.swift */; };
+		36D919B97C096E2DE10C1246 /* Features/CredentialStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 079E62660B383338019EE79C /* Features/CredentialStatus.swift */; };
+		9BF5594434F1A60B98185BA1 /* Features/CredentialImportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14C06EA04903E64E725C70CB /* Features/CredentialImportView.swift */; };
 		FF69530A024A160084203937 /* Fixtures in Resources */ = {isa = PBXBuildFile; fileRef = 5B4818F81C7256E686BA2E05 /* Fixtures */; };
 		AD1000000000000000000000 /* Services/AppleDeveloperClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD2000000000000000000000; };
 		AD1000000000000000000001 /* Services/AppleDeveloperSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD2000000000000000000001; };
@@ -86,7 +93,14 @@
 		BFA38885211ADBBDEF2389B2 /* Persistence/EncryptedBlobStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Persistence/EncryptedBlobStore.swift; sourceTree = "<group>"; };
 		CCB32DA757F8CB91EA8A9F9D /* Xkeys.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Xkeys.entitlements; sourceTree = "<group>"; };
 		CF4E022172D3641297064FC2 /* Features/CredentialAppView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/CredentialAppView.swift; sourceTree = "<group>"; };
+		079E62660B383338019EE79C /* Features/CredentialStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/CredentialStatus.swift; sourceTree = "<group>"; };
+		14C06EA04903E64E725C70CB /* Features/CredentialImportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/CredentialImportView.swift; sourceTree = "<group>"; };
 		D37B9395C2BAF168F977CE9F /* XkeysTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XkeysTests.swift; sourceTree = "<group>"; };
+		0B600E980BCDADBBB705E7D1 /* XkeysTests+AppleDeveloper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "XkeysTests+AppleDeveloper.swift"; sourceTree = "<group>"; };
+		BADDEB41460A837BFD767DA8 /* XkeysTests+Views.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "XkeysTests+Views.swift"; sourceTree = "<group>"; };
+		4A1B0E0BCB579F3C71712100 /* XkeysTests+Parsing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "XkeysTests+Parsing.swift"; sourceTree = "<group>"; };
+		4D868D548A53E2D3090F3B85 /* XkeysTests+Backup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "XkeysTests+Backup.swift"; sourceTree = "<group>"; };
+		4657864BD5B107DBA460A95B /* XkeysTests+Vault.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "XkeysTests+Vault.swift"; sourceTree = "<group>"; };
 		E7F08BCC397888750F5CB9BD /* XkeysTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; path = XkeysTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		AD2000000000000000000000 /* Services/AppleDeveloperClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/AppleDeveloperClient.swift; sourceTree = "<group>"; };
 		AD2000000000000000000001 /* Services/AppleDeveloperSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/AppleDeveloperSession.swift; sourceTree = "<group>"; };
@@ -135,6 +149,11 @@
 			isa = PBXGroup;
 			children = (
 				D37B9395C2BAF168F977CE9F /* XkeysTests.swift */,
+				0B600E980BCDADBBB705E7D1 /* XkeysTests+AppleDeveloper.swift */,
+				BADDEB41460A837BFD767DA8 /* XkeysTests+Views.swift */,
+				4A1B0E0BCB579F3C71712100 /* XkeysTests+Parsing.swift */,
+				4D868D548A53E2D3090F3B85 /* XkeysTests+Backup.swift */,
+				4657864BD5B107DBA460A95B /* XkeysTests+Vault.swift */,
 				5B4818F81C7256E686BA2E05 /* Fixtures */,
 			);
 			path = XkeysTests;
@@ -163,6 +182,8 @@
 				BA0000000000000000000004 /* Features/BackupView.swift */,
 				BA0000000000000000000002 /* Persistence/BackupArchive.swift */,
 				CF4E022172D3641297064FC2 /* Features/CredentialAppView.swift */,
+				079E62660B383338019EE79C /* Features/CredentialStatus.swift */,
+				14C06EA04903E64E725C70CB /* Features/CredentialImportView.swift */,
 				1D0C25BD41FF872EF528DB22 /* Persistence/CredentialVault.swift */,
 				22CAFBB626C0E80C30E7D31D /* Features/CatalogView.swift */,
 				DE2000000000000000000002 /* Features/DropImportPanel.swift */,
@@ -275,6 +296,11 @@
 			buildActionMask = 2147483647;
 			files = (
 				587854A59EFBF8969CAFD37F /* XkeysTests.swift in Sources */,
+				95F83B99CF97C0D3432558F8 /* XkeysTests+AppleDeveloper.swift in Sources */,
+				72A8F77CC43F05902466DC7D /* XkeysTests+Views.swift in Sources */,
+				4C6A3154C31C3E4138BE82D9 /* XkeysTests+Parsing.swift in Sources */,
+				C45555B879368F6A51312CAF /* XkeysTests+Backup.swift in Sources */,
+				026BD1408D73F68E89A87F34 /* XkeysTests+Vault.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -302,6 +328,8 @@
 				BA0000000000000000000003 /* Features/BackupView.swift in Sources */,
 				BA0000000000000000000001 /* Persistence/BackupArchive.swift in Sources */,
 				D5AB3D6787FE83109935B0E3 /* Features/CredentialAppView.swift in Sources */,
+				36D919B97C096E2DE10C1246 /* Features/CredentialStatus.swift in Sources */,
+				9BF5594434F1A60B98185BA1 /* Features/CredentialImportView.swift in Sources */,
 				8F70FEAAA107ADEF37464932 /* Persistence/CredentialVault.swift in Sources */,
 				3490D0655DC60B16ADB47404 /* Features/CatalogView.swift in Sources */,
 				DE1000000000000000000002 /* Features/DropImportPanel.swift in Sources */,

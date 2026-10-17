@@ -31,7 +31,7 @@ xcodebuild -project Xkeys.xcodeproj -scheme Xkeys \
   -derivedDataPath /tmp/xkeys-tests test
 ```
 
-テストは `XkeysTests/XkeysTests.swift` の `XkeysTests` クラスにまとまっています。1件だけ実行する場合は `test` の前に `-only-testing:XkeysTests/XkeysTests/testName` を付けます。
+テストは `XkeysTests` クラス1つにまとまっています。共通のヘルパーと架空の部品は `XkeysTests/XkeysTests.swift` に、テストは領域ごとの extension（`XkeysTests+AppleDeveloper`・`+Backup`・`+Parsing`・`+Vault`・`+Views`）に置きます。1件だけ実行する場合は `test` の前に `-only-testing:XkeysTests/XkeysTests/testName` を付けます。
 
 実行は Xcode の `My Mac`、または CodeLLDB を導入した VS Code / Cursor の F5 を使います。秘密情報の操作には Apple Development 署名が必要です。両ターゲットの Team を合わせ、署名設定は README に従ってください。
 
