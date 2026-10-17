@@ -589,7 +589,7 @@ final class XkeysTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: vault.blobs.directory) }
         let catalog = AppCatalog(context: vault.context)
         let teamID = try XCTUnwrap(root.team?.id)
-        let id = try catalog.addApp(name: "Share", bundleID: "com.example.AppMate.fixture.share", platform: "iOS", teamID: teamID, parentAppID: root.id)
+        let id = try catalog.addApp(name: "Share", bundleID: "com.example.Xkeys.fixture.share", platform: "iOS", teamID: teamID, parentAppID: root.id)
         XCTAssertThrowsError(try catalog.addApp(name: "Wrong Team", bundleID: "com.example.wrong", platform: "iOS", teamID: teamID, parentAppID: other.id))
         let child = try XCTUnwrap(root.targets.first { $0.id == id })
         XCTAssertEqual(child.product.id, root.id)
@@ -2390,7 +2390,7 @@ final class XkeysTests: XCTestCase {
             let old = try ModelContainer(for: DeveloperTeam.self, ManagedApp.self, VerificationRecord.self, configurations: configuration)
             let context = ModelContext(old)
             let team = DeveloperTeam(name: "Existing Team", teamID: "TESTTEAM01")
-            let app = ManagedApp(name: "Existing App", bundleID: "com.example.AppMate.fixture", platform: "macOS", team: team)
+            let app = ManagedApp(name: "Existing App", bundleID: "com.example.Xkeys.fixture", platform: "macOS", team: team)
             context.insert(app)
             try context.save()
             return (team.id, app.id)
@@ -2423,7 +2423,7 @@ final class XkeysTests: XCTestCase {
         context.autosaveEnabled = false
         let team = DeveloperTeam(name: "Fixture Team", teamID: "TESTTEAM01")
         let otherTeam = DeveloperTeam(name: "Other Team", teamID: "TESTTEAM02")
-        let first = ManagedApp(name: "First", bundleID: "com.example.AppMate.fixture", platform: "macOS", team: team)
+        let first = ManagedApp(name: "First", bundleID: "com.example.Xkeys.fixture", platform: "macOS", team: team)
         let sibling = ManagedApp(name: "Sibling", bundleID: "com.example.other", platform: "iOS", team: team)
         let other = ManagedApp(name: "Other", bundleID: first.bundleID, platform: "macOS", team: otherTeam)
         context.insert(first); context.insert(sibling); context.insert(other)
@@ -2640,9 +2640,9 @@ final class XkeysTests: XCTestCase {
     func testSignedProfileMetadata() throws {
         let data = try fixture("mobileprovision")
         let value = try CredentialParser.parse(data, extension: "mobileprovision")
-        XCTAssertEqual(value.name, "App Mate Test Profile")
+        XCTAssertEqual(value.name, "Xkeys Test Profile")
         XCTAssertEqual(value.teamID, "TESTTEAM01")
-        XCTAssertEqual(value.bundleID, "com.example.AppMate.fixture")
+        XCTAssertEqual(value.bundleID, "com.example.Xkeys.fixture")
         XCTAssertEqual(value.expiresAt, Date(timeIntervalSince1970: 1_893_456_000))
     }
 
@@ -2814,7 +2814,7 @@ final class XkeysTests: XCTestCase {
         let apns = p8File()
         try vault.importFile(apns, parsed: CredentialParser.parse(apns.data, extension: "p8"), app: nil, team: team, password: nil,
                              confirmUnknownTeam: true, key: key, p8: P8Metadata(purposes: [.apns, .weatherKit], keyID: "DUMMYKEY02", issuerID: nil))
-        let child = ManagedApp(name: "Share", bundleID: "com.example.AppMate.fixture.share-ext", platform: "iOS", team: team)
+        let child = ManagedApp(name: "Share", bundleID: "com.example.Xkeys.fixture.share-ext", platform: "iOS", team: team)
         child.parentAppID = app.id
         vault.context.insert(child)
         let childProfile = StoredCredential(file: CredentialFile(data: Data("child-profile".utf8), name: "child.mobileprovision"),
@@ -2913,7 +2913,7 @@ final class XkeysTests: XCTestCase {
     func testProfileTamperAndUnsignedPlistRejected() throws {
         let data = try fixture("mobileprovision")
         var bytes = data
-        let marker = Data("App Mate Test Profile".utf8)
+        let marker = Data("Xkeys Test Profile".utf8)
         let range = try XCTUnwrap(bytes.range(of: marker))
         bytes[range.lowerBound] ^= 1
         XCTAssertThrowsError(try CredentialParser.parse(bytes, extension: "mobileprovision"))
@@ -2956,7 +2956,7 @@ final class XkeysTests: XCTestCase {
     func testCertificateAndPKCS12() throws {
         let certificate = try CredentialParser.parse(fixture("cer"), extension: "cer")
         let identity = try CredentialParser.parse(fixture("p12"), extension: "p12", password: "fixture-only")
-        XCTAssertEqual(certificate.name, "App Mate Test Only")
+        XCTAssertEqual(certificate.name, "Xkeys Test Only")
         XCTAssertEqual(identity.name, certificate.name)
         XCTAssertEqual(certificate.teamID, "TESTTEAM01")
         XCTAssertEqual(identity.teamID, "TESTTEAM01")
@@ -2990,7 +2990,7 @@ final class XkeysTests: XCTestCase {
         let url = try XCTUnwrap(Bundle(for: Self.self).url(forResource: "chain", withExtension: "p12", subdirectory: "Fixtures"))
         let data = try Data(contentsOf: url)
         let candidates = try CredentialParser.parseAll(data, extension: "p12", password: "fixture-only")
-        XCTAssertEqual(Set(candidates.map(\.name)), ["App Mate Chain Leaf", "App Mate Chain Root"])
+        XCTAssertEqual(Set(candidates.map(\.name)), ["Xkeys Chain Leaf", "Xkeys Chain Root"])
         XCTAssertEqual(Set(candidates.compactMap(\.fingerprint)).count, 2)
         XCTAssertThrowsError(try CredentialParser.parse(data, extension: "p12", password: "fixture-only"))
     }
