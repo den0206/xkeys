@@ -6,6 +6,10 @@ The format follows Keep a Changelog conventions and releases use semantic versio
 
 ## [Unreleased]
 
+### Added
+
+- Encrypted per-app key/value storage with validation and backup v1 support.
+
 ### Changed
 
 - Warn during import when a .p12 contains the same certificates as an existing or queued item, even if its password or filename differs.

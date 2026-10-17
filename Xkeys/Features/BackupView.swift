@@ -85,7 +85,7 @@ struct BackupView: View {
                     Text("バックアップが必要な変更があります。作成開始後の変更は今回の保存には含まれません。")
                         .foregroundStyle(XkeysStyle.secondary)
                 }
-                Text("このファイルには秘密鍵と保存済みのパスワードが含まれます。外付けドライブなど、安全な場所に保管してください。")
+                Text("このファイルには秘密鍵・保存済みパスワード・任意Secretが含まれます。外付けドライブなど、安全な場所に保管してください。")
                     .foregroundStyle(XkeysStyle.secondary)
                 HStack { Spacer(); Button("閉じる") { dismiss() }.keyboardShortcut(.defaultAction).buttonStyle(XkeysButtonStyle(primary: true)) }
             } else {
@@ -114,7 +114,7 @@ struct BackupView: View {
                             .font(.system(size: 12)).foregroundStyle(XkeysStyle.secondary).fixedSize(horizontal: false, vertical: true)
                     }
                 } else {
-                    Label("暗号化されません。ファイルを持つ人は秘密鍵・保存済みパスワードを取り出せます。作成前に再確認します。", systemImage: "exclamationmark.triangle")
+                    Label("暗号化されません。ファイルを持つ人は秘密鍵・保存済みパスワード・任意Secretを取り出せます。作成前に再確認します。", systemImage: "exclamationmark.triangle")
                         .foregroundStyle(XkeysStyle.warningText)
                 }
                 DisclosureGroup("そのほかの設定") {
@@ -168,7 +168,7 @@ struct BackupView: View {
             Button("保護なしで作成…", role: .destructive) { save() }
             Button("キャンセル", role: .cancel) {}
         } message: {
-            Text("ファイルを持つ人は秘密鍵や保存済み.p12パスワードを取り出せます。安全な保存先を選んでください。")
+            Text("ファイルを持つ人は秘密鍵・保存済み.p12パスワード・任意Secretを取り出せます。安全な保存先を選んでください。")
         }
         .onChange(of: protected) { _, _ in password = ""; confirmation = ""; error = nil }
         .onDisappear { cancel() }

@@ -107,6 +107,11 @@ enum CISecretError: LocalizedError {
         }
     }
 
+    nonisolated static func validateName(_ name: String) throws {
+        guard name.range(of: "^[A-Za-z_][A-Za-z0-9_]{0,127}$", options: .regularExpression) == name.startIndex..<name.endIndex else { throw CISecretError.invalidName(name) }
+        guard !name.uppercased().hasPrefix("GITHUB_") else { throw CISecretError.reservedName(name) }
+    }
+
     /// GitHub treats secret names case-insensitively and reserves the GITHUB_ prefix.
     static func validate(_ entries: [CISecretEntry]) throws {
         let included = entries.filter(\.included)
@@ -114,8 +119,7 @@ enum CISecretError: LocalizedError {
         var names = Set<String>()
         for entry in included {
             let name = entry.name.trimmingCharacters(in: .whitespaces)
-            guard name.range(of: "^[A-Za-z_][A-Za-z0-9_]{0,127}$", options: .regularExpression) != nil else { throw CISecretError.invalidName(entry.name) }
-            guard !name.uppercased().hasPrefix("GITHUB_") else { throw CISecretError.reservedName(name) }
+            try validateName(name)
             guard names.insert(name.uppercased()).inserted else { throw CISecretError.duplicateName(name) }
         }
     }

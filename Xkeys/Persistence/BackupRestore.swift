@@ -92,7 +92,7 @@ struct RestorePlan: Sendable {
         }
         let apps = try source.apps.map { value -> BackupSnapshot.App in
             guard let id = appIDs[value.id], let team = teamIDs[value.team] else { throw BackupError.invalid }
-            return .init(id: id, name: value.name, bundleID: value.bundleID, platform: value.platform, team: team, createdAt: value.createdAt, deletedAt: value.deletedAt, note: value.note, parentAppID: value.parentAppID.flatMap { appIDs[$0] }, iconColor: value.iconColor, iconImage: value.iconImage)
+            return .init(id: id, name: value.name, bundleID: value.bundleID, platform: value.platform, team: team, createdAt: value.createdAt, deletedAt: value.deletedAt, note: value.note, parentAppID: value.parentAppID.flatMap { appIDs[$0] }, iconColor: value.iconColor, iconImage: value.iconImage, customSecrets: value.customSecrets)
         }
         let credentials = try source.credentials.map { value -> BackupSnapshot.Credential in
             guard let id = credentialIDs[value.id], let team = teamIDs[value.team] else { throw BackupError.invalid }
@@ -117,7 +117,7 @@ struct RestorePlan: Sendable {
         for app in apps {
             let local = localApps[app.id]
             func summary(_ value: BackupSnapshot.App) -> String { String(localized: "\(value.name) · \(value.bundleID) · \(value.platform) · 所属 \(value.parentAppID.flatMap { id in apps.first { $0.id == id }?.name } ?? String(localized: "独立したアプリ")) · 登録 \(value.createdAt.formatted())") }
-            items.append(Item(kind: .app, target: app.id, title: "App · \(app.bundleID)", detail: String(localized: "表示名・所属アプリ・プラットフォーム・アイコン・登録日時・メモ（非表示）・削除状態"),
+            items.append(Item(kind: .app, target: app.id, title: "App · \(app.bundleID)", detail: String(localized: "表示名・所属アプリ・プラットフォーム・アイコン・登録日時・メモと任意Secret（非表示）・削除状態"),
                               current: local.map(summary), incoming: summary(app),
                               state: local == nil ? .added : local == app ? .duplicate : .conflict))
         }
@@ -249,6 +249,20 @@ struct BackupRestore {
                     staged.append(id)
                     app.noteBlobID = id
                 } else { app.noteBlobID = nil }
+            }
+            for value in final.apps where value.customSecrets != oldApps[value.id]?.customSecrets {
+                guard let app = apps[value.id] else { throw BackupError.invalid }
+                if let secrets = value.customSecrets, !secrets.isEmpty {
+                    let id = UUID()
+                    try vault.blobs.write(JSONEncoder().encode(secrets), id: id, key: key, authenticating: VaultManagement.customSecretsAAD(app))
+                    staged.append(id)
+                    app.customSecretsBlobID = id
+                    app.customSecretNames = secrets.map(\.name).joined(separator: "\n")
+                    guard try VaultManagement(vault: vault).readCustomSecrets(app, key: key) == secrets else { throw BackupError.invalid }
+                } else {
+                    app.customSecretsBlobID = nil
+                    app.customSecretNames = nil
+                }
             }
             if final.preferences != current.preferences, let prefs = final.preferences {
                 try PreferencesStore.assign(prefs, in: context)

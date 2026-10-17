@@ -2,10 +2,76 @@ import CryptoKit
 import Foundation
 import SwiftData
 
+struct AppSecret: Codable, Sendable, Equatable {
+    var name: String
+    var value: String
+
+    static func validate(_ secrets: [AppSecret]) throws {
+        guard secrets.count <= 100 else { throw ValidationError.tooLarge }
+        var names = Set<String>()
+        var bytes = 0
+        for secret in secrets {
+            try CISecretFile.validateName(secret.name)
+            guard names.insert(secret.name.uppercased()).inserted else { throw CISecretError.duplicateName(secret.name) }
+            bytes += secret.name.utf8.count + secret.value.utf8.count
+            guard secret.value.utf8.count <= 65536, bytes <= 262144 else { throw ValidationError.tooLarge }
+            guard !secret.value.contains("\0") else { throw ValidationError.invalidFile }
+        }
+    }
+}
+
 @MainActor
 struct VaultManagement {
     let vault: CredentialVault
     private var context: ModelContext { vault.context }
+
+    static func customSecretsAAD(_ app: ManagedApp) -> Data {
+        Data("XkeysAppSecrets-v1|\(app.id)|\(app.team?.id.uuidString ?? "")".utf8)
+    }
+
+    func readCustomSecrets(_ app: ManagedApp, key: SymmetricKey) throws -> [AppSecret] {
+        guard app.modelContext === context, app.team != nil else { throw VaultError.invalidAssociation }
+        guard let id = app.customSecretsBlobID else {
+            guard app.customSecretNames == nil else { throw ValidationError.invalidFile }
+            return []
+        }
+        let bytes = try vault.blobs.read(id, key: key, authenticating: Self.customSecretsAAD(app))
+        guard bytes.count <= 2_097_152 else { throw ValidationError.tooLarge }
+        let secrets = try JSONDecoder().decode([AppSecret].self, from: bytes)
+        try AppSecret.validate(secrets)
+        guard secrets.map(\.name).joined(separator: "\n") == app.customSecretNames else { throw ValidationError.invalidFile }
+        return secrets
+    }
+
+    func saveCustomSecrets(_ secrets: [AppSecret], app: ManagedApp, key: SymmetricKey, beforeCommit: () throws -> Void = {}) throws {
+        guard app.modelContext === context, app.team != nil, app.deletedAt == nil else { throw VaultError.invalidAssociation }
+        guard !context.hasChanges else { throw RestoreError.pendingChanges }
+        let secrets = secrets.map { AppSecret(name: $0.name.trimmingCharacters(in: .whitespaces), value: $0.value) }
+        try AppSecret.validate(secrets)
+        context.autosaveEnabled = false
+        var staged: UUID?
+        do {
+            try BackupHistory.prepare(in: context)
+            if secrets.isEmpty {
+                app.customSecretsBlobID = nil
+                app.customSecretNames = nil
+            } else {
+                let id = UUID()
+                try vault.blobs.write(JSONEncoder().encode(secrets), id: id, key: key, authenticating: Self.customSecretsAAD(app))
+                staged = id
+                app.customSecretsBlobID = id
+                app.customSecretNames = secrets.map(\.name).joined(separator: "\n")
+                guard try readCustomSecrets(app, key: key) == secrets else { throw ValidationError.invalidFile }
+            }
+            BackupHistory.record(in: context)
+            try beforeCommit()
+            try context.save()
+        } catch {
+            context.rollback()
+            if let staged { try? FileManager.default.removeItem(at: vault.blobs.file(staged)) }
+            throw error
+        }
+    }
 
     static func noteAAD(_ app: ManagedApp) -> Data {
         Data("XkeysAppNote-v1|\(app.id)|\(app.team?.id.uuidString ?? "")".utf8)

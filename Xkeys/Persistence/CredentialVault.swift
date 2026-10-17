@@ -251,14 +251,14 @@ struct CredentialVault {
     }
 
     func canCreateKey() throws -> Bool {
-        guard try records().isEmpty, (try context.fetch(FetchDescriptor<ManagedApp>())).allSatisfy({ $0.noteBlobID == nil }) else { return false }
+        guard try records().isEmpty, (try context.fetch(FetchDescriptor<ManagedApp>())).allSatisfy({ $0.noteBlobID == nil && $0.customSecretsBlobID == nil && $0.customSecretNames == nil }) else { return false }
         guard FileManager.default.fileExists(atPath: blobs.directory.path) else { return true }
         return try FileManager.default.contentsOfDirectory(atPath: blobs.directory.path).isEmpty
     }
 
     func recover() throws {
         let records = try records()
-        try blobs.removeOrphans(keeping: Set(records.map(\.blobID) + (try context.fetch(FetchDescriptor<ManagedApp>())).compactMap(\.noteBlobID)))
+        try blobs.removeOrphans(keeping: Set(records.map(\.blobID) + (try context.fetch(FetchDescriptor<ManagedApp>())).flatMap { [$0.noteBlobID, $0.customSecretsBlobID].compactMap { $0 } }))
     }
 
     func validate(file: CredentialFile, parsed: ParsedCredential, app: ManagedApp?, team explicitTeam: DeveloperTeam? = nil, confirmUnknownTeam: Bool,

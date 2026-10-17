@@ -706,6 +706,98 @@ final class XkeysTests: XCTestCase {
     }
 
     @MainActor
+    func testCustomSecretsEncryptValidateRollbackRecoverAndDeleteWithApp() throws {
+        let (vault, app, sibling, _) = try makeVault()
+        defer { try? FileManager.default.removeItem(at: vault.blobs.directory) }
+        let manager = VaultManagement(vault: vault)
+        let key = SymmetricKey(size: .bits256)
+        let secrets = [AppSecret(name: "DATABASE_PASSWORD", value: "secret-value-sentinel"), AppSecret(name: "EMPTY", value: "")]
+        XCTAssertEqual(try manager.readCustomSecrets(app, key: key), [])
+        try manager.saveCustomSecrets(secrets, app: app, key: key)
+        XCTAssertEqual(try manager.readCustomSecrets(app, key: key), secrets)
+        XCTAssertEqual(try manager.readCustomSecrets(sibling, key: key), [])
+        XCTAssertFalse(try vault.canCreateKey())
+        let originalID = try XCTUnwrap(app.customSecretsBlobID)
+        let bytes = try Data(contentsOf: vault.blobs.file(originalID))
+        XCTAssertNil(bytes.range(of: Data(secrets[0].value.utf8)))
+        XCTAssertThrowsError(try manager.readCustomSecrets(app, key: SymmetricKey(size: .bits256)))
+        try vault.recover()
+        XCTAssertTrue(FileManager.default.fileExists(atPath: vault.blobs.file(originalID).path))
+        let before = try BackupSnapshot.capture(vault: vault, key: key)
+        XCTAssertThrowsError(try manager.saveCustomSecrets([AppSecret(name: "URL", value: "new")], app: app, key: key, beforeCommit: { throw ValidationError.invalidFile }))
+        XCTAssertEqual(app.customSecretsBlobID, originalID)
+        XCTAssertEqual(try BackupSnapshot.capture(vault: vault, key: key).revision(), try before.revision())
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(at: vault.blobs.directory, includingPropertiesForKeys: nil).count, 1)
+        for invalid in [[AppSecret(name: "A", value: "1"), AppSecret(name: "a", value: "2")],
+                        [AppSecret(name: "A\n", value: "1")], [AppSecret(name: "GITHUB_TOKEN", value: "1")],
+                        [AppSecret(name: "VALUE", value: "\0")], [AppSecret(name: "VALUE", value: String(repeating: "x", count: 65537))]] {
+            XCTAssertThrowsError(try manager.saveCustomSecrets(invalid, app: app, key: key))
+        }
+        app.customSecretNames = "OTHER"
+        XCTAssertThrowsError(try manager.readCustomSecrets(app, key: key))
+        vault.context.rollback()
+        sibling.customSecretsBlobID = originalID
+        sibling.customSecretNames = app.customSecretNames
+        XCTAssertThrowsError(try manager.readCustomSecrets(sibling, key: key))
+        vault.context.rollback()
+        try manager.trash(app, key: key)
+        try manager.restore(app)
+        XCTAssertEqual(try manager.readCustomSecrets(app, key: key), secrets)
+        try manager.purge(records: [], apps: [])
+        try manager.trash(app, key: key)
+        try manager.purge(records: [], apps: [app])
+        XCTAssertFalse(FileManager.default.fileExists(atPath: vault.blobs.file(originalID).path))
+    }
+
+    @MainActor
+    func testCustomSecretsBackupV1RestoreConflictsAndLegacyDefaults() async throws {
+        let (vault, app, _, _) = try makeVault()
+        let (destination, target, _, _) = try makeVault()
+        defer {
+            try? FileManager.default.removeItem(at: vault.blobs.directory)
+            try? FileManager.default.removeItem(at: destination.blobs.directory)
+        }
+        let key = SymmetricKey(size: .bits256)
+        let secrets = [AppSecret(name: "HOTPEPPER_API_KEY", value: "fixture-only")]
+        try VaultManagement(vault: vault).saveCustomSecrets(secrets, app: app, key: key)
+        let snapshot = try BackupSnapshot.capture(vault: vault, key: key)
+        XCTAssertEqual(snapshot.version, 1)
+        let data = try BackupArchive.encode(snapshot, password: "fixture-backup")
+        XCTAssertNil(data.range(of: Data("fixture-only".utf8)))
+        let decoded = try BackupArchive.decode(data, password: "fixture-backup")
+        XCTAssertEqual(decoded, snapshot)
+        XCTAssertEqual(try snapshot.selecting(appIDs: [app.id]).apps.first { $0.id == app.id }?.customSecrets, secrets)
+        let restorer = BackupRestore(vault: destination)
+        let plan = try restorer.prepare(decoded, key: key)
+        let choices = Dictionary(uniqueKeysWithValues: plan.conflicts.map { ($0.id, RestoreChoice.backup) })
+        let authorization = try await restoreAuthorization(for: plan)
+        XCTAssertThrowsError(try restorer.merge(plan, choices: choices, authorization: authorization, key: key, beforeCommit: { throw ValidationError.invalidFile }))
+        XCTAssertNil(target.customSecretsBlobID)
+        _ = try restorer.merge(plan, choices: choices, authorization: authorization, key: key)
+        XCTAssertEqual(try VaultManagement(vault: destination).readCustomSecrets(target, key: key), secrets)
+        try VaultManagement(vault: destination).saveCustomSecrets([AppSecret(name: "HOTPEPPER_API_KEY", value: "different")], app: target, key: key)
+        let conflict = try restorer.prepare(decoded, key: key)
+        XCTAssertTrue(conflict.conflicts.contains { $0.target == target.id })
+        let before = try BackupSnapshot.capture(vault: destination, key: key)
+        try VaultManagement(vault: destination).saveCustomSecrets([], app: target, key: key)
+        XCTAssertNil(target.customSecretsBlobID)
+        XCTAssertThrowsError(try conflict.merged(with: BackupSnapshot.capture(vault: destination, key: key), choices: [:]))
+        XCTAssertNotEqual(try before.revision(), try BackupSnapshot.capture(vault: destination, key: key).revision())
+        var json = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(snapshot)) as? [String: Any])
+        var apps = try XCTUnwrap(json["apps"] as? [[String: Any]])
+        for index in apps.indices { apps[index].removeValue(forKey: "customSecrets") }
+        json["apps"] = apps
+        let legacy = try JSONDecoder().decode(BackupSnapshot.self, from: JSONSerialization.data(withJSONObject: json))
+        try legacy.validate()
+        XCTAssertTrue(legacy.apps.allSatisfy { $0.customSecrets == nil })
+        var badApps = snapshot.apps
+        let index = try XCTUnwrap(badApps.firstIndex { $0.id == app.id })
+        badApps[index].customSecrets = [AppSecret(name: "bad key", value: "fixture-only")]
+        let invalid = BackupSnapshot(version: 1, createdAt: .now, appVersion: "test", teams: snapshot.teams, apps: badApps, credentials: snapshot.credentials)
+        XCTAssertThrowsError(try invalid.validate())
+    }
+
+    @MainActor
     func testP12DuplicateCandidatesCompareAllCertificatesWithinTeamWithoutChangingV1Data() throws {
         let (vault, app, _, other) = try makeVault()
         defer { try? FileManager.default.removeItem(at: vault.blobs.directory) }

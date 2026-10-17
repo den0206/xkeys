@@ -26,6 +26,8 @@ final class ManagedApp {
     var createdAt: Date
     var deletedAt: Date?
     var noteBlobID: UUID?
+    var customSecretsBlobID: UUID?
+    var customSecretNames: String?
     var parentAppID: UUID?
     var iconColor: String?
     var iconImage: Data?

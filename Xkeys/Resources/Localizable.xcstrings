@@ -1,6 +1,46 @@
 {
   "sourceLanguage" : "ja",
   "strings" : {
+    "表示名・所属アプリ・プラットフォーム・アイコン・登録日時・メモと任意Secret（非表示）・削除状態" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Name, parent app, platform, icon, registration date, notes and custom secrets (hidden), and deletion status"
+          }
+        }
+      }
+    },
+    "このファイルには秘密鍵・保存済みパスワード・任意Secretが含まれます。外付けドライブなど、安全な場所に保管してください。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This file contains private keys, saved passwords, and custom secrets. Keep it in a secure location, such as an external drive."
+          }
+        }
+      }
+    },
+    "暗号化されません。ファイルを持つ人は秘密鍵・保存済みパスワード・任意Secretを取り出せます。作成前に再確認します。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This file is not encrypted. Anyone with it can extract private keys, saved passwords, and custom secrets. You will be asked to confirm before creating it."
+          }
+        }
+      }
+    },
+    "ファイルを持つ人は秘密鍵・保存済み.p12パスワード・任意Secretを取り出せます。安全な保存先を選んでください。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Anyone with this file can extract private keys, saved .p12 passwords, and custom secrets. Choose a secure location."
+          }
+        }
+      }
+    },
     "同じ証明書構成の.p12が登録済み、または追加待ちです：%@" : {
       "localizations" : {
         "en" : {

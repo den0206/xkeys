@@ -21,6 +21,7 @@ struct BackupSnapshot: Codable, Sendable, Equatable {
         var parentAppID: UUID? = nil
         var iconColor: String? = nil
         var iconImage: Data? = nil
+        var customSecrets: [AppSecret]? = nil
     }
     struct Credential: Codable, Sendable, Equatable {
         let id: UUID
@@ -60,9 +61,13 @@ struct BackupSnapshot: Codable, Sendable, Equatable {
         let teams = try vault.context.fetch(FetchDescriptor<DeveloperTeam>()).map {
             Team(id: $0.id, name: $0.name, teamID: $0.teamID)
         }
+        var customBytes = 0
         let apps = try vault.context.fetch(FetchDescriptor<ManagedApp>()).map { app in
             guard let team = app.team else { throw VaultError.invalidAssociation }
-            return App(id: app.id, name: app.name, bundleID: app.bundleID, platform: app.platform, team: team.id, createdAt: app.createdAt, deletedAt: app.deletedAt, note: try VaultManagement(vault: vault).readNote(app, key: key), parentAppID: app.parentAppID, iconColor: app.iconColor, iconImage: app.iconImage)
+            let secrets = try VaultManagement(vault: vault).readCustomSecrets(app, key: key)
+            customBytes += secrets.reduce(0) { $0 + $1.name.utf8.count + $1.value.utf8.count }
+            guard customBytes <= BackupArchive.maximumPayloadBytes / 4 else { throw BackupError.tooLarge }
+            return App(id: app.id, name: app.name, bundleID: app.bundleID, platform: app.platform, team: team.id, createdAt: app.createdAt, deletedAt: app.deletedAt, note: try VaultManagement(vault: vault).readNote(app, key: key), parentAppID: app.parentAppID, iconColor: app.iconColor, iconImage: app.iconImage, customSecrets: secrets.isEmpty ? nil : secrets)
         }
         var credentials: [Credential] = []
         var originalBytes = 0
@@ -124,7 +129,11 @@ struct BackupSnapshot: Codable, Sendable, Equatable {
         }
         var appKeys = Set<String>()
         var iconBytes = 0
+        var customBytes = 0
         for app in apps {
+            try AppSecret.validate(app.customSecrets ?? [])
+            customBytes += (app.customSecrets ?? []).reduce(0) { $0 + $1.name.utf8.count + $1.value.utf8.count }
+            guard customBytes <= BackupArchive.maximumPayloadBytes / 4 else { throw BackupError.tooLarge }
             let bytes = app.iconImage?.count ?? 0
             iconBytes += bytes
             guard bytes <= 1_048_576, iconBytes <= BackupArchive.maximumPayloadBytes / 4, app.iconColor.map(AppCatalog.iconColors.contains) ?? true else { throw BackupError.tooLarge }
