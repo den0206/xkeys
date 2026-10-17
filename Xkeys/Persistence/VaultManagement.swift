@@ -86,8 +86,10 @@ struct VaultManagement {
     }
 
     func saveNote(_ note: String, app: ManagedApp, key: SymmetricKey, beforeCommit: () throws -> Void = {}) throws {
-        guard note.utf8.count <= 65536, app.modelContext === context else { throw ValidationError.tooLarge }
+        guard app.modelContext === context, app.deletedAt == nil else { throw VaultError.invalidAssociation }
+        guard note.utf8.count <= 65536 else { throw ValidationError.tooLarge }
         guard !context.hasChanges else { throw RestoreError.pendingChanges }
+        context.autosaveEnabled = false
         let id = UUID()
         var staged = false
         do {

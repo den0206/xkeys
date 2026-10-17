@@ -2698,6 +2698,35 @@ final class XkeysTests: XCTestCase {
     }
 
     @MainActor
+    func testAppNoteRejectsTrashedApp() throws {
+        let (vault, app, _, _) = try makeVault()
+        defer { try? FileManager.default.removeItem(at: vault.blobs.directory) }
+        let key = SymmetricKey(size: .bits256)
+        let management = VaultManagement(vault: vault)
+        try management.trash(app, key: key)
+        XCTAssertThrowsError(try management.saveNote("note", app: app, key: key)) { error in
+            guard case VaultError.invalidAssociation = error else { return XCTFail("Unexpected error: \(error)") }
+        }
+        XCTAssertNil(app.noteBlobID)
+        XCTAssertFalse(vault.context.hasChanges)
+    }
+
+    @MainActor
+    func testAddingAppWithBundleIDOfTrashedAppPointsToRecentlyDeleted() throws {
+        let (vault, app, _, _) = try makeVault()
+        defer { try? FileManager.default.removeItem(at: vault.blobs.directory) }
+        let catalog = AppCatalog(context: vault.context)
+        let teamID = try XCTUnwrap(app.team?.id)
+        XCTAssertThrowsError(try catalog.addApp(name: "Again", bundleID: app.bundleID, platform: "macOS", teamID: teamID)) { error in
+            guard case RegistrationError.duplicateApp = error else { return XCTFail("Unexpected error: \(error)") }
+        }
+        try VaultManagement(vault: vault).trash(app, key: SymmetricKey(size: .bits256))
+        XCTAssertThrowsError(try catalog.addApp(name: "Again", bundleID: app.bundleID.uppercased(), platform: "macOS", teamID: teamID)) { error in
+            guard case RegistrationError.deletedDuplicateApp = error else { return XCTFail("Unexpected error: \(error)") }
+        }
+    }
+
+    @MainActor
     func testBackfillReadsProfileCertificatesWithoutChangingAADOrBackupHistory() throws {
         let (vault, app, _, _) = try makeVault()
         let key = SymmetricKey(size: .bits256)

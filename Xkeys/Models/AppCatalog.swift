@@ -62,7 +62,7 @@ final class ManagedApp {
 }
 
 enum RegistrationError: LocalizedError {
-    case nameRequired, invalidTeamID, duplicateTeam, invalidBundleID, duplicateApp, invalidPlatform, teamMissing, invalidParent
+    case nameRequired, invalidTeamID, duplicateTeam, invalidBundleID, duplicateApp, deletedDuplicateApp, invalidPlatform, teamMissing, invalidParent
 
     var errorDescription: String? {
         switch self {
@@ -72,6 +72,7 @@ enum RegistrationError: LocalizedError {
         case .duplicateTeam: String(localized: "このTeam IDは登録済みです。既存のTeamを選択してください。")
         case .invalidBundleID: String(localized: "Bundle IDは英数字・ハイフン・ピリオドで入力してください（例：com.example.app）。ワイルドカードは使えません。")
         case .duplicateApp: String(localized: "このTeamには同じBundle IDのAppが登録されています。")
+        case .deletedDuplicateApp: String(localized: "同じBundle IDのAppが「最近削除した項目」にあります。復元するか、完全に削除してから登録してください。")
         case .invalidPlatform: String(localized: "プラットフォームを選択してください。")
         case .teamMissing: String(localized: "登録先のTeamを選択してください。")
         }
@@ -131,7 +132,9 @@ struct AppCatalog {
         }
         let key = teamID.uuidString + ":" + bundleID.lowercased()
         let existing = try context.fetch(FetchDescriptor<ManagedApp>())
-        guard !existing.contains(where: { $0.registrationKey == key }) else { throw RegistrationError.duplicateApp }
+        if let duplicate = existing.first(where: { $0.registrationKey == key }) {
+            throw duplicate.deletedAt == nil ? RegistrationError.duplicateApp : RegistrationError.deletedDuplicateApp
+        }
         if let parentAppID {
             guard existing.contains(where: { $0.id == parentAppID && $0.team?.id == teamID && $0.parentAppID == nil && $0.deletedAt == nil }) else { throw RegistrationError.invalidParent }
         }

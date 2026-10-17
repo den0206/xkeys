@@ -7838,6 +7838,16 @@
           }
         }
       }
+    },
+    "同じBundle IDのAppが「最近削除した項目」にあります。復元するか、完全に削除してから登録してください。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "An app with the same Bundle ID is in Recently Deleted. Restore it, or delete it permanently before adding it again."
+          }
+        }
+      }
     }
   },
   "version" : "1.0"
