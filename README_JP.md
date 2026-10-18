@@ -74,8 +74,11 @@ Apple開発者向けの鍵・証明書・プロビジョニングプロファイ
 
 ```sh
 brew tap den0206/xkeys https://github.com/den0206/xkeys
+brew trust --cask den0206/xkeys/xkeys
 brew install --cask xkeys
 ```
+
+Homebrewは、公式以外のtapのCaskを信頼する操作をしてから読み込みます。`brew trust --cask` は、tap全体ではなくこのCaskだけを信頼します。
 
 `brew uninstall --cask --zap xkeys` を実行すると、暗号化した保管庫を含むアプリのコンテナ（`~/Library/Containers/com.yuuki.xkeys`）も削除されます。先にバックアップを作成してください。Keychainの暗号鍵とApple Developerのセッションは削除されません。
 

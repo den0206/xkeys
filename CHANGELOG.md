@@ -18,7 +18,7 @@ The format follows Keep a Changelog conventions and releases use semantic versio
 
 - A laid-out DMG window with a background that shows dragging Xkeys to Applications.
 
-- Homebrew cask (`brew tap den0206/xkeys https://github.com/den0206/xkeys && brew install --cask xkeys`).
+- Homebrew cask (`brew tap den0206/xkeys https://github.com/den0206/xkeys && brew trust --cask den0206/xkeys/xkeys && brew install --cask xkeys`).
 
 - Settings shows the app version and build number at the bottom.
 

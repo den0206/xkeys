@@ -74,8 +74,11 @@ You can also install it with [Homebrew](https://brew.sh). This repository serves
 
 ```sh
 brew tap den0206/xkeys https://github.com/den0206/xkeys
+brew trust --cask den0206/xkeys/xkeys
 brew install --cask xkeys
 ```
+
+Homebrew loads casks from third-party taps only after you trust them; `brew trust --cask` trusts just this cask, not every cask the tap may add later.
 
 `brew uninstall --cask --zap xkeys` also deletes the app’s container (`~/Library/Containers/com.yuuki.xkeys`), including the encrypted vault. Create a backup first. The encryption key and Apple Developer session in the Keychain are not removed.
 

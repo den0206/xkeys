@@ -85,9 +85,11 @@ macOS の実行時間は Linux より高く数えられるため、macOS で動�
 
 ```sh
 brew tap den0206/xkeys https://github.com/den0206/xkeys
+brew trust --cask den0206/xkeys/xkeys
 brew install --cask xkeys
 ```
 
+- Homebrew は公式以外の tap の Cask を `brew trust` するまで読み込みません（`Refusing to load cask ... from untrusted tap`）。手順には Cask だけを信頼する `brew trust --cask` を載せます。
 - Homebrew は認証なしで DMG を取得するため、リポジトリが Private のあいだはインストールできません。
 - リリースのたびに、CI が `version` と `sha256` の2行だけを書き換えます。そのほかの定義（`url`、`depends_on`、`zap` など）を変えるときは `Casks/xkeys.rb` を直接編集し、`brew audit --cask --strict` と `brew style` で確認します。Homebrew は tap 内の Cask しか検査しないため、`brew tap-new --no-git` で作った一時 tap にコピーして実行し、終わったら `brew untap` します。
 - `zap` は App Sandbox のコンテナ `~/Library/Containers/com.yuuki.xkeys` を丸ごと削除します（暗号化した保管庫を含む）。Keychain の暗号鍵と Apple Developer の Cookie は Cask から削除できないので残ります。
