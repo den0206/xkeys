@@ -6,6 +6,8 @@ The format follows Keep a Changelog conventions and releases use semantic versio
 
 ## [Unreleased]
 
+## [0.1.1] — 2026-10-18
+
 ### Added
 
 - Guide mode for first-time developers: a five-step tour of the main window, “?” explanations beside profile, certificate, key, and Bundle ID headings, and a glossary. Turn it on from the toolbar, the onboarding, or Settings.
