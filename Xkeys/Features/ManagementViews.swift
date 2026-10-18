@@ -74,8 +74,8 @@ struct AppSecretEditor: View {
                                         }.buttonStyle(XkeysButtonStyle(compact: true))
                                     }
                                     if secret.revealed {
-                                        TextEditor(text: $secret.value).font(.system(size: 13, design: .monospaced)).frame(height: 64)
-                                            .border(XkeysStyle.border).accessibilityLabel("値").privacySensitive()
+                                        TextEditor(text: $secret.value).font(.system(size: 13, design: .monospaced)).xkeysTextArea().frame(height: 64)
+                                            .accessibilityLabel("値").privacySensitive()
                                     } else {
                                         SecureField("保存する値を入力", text: $secret.value).textFieldStyle(.roundedBorder)
                                             .accessibilityLabel("値").privacySensitive()
@@ -200,7 +200,7 @@ struct NoteEditor: View {
             Text("暗号化メモ").font(.title2.bold())
             Text("表示と保存のたびにMacで認証します。メモは暗号化して保存し、検索には含めません。")
                 .font(.caption).foregroundStyle(.secondary)
-            if loaded { TextEditor(text: $note).privacySensitive().border(Color.secondary.opacity(0.3)) }
+            if loaded { TextEditor(text: $note).font(.system(size: 13)).privacySensitive().xkeysTextArea() }
             else { Button("認証してメモを開く") { perform(save: false) } }
             if let error { Text(error).foregroundStyle(.red) }
             HStack {

@@ -724,6 +724,15 @@ enum XkeysStyle {
     }
 }
 
+extension View {
+    /// Frames a TextEditor. Its text view has no inset, so a bare `.border` draws over the first line.
+    func xkeysTextArea() -> some View {
+        scrollContentBackground(.hidden).padding(8)
+            .background(XkeysStyle.canvas, in: RoundedRectangle(cornerRadius: 8))
+            .overlay(RoundedRectangle(cornerRadius: 8).stroke(XkeysStyle.border))
+    }
+}
+
 struct AppIconPicker: View {
     let name: String
     @Binding var iconColor: String?
