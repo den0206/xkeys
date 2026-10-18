@@ -26,6 +26,8 @@ The format follows Keep a Changelog conventions and releases use semantic versio
 
 - The welcome screen no longer mentions notifications, which Xkeys does not send.
 
+- Apps in the sidebar are separated by dividers.
+
 - Redrew the onboarding artwork on a blue blueprint background with the Xkeys name, and removed the notification shown in the security artwork. English artwork is shown when the app is not in Japanese.
 
 - Collapse custom secrets by default, add authenticated copying on app pages, and clarify saving multiple keys together.

@@ -291,7 +291,14 @@ struct CatalogView: View {
                     if teamApps.isEmpty {
                         Text("まだアプリはありません").font(.system(size: 12)).foregroundStyle(XkeysStyle.tertiary).padding(.horizontal, 10).padding(.vertical, 6)
                     }
-                    ForEach(teamApps) { app in appRow(app) }
+                    ForEach(Array(teamApps.enumerated()), id: \.element.id) { index, app in
+                        if index > 0 {
+                            // Hidden, not removed, next to the selected row so selection does not shift the list.
+                            let touchesSelection = selection == .app(app.id) || selection == .app(teamApps[index - 1].id)
+                            Divider().padding(.horizontal, 10).opacity(touchesSelection ? 0 : 1)
+                        }
+                        appRow(app)
+                    }
                     Button { addingApp = true } label: {
                         Label("アプリを追加", systemImage: "plus").fontWeight(.semibold).padding(.horizontal, 10).padding(.vertical, 8)
                     }.buttonStyle(.plain).foregroundStyle(XkeysStyle.accent).disabled(teams.isEmpty)
