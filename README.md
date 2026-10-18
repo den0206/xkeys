@@ -12,6 +12,12 @@ A macOS app for managing Apple Developer keys, certificates, and provisioning pr
 
 **Xkeys is built security-first, because signing keys, certificates, and API keys are secrets you cannot afford to leak.** Secrets are always encrypted at rest, every access requires you to authenticate, and nothing is ever sent to a third-party server.
 
+<p align="center">
+  <img src="media/xkeys-demo.gif" width="720" alt="Demo: scattered key, certificate, and profile files are sorted by team and app and encrypted, backed up with a password, and kept on this Mac">
+</p>
+
+<p align="center"><a href="media/xkeys-intro.mp4">Watch the 30-second intro video (MP4)</a></p>
+
 ## Security
 
 Xkeys layers several defenses so that no single failure exposes your secrets.
@@ -158,6 +164,7 @@ scripts/                Notarization script
 Casks/                  Homebrew cask
 .github/workflows/      Release workflow
 docs/                   User, design, development, and release guides
+media/                  Demo GIF and intro video for this README
 ```
 
 ## Status
