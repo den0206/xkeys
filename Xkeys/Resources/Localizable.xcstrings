@@ -7973,6 +7973,16 @@
           }
         }
       }
+    },
+    "バージョン %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Version %@"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

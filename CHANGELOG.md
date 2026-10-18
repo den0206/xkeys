@@ -18,6 +18,8 @@ The format follows Keep a Changelog conventions and releases use semantic versio
 
 - Homebrew cask (`brew tap den0206/xkeys https://github.com/den0206/xkeys && brew install --cask xkeys`).
 
+- Settings shows the app version and build number at the bottom.
+
 - Apps with a saved note show a collapsible Notes section below custom secrets. The text appears after authentication and is hidden again when collapsed, locked, or after five minutes.
 
 - Custom per-app key/value secrets with encrypted storage, authenticated editing and copying, dotenv export, and backup v1 support.

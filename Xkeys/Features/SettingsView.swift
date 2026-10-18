@@ -51,6 +51,7 @@ struct AppSettingsView: View {
             Divider()
             HStack {
                 if let error { Text(error).font(.caption).foregroundStyle(XkeysStyle.dangerText) }
+                else { Text("バージョン \(Self.version)").font(.system(size: 11)).foregroundStyle(XkeysStyle.tertiary).textSelection(.enabled) }
                 Spacer()
                 Button("設定を保存") {
                     do { try PreferencesStore.save(preferences, in: container.mainContext); error = nil }
@@ -65,6 +66,13 @@ struct AppSettingsView: View {
             catch { self.error = error.localizedDescription }
         }
     }
+    /// "0.1.0 (1)" from the bundle; release builds set both values from the release branch.
+    static var version: String {
+        let info = Bundle.main.infoDictionary ?? [:]
+        let short = info["CFBundleShortVersionString"] as? String ?? "development"
+        return (info["CFBundleVersion"] as? String).map { "\(short) (\($0))" } ?? short
+    }
+
     private func settingsGroup<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title).font(.system(size: 12, weight: .bold)).foregroundStyle(XkeysStyle.text.opacity(0.75))
