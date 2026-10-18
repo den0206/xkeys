@@ -7943,6 +7943,36 @@
     },
     "%@%@" : {
       "shouldTranslate" : false
+    },
+    "認証して表示" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Authenticate and Show"
+          }
+        }
+      }
+    },
+    "メモは空です" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The note is empty"
+          }
+        }
+      }
+    },
+    "メモは暗号化して保存しています。表示するには認証してください。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The note is stored encrypted. Authenticate to show it."
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

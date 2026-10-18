@@ -18,6 +18,8 @@ The format follows Keep a Changelog conventions and releases use semantic versio
 
 - Homebrew cask (`brew tap den0206/xkeys https://github.com/den0206/xkeys && brew install --cask xkeys`).
 
+- Apps with a saved note show a collapsible Notes section below custom secrets. The text appears after authentication and is hidden again when collapsed, locked, or after five minutes.
+
 - Custom per-app key/value secrets with encrypted storage, authenticated editing and copying, dotenv export, and backup v1 support.
 
 ### Changed
@@ -45,6 +47,7 @@ The format follows Keep a Changelog conventions and releases use semantic versio
 - A vault whose encryption key is missing, for example after moving to a new Mac, or whose stored files can't be decrypted no longer blocks backup and restore. “Quarantine Unreadable Data…” moves the unreadable files aside without deleting them, so a backup can be made or restored.
 - Adding an app whose Bundle ID belongs to an app in Recently Deleted now says so.
 - Notes can no longer be saved to an app in Recently Deleted.
+- Saving an empty app note removes the note instead of storing an empty one.
 - The first line of an encrypted note, and of a revealed custom secret value, is no longer drawn over the field border.
 - Reading certificates in stored profiles and .p12 files, and reading a profile when adding an app, no longer blocks the main window.
 

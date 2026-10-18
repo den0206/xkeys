@@ -56,7 +56,7 @@ Developer Portalの所属チーム一覧を取得し、英大文字・数字10�
 | BackupChange / BackupCheckpoint | 未バックアップ変更、最終バックアップ日時、設定 |
 | AppPreferences | Dockバッジ。CheckpointのDataへ保存 |
 
-メタデータをSwiftDataへ、秘密情報をAES-GCMの暗号化blobへ保存する。メモと保存済み.p12パスワードはSwiftData・ログ・検索へ平文保存しない。Appのメモは別blob、資格情報のメモはCredentialPayloadに含める。メモは各64KiBまで。
+メタデータをSwiftDataへ、秘密情報をAES-GCMの暗号化blobへ保存する。メモと保存済み.p12パスワードはSwiftData・ログ・検索へ平文保存しない。Appのメモは別blob、資格情報のメモはCredentialPayloadに含める。メモは各64KiBまで。Appのメモを空で保存すると、復元時と同じくblob参照を外す（旧blobは通常の回収処理で除去する）。Appにメモがある場合だけ、アプリ画面の任意Secretの下に「メモ」の折りたたみ欄を置く。アプリを開いたときは閉じた状態で、開いても本文は所有者認証の後に表示する。本文は閉じる・隠す・アプリ切り替え・ロック・スリープ・5分経過・メモの編集で破棄する。欄の「編集」はヘッダーの「メモ」と同じ編集画面を開く。
 
 暗号鍵はdata protection Keychainの端末専用・同期なしの項目に保存する。`WhenUnlockedThisDeviceOnly` と `userPresence` を指定する。暗号鍵が取得できない既存金庫を、新しい鍵で上書きしない。Keychainが鍵の不存在を返した場合だけ、ほかの失敗と区別して隔離を案内する（下記「読めないデータの隔離」）。
 

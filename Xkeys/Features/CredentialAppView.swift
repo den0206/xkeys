@@ -28,6 +28,9 @@ struct CredentialAppView: View {
     @State private var editingCustomSecrets = false
     @State private var addingCustomSecret = false
     @State private var showingCustomSecrets = false
+    @State private var showingNote = false
+    @State private var revealedNote: String?
+    @State private var noteRevealedAt = Date.distantPast
     @State private var editingPurposes = false
     @State private var editingApp = false
     @State private var editingTarget: ManagedApp?
@@ -83,7 +86,8 @@ struct CredentialAppView: View {
             }
         }
         .sheet(isPresented: $editingCustomSecrets) { if let app { AppSecretEditor(vault: vault, app: app.product, startAdding: addingCustomSecret) } }
-        .sheet(isPresented: $editingNote) { NoteEditor(vault: vault, app: selectedRecord == nil ? app : nil, record: selectedRecord) }
+        // A revealed note is stale once the editor may have changed it.
+        .sheet(isPresented: $editingNote, onDismiss: { revealedNote = nil }) { NoteEditor(vault: vault, app: selectedRecord == nil ? app : nil, record: selectedRecord) }
         .sheet(isPresented: $editingPurposes) { if let record = selectedRecord { P8PurposeEditor(vault: vault, record: record) } }
         .sheet(isPresented: $addingTarget, onDismiss: { if !droppedSources.isEmpty { importing = true } }) {
             if let parent = app?.product {
@@ -113,7 +117,7 @@ struct CredentialAppView: View {
                 deleteBatch(deletion.records)
             }
         }
-        .onChange(of: app?.id) { _, _ in showingCustomSecrets = false }
+        .onChange(of: app?.id) { _, _ in showingCustomSecrets = false; showingNote = false; revealedNote = nil }
         .onChange(of: app?.targets.map(\.id)) { _, ids in
             if let targetFilter, ids?.contains(targetFilter) != true { self.targetFilter = nil }
         }
@@ -132,6 +136,7 @@ struct CredentialAppView: View {
         .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { _ in
             if Date.now.timeIntervalSince(clock) >= 60 { clock = .now }
             if revealedPassword != nil && Date.now.timeIntervalSince(revealedAt) >= 300 { revealedPassword = nil }
+            if revealedNote != nil && Date.now.timeIntervalSince(noteRevealedAt) >= 300 { revealedNote = nil }
         }
         .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.willSleepNotification)) { _ in lock() }
         .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.sessionDidResignActiveNotification)) { _ in lock() }
@@ -167,6 +172,7 @@ struct CredentialAppView: View {
                 if let app, let owner = app.team, !CredentialSearch.hasQuery(search) { teamLink(owner) }
                 if let app, !CredentialSearch.hasQuery(search), typeFilter == .all, !selectingForDeletion {
                     customSecretsSection(app.product)
+                    if app.noteBlobID != nil { noteSection(app) }
                 }
                 if access.busy { ProgressView("認証しています…").font(.caption) }
                 if let error { Label(error, systemImage: "exclamationmark.triangle").foregroundStyle(XkeysStyle.dangerText).font(.caption).textSelection(.enabled) }
@@ -416,6 +422,50 @@ struct CredentialAppView: View {
         }.padding(16).frame(maxWidth: .infinity, alignment: .leading)
             .background(XkeysStyle.sidebar, in: RoundedRectangle(cornerRadius: 12))
             .overlay(RoundedRectangle(cornerRadius: 12).stroke(XkeysStyle.border))
+    }
+
+    /// Shown only when the app has a saved note; the text appears after authentication, like a revealed .p12 password.
+    private func noteSection(_ app: ManagedApp) -> some View {
+        // Collapsing hides the text again.
+        DisclosureGroup(isExpanded: Binding(get: { showingNote }, set: { showingNote = $0; if !$0 { revealedNote = nil } })) {
+            VStack(alignment: .leading, spacing: 14) {
+                if let revealedNote {
+                    Text(revealedNote.isEmpty ? String(localized: "メモは空です") : revealedNote)
+                        .font(.system(size: 13)).foregroundStyle(revealedNote.isEmpty ? XkeysStyle.secondary : XkeysStyle.text)
+                        .textSelection(.enabled).privacySensitive().fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                } else {
+                    Text("メモは暗号化して保存しています。表示するには認証してください。")
+                        .font(.system(size: 12)).foregroundStyle(XkeysStyle.secondary)
+                }
+                Divider()
+                HStack {
+                    if revealedNote == nil {
+                        Button("認証して表示") { revealNote(app) }.buttonStyle(XkeysButtonStyle(primary: true, compact: true)).disabled(access.busy)
+                    } else {
+                        Button("隠す") { revealedNote = nil }.buttonStyle(XkeysButtonStyle(compact: true))
+                    }
+                    Spacer()
+                    Button("編集") { selected = nil; editingNote = true }.buttonStyle(XkeysButtonStyle()).disabled(access.busy)
+                }
+            }.padding(.top, 12)
+        } label: {
+            Text("メモ").font(.system(size: 14, weight: .semibold))
+        }.padding(16).frame(maxWidth: .infinity, alignment: .leading)
+            .background(XkeysStyle.sidebar, in: RoundedRectangle(cornerRadius: 12))
+            .overlay(RoundedRectangle(cornerRadius: 12).stroke(XkeysStyle.border))
+    }
+
+    private func revealNote(_ app: ManagedApp) {
+        error = nil
+        Task { @MainActor in
+            do {
+                try await access.withKey(reason: String(localized: "暗号化メモを表示します"), allowCreation: false, vault: vault) { key in
+                    revealedNote = try VaultManagement(vault: vault).readNote(app, key: key) ?? ""
+                    noteRevealedAt = .now
+                }
+            } catch { self.error = error.localizedDescription }
+        }
     }
 
     private func copyCustomSecret(_ name: String, app: ManagedApp) {
@@ -695,6 +745,7 @@ struct CredentialAppView: View {
         if dismissImport { importing = false; onlineImporting = false }
         selected = nil
         revealedPassword = nil
+        revealedNote = nil
         error = nil
         status = ""
     }

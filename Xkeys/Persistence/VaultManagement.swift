@@ -94,9 +94,14 @@ struct VaultManagement {
         var staged = false
         do {
             try BackupHistory.prepare(in: context)
-            try vault.blobs.write(Data(note.utf8), id: id, key: key, authenticating: Self.noteAAD(app))
-            staged = true
-            app.noteBlobID = id
+            // An empty note drops the reference, as restore does; the old blob is collected by recover().
+            if note.isEmpty {
+                app.noteBlobID = nil
+            } else {
+                try vault.blobs.write(Data(note.utf8), id: id, key: key, authenticating: Self.noteAAD(app))
+                staged = true
+                app.noteBlobID = id
+            }
             BackupHistory.record(in: context)
             try beforeCommit()
             try context.save()

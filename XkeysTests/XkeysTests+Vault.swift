@@ -762,6 +762,23 @@ extension XkeysTests {
     }
 
     @MainActor
+    func testEmptyAppNoteRemovesReferenceAndRecordsChange() throws {
+        let (vault, app, _, _) = try makeVault()
+        let key = SymmetricKey(size: .bits256)
+        let management = VaultManagement(vault: vault)
+        try management.saveNote("note", app: app, key: key)
+        let saved = try XCTUnwrap(app.noteBlobID)
+        let history = try vault.context.fetchCount(FetchDescriptor<BackupChange>())
+        try management.saveNote("", app: app, key: key)
+        XCTAssertNil(app.noteBlobID)
+        XCTAssertNil(try management.readNote(app, key: key))
+        XCTAssertGreaterThan(try vault.context.fetchCount(FetchDescriptor<BackupChange>()), history)
+        try vault.recover()
+        XCTAssertFalse(FileManager.default.fileExists(atPath: vault.blobs.file(saved).path))
+        XCTAssertNil(try BackupSnapshot.capture(vault: vault, key: key).apps.first { $0.id == app.id }?.note)
+    }
+
+    @MainActor
     func testAppNoteRejectsTrashedApp() throws {
         let (vault, app, _, _) = try makeVault()
         defer { try? FileManager.default.removeItem(at: vault.blobs.directory) }
