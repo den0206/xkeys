@@ -183,6 +183,7 @@ struct AppSecretEditor: View {
                 }
                 activity = .now
                 copiedID = secret.id
+                XkeysMotion.confirm()
             } catch { self.error = error.localizedDescription }
         }
     }

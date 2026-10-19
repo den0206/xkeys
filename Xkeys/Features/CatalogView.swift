@@ -35,6 +35,8 @@ struct CatalogView: View {
     @Query private var changes: [BackupChange]
     @Query private var checkpoints: [BackupCheckpoint]
     @State private var selection: CredentialScope? = .all
+    @State private var hoveredScope: CredentialScope?
+    @Namespace private var sidebarSelection
     @State private var selectedTeam: UUID?
     @State private var currentTeamID: UUID?
     @State private var addingTeam = false
@@ -332,6 +334,7 @@ struct CatalogView: View {
                     .help("設定").accessibilityLabel("設定")
             }
         }.font(.system(size: 13)).padding(.horizontal, 12).padding(.top, 14).padding(.bottom, 10)
+            .animation(XkeysMotion.feedback, value: selection)
             .background(XkeysStyle.sidebar)
     }
 
@@ -467,9 +470,18 @@ struct CatalogView: View {
                 VStack(alignment: .leading, spacing: 3) { title(); status() }
                 Spacer(minLength: 0)
             }.padding(8).contentShape(Rectangle())
-                .background(selection == scope ? XkeysStyle.selection : .clear, in: RoundedRectangle(cornerRadius: 10))
-                .overlay(RoundedRectangle(cornerRadius: 10).stroke(selection == scope ? XkeysStyle.selectionBorder : .clear))
+                .background {
+                    // One highlight slides between rows; the page itself switches without animation.
+                    if selection == scope {
+                        RoundedRectangle(cornerRadius: 10).fill(XkeysStyle.selection)
+                            .overlay(RoundedRectangle(cornerRadius: 10).stroke(XkeysStyle.selectionBorder))
+                            .matchedGeometryEffect(id: "selection", in: sidebarSelection)
+                    } else if hoveredScope == scope {
+                        RoundedRectangle(cornerRadius: 10).fill(XkeysStyle.search)
+                    }
+                }
         }.buttonStyle(.plain).accessibilityAddTraits(selection == scope ? .isSelected : [])
+            .onHover { hoveredScope = $0 ? scope : hoveredScope == scope ? nil : hoveredScope }
     }
 
     @ViewBuilder private var detail: some View {
@@ -786,15 +798,32 @@ struct AppIconPicker: View {
 struct XkeysButtonStyle: ButtonStyle {
     var primary = false
     var compact = false
-    @Environment(\.isEnabled) private var enabled
 
     func makeBody(configuration: Configuration) -> some View {
+        XkeysButtonBody(configuration: configuration, primary: primary, compact: compact)
+    }
+}
+
+/// Tints on hover and sinks slightly while pressed, so a click is felt before its result appears.
+private struct XkeysButtonBody: View {
+    let configuration: ButtonStyleConfiguration
+    let primary: Bool
+    let compact: Bool
+    @Environment(\.isEnabled) private var enabled
+    @State private var hovering = false
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: compact ? 6 : 8)
+        let hovered = enabled && hovering
         configuration.label.font(.system(size: compact ? 11 : 13, weight: primary ? .medium : .regular))
             .padding(.horizontal, compact ? 8 : 14).frame(minHeight: compact ? 24 : 32)
             .foregroundStyle(primary ? Color.white : XkeysStyle.text)
-            .background(primary ? XkeysStyle.accent : XkeysStyle.canvas, in: RoundedRectangle(cornerRadius: compact ? 6 : 8))
-            .overlay(RoundedRectangle(cornerRadius: compact ? 6 : 8).stroke(primary ? Color.clear : XkeysStyle.border, lineWidth: 1))
+            .background(primary ? XkeysStyle.accent.opacity(hovered ? 0.88 : 1) : hovered ? XkeysStyle.search : XkeysStyle.canvas, in: shape)
+            .overlay(shape.stroke(primary ? Color.clear : hovered ? XkeysStyle.selectionBorder : XkeysStyle.border, lineWidth: 1))
             .opacity(enabled ? (configuration.isPressed ? 0.75 : 1) : 0.45)
+            .scaleEffect(configuration.isPressed && XkeysMotion.enabled ? 0.97 : 1)
+            .animation(.snappy(duration: 0.18), value: configuration.isPressed)
+            .onHover { hovering = $0 }
     }
 }
 
@@ -803,6 +832,11 @@ struct XkeysButtonStyle: ButtonStyle {
 @MainActor enum XkeysMotion {
     static var enabled: Bool { !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion }
     static var feedback: Animation? { enabled ? .smooth(duration: 0.3) : nil }
+
+    /// A light tap on a Force Touch trackpad when an operation succeeds. macOS skips it when no finger is on the trackpad.
+    static func confirm() {
+        NSHapticFeedbackManager.defaultPerformer.perform(.generic, performanceTime: .now)
+    }
 }
 
 /// The copy icon becomes a checkmark for a moment once the value is on the clipboard.

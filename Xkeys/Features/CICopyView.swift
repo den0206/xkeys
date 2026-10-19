@@ -129,6 +129,7 @@ struct CICopyView: View {
                 copiedAt = .now
                 now = .now
                 withAnimation(XkeysMotion.feedback) { copied = value }
+                XkeysMotion.confirm()
             } catch { message = error.localizedDescription }
         }
     }

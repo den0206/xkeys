@@ -313,6 +313,7 @@ struct RestoreView: View {
                     try restore.merge(plan, choices: selected, authorization: authorization, key: key, safetyBackup: replaceAll ? safetyBackup : nil, replacingAll: replaceAll)
                 }
                 withAnimation(XkeysMotion.feedback) { result = merged }
+                XkeysMotion.confirm()
                 self.snapshot = nil; self.plan = nil; file = nil; choices = [:]
             } catch { fail(error, generation: generation) }
         }

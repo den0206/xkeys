@@ -10,6 +10,8 @@ The format follows Keep a Changelog conventions and releases use semantic versio
 
 - Copy buttons briefly turn into a checkmark, the Touch ID icon pulses while waiting for authentication, and finished backups, restores, imports, and CI file exports draw their checkmark. The CI copy countdown rolls its digits. Motion is off when Reduce Motion is on.
 
+- Rows open their details smoothly, the sidebar highlight slides to the chosen page, and rows, sidebar items, and buttons respond to hover and press. The drop target fades in while dragging files over a page, and a Force Touch trackpad gives a light tap when a copy, save, restore, import, or export succeeds.
+
 ### Fixed
 
 - Certificates now show the apps that use them right after a restore, instead of only after the next Touch ID prompt.

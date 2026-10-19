@@ -193,6 +193,7 @@ struct DropImportPanel: View {
                 }
                 ready = []
                 withAnimation(XkeysMotion.feedback) { finished = true }
+                if !saved.isEmpty { XkeysMotion.confirm() }
                 release()
             } catch { self.error = error.localizedDescription }
         }

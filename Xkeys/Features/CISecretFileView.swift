@@ -323,6 +323,7 @@ struct CISecretFileView: View {
                     try CredentialFile(data: data, name: url.lastPathComponent).export(to: url)
                 }
                 withAnimation(XkeysMotion.feedback) { written = url }
+                XkeysMotion.confirm()
                 NSWorkspace.shared.activateFileViewerSelecting([url])
             } catch let error as POSIXError where error.code == .EEXIST {
                 message = String(localized: "同じ名前のファイルがあります。別の名前を指定してください。")

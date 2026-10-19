@@ -196,6 +196,7 @@ struct CollapsibleSection<Content: View>: View {
                     HStack(spacing: 6) {
                         Image(systemName: "chevron.down").font(.system(size: 10, weight: .bold))
                             .rotationEffect(.degrees(expanded ? 0 : -90)).foregroundStyle(XkeysStyle.secondary)
+                            .animation(XkeysMotion.feedback, value: expanded)
                         Text(title).fontWeight(.bold).foregroundStyle(XkeysStyle.text.opacity(0.75))
                         Text(detail).foregroundStyle(XkeysStyle.tertiary)
                         if !expanded && attention > 0 {
