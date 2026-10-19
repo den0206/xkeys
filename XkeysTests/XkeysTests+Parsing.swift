@@ -180,6 +180,22 @@ extension XkeysTests {
     }
 
     @MainActor
+    func testVaultAccessBackfillsProfilesAddedByTheOperation() async throws {
+        let (vault, app, _, _) = try makeVault()
+        let key = SymmetricKey(size: .bits256)
+        let file = CredentialFile(data: try fixture("mobileprovision", name: "certs"), name: "certs.mobileprovision")
+        _ = try vault.importFile(file, parsed: CredentialParser.parse(file.data, extension: "mobileprovision"), app: app, password: nil, confirmUnknownTeam: true, key: key)
+        let record = try XCTUnwrap(vault.records().first)
+        let expected = try XCTUnwrap(record.signingCertificateDigests)
+        // The operation leaves the profile unread, as a restore does.
+        try await VaultAccess(keyProvider: { _, _ in key }).withKey(reason: "Fixture", allowCreation: false, vault: vault) { _ in
+            record.signingCertificateDigests = nil
+            try vault.context.save()
+        }
+        XCTAssertEqual(record.signingCertificateDigests, expected)
+    }
+
+    @MainActor
     func testBackfillMarksUnreadableProfileOnceAndKeepsOtherProfiles() async throws {
         let (vault, app, _, _) = try makeVault()
         let key = SymmetricKey(size: .bits256)

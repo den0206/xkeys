@@ -367,7 +367,10 @@ final class VaultAccess {
             try? await management.backfillSigningCertificates(key: key)
             guard self.generation == generation, !Task.isCancelled else { throw VaultError.cancelled }
         }
-        return try operation(key)
+        let result = try operation(key)
+        // Records a restore just added are read now, not on the next authentication.
+        if let vault, self.generation == generation { try? await VaultManagement(vault: vault).backfillSigningCertificates(key: key) }
+        return result
     }
 
     /// Authenticates and quarantines unreadable data. Every blob moves only when the Keychain confirms the vault key is absent.

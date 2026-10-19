@@ -8,6 +8,8 @@ The format follows Keep a Changelog conventions and releases use semantic versio
 
 ### Fixed
 
+- Certificates now show the apps that use them right after a restore, instead of only after the next Touch ID prompt.
+
 - A failed save, import, or restore no longer leaves its discarded changes in memory, where a later save could store them and point items at deleted files.
 
 ## [0.1.1] — 2026-10-18
