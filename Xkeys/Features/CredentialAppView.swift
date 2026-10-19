@@ -24,6 +24,7 @@ struct CredentialAppView: View {
     @State private var error: String?
     @State private var status = ""
     @State private var copiedSecret: String?
+    @State private var hoveredRow: UUID?
     @State private var revealedPassword: String?
     @State private var editingNote = false
     @State private var editingCustomSecrets = false
@@ -185,7 +186,7 @@ struct CredentialAppView: View {
         .onMoveCommand { direction in
             guard !visible.isEmpty, direction == .up || direction == .down else { return }
             let index = visible.firstIndex { $0.id == selected } ?? (direction == .down ? -1 : visible.count)
-            selected = visible[min(max(index + (direction == .down ? 1 : -1), 0), visible.count - 1)].id
+            select(visible[min(max(index + (direction == .down ? 1 : -1), 0), visible.count - 1)].id)
         }
         .onChange(of: targetFilter) { _, _ in lock(dismissImport: false) }
         .dropDestination(for: URL.self) { urls, _ in
@@ -204,8 +205,10 @@ struct CredentialAppView: View {
                     .background(XkeysStyle.selectedRow.opacity(0.94), in: RoundedRectangle(cornerRadius: 14))
                     .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(XkeysStyle.accent, style: StrokeStyle(lineWidth: 2, dash: [7, 5])))
                     .padding(10).allowsHitTesting(false)
+                    .transition(.opacity.combined(with: .scale(scale: 0.98)))
             }
         }
+        .animation(XkeysMotion.feedback, value: dropTargeted)
         .overlay(alignment: .bottomTrailing) {
             if !panelSources.isEmpty, let team {
                 DropImportPanel(sources: panelSources, app: app, team: team, vault: vault, openSheet: { urls in
@@ -482,6 +485,7 @@ struct CredentialAppView: View {
                 }
                 status = String(localized: "「\(name)」の値をコピーしました")
                 copiedSecret = name
+                XkeysMotion.confirm()
             } catch { self.error = error.localizedDescription }
         }
     }
@@ -569,7 +573,7 @@ struct CredentialAppView: View {
                     .frame(width: Self.expiryColumnWidth, alignment: .trailing)
             }.padding(.horizontal, 14).padding(.vertical, 12)
                 .contentShape(Rectangle())
-                .onTapGesture { selected = isSelected ? nil : record.id }
+                .onTapGesture { select(isSelected ? nil : record.id) }
             if isSelected {
                 VStack(alignment: .leading, spacing: 12) {
                     actions(record)
@@ -579,10 +583,12 @@ struct CredentialAppView: View {
         }
         .background(group.background, in: RoundedRectangle(cornerRadius: 10))
         .overlay(RoundedRectangle(cornerRadius: 10)
-            .stroke(isSelected ? XkeysStyle.selectionBorder : broken ? XkeysStyle.dangerBorder : group.border, lineWidth: isSelected ? 1.5 : 1))
+            .stroke(isSelected ? XkeysStyle.selectionBorder : broken ? XkeysStyle.dangerBorder : hoveredRow == record.id ? XkeysStyle.selectionBorder : group.border,
+                    lineWidth: isSelected ? 1.5 : 1))
+        .onHover { hoveredRow = $0 ? record.id : hoveredRow == record.id ? nil : hoveredRow }
         .accessibilityElement(children: .contain)
         .accessibilityAddTraits(isSelected ? [.isSelected, .isButton] : .isButton)
-        .accessibilityAction { selected = isSelected ? nil : record.id }
+        .accessibilityAction { select(isSelected ? nil : record.id) }
         .contextMenu {
             if let owner = record.app {
                 Button(owner.parentAppID == nil ? "アプリと全ターゲットを削除…" : "ターゲットとプロファイルを削除…", role: .destructive) {
@@ -592,6 +598,13 @@ struct CredentialAppView: View {
                 Button("削除…", role: .destructive) { deletingRecord = record }.disabled(access.busy)
             }
         }
+    }
+
+    /// Opens or closes a row's card. A revealed password is dropped first, in the same update,
+    /// so the closing card is never drawn with it while it animates away.
+    private func select(_ id: UUID?) {
+        revealedPassword = nil
+        withAnimation(XkeysMotion.feedback) { selected = id }
     }
 
     private func targetTag(_ owner: ManagedApp) -> some View {

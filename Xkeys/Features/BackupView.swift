@@ -233,6 +233,7 @@ struct BackupView: View {
                     trackingWarning = try !BackupHistory.export(archive, to: destination, covering: watermark, in: vault.context)
                 }
                 withAnimation(XkeysMotion.feedback) { completed = true }
+                XkeysMotion.confirm()
             } catch {
                 self.error = error.localizedDescription
                 unreadable = QuarantineAction.applies(to: error)
