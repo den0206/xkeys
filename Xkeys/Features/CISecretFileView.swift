@@ -259,6 +259,7 @@ struct CISecretFileView: View {
                     .background(XkeysStyle.warningBackground, in: RoundedRectangle(cornerRadius: 8))
                 if let written {
                     Label("\(written.lastPathComponent) に書き出しました", systemImage: "checkmark").font(.system(size: 12)).foregroundStyle(XkeysStyle.successText)
+                        .transition(.symbolEffect(.drawOn))
                 }
                 if let message { Text(message).font(.caption).foregroundStyle(XkeysStyle.dangerText).fixedSize(horizontal: false, vertical: true) }
             }.padding(.horizontal, 28).padding(.vertical, 22)
@@ -321,7 +322,7 @@ struct CISecretFileView: View {
                                                        readCustom: { try VaultManagement(vault: vault).readCustomSecrets($0, key: key) }) { try vault.read($0, key: key) }
                     try CredentialFile(data: data, name: url.lastPathComponent).export(to: url)
                 }
-                written = url
+                withAnimation(XkeysMotion.feedback) { written = url }
                 NSWorkspace.shared.activateFileViewerSelecting([url])
             } catch let error as POSIXError where error.code == .EEXIST {
                 message = String(localized: "同じ名前のファイルがあります。別の名前を指定してください。")

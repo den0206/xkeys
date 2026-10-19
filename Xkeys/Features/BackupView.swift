@@ -77,7 +77,7 @@ struct BackupView: View {
             }
             if completed {
                 Label("バックアップを保存しました", systemImage: "checkmark.circle.fill")
-                    .foregroundStyle(XkeysStyle.successText).font(.headline)
+                    .foregroundStyle(XkeysStyle.successText).font(.headline).transition(.symbolEffect(.drawOn))
                 Text("保存したファイルを読み戻して、中身が一致することを確認しました。").foregroundStyle(XkeysStyle.successText)
                 if trackingWarning {
                     Text("バックアップは保存しましたが、変更状態を更新できませんでした。未バックアップの表示を残しています。")
@@ -232,7 +232,7 @@ struct BackupView: View {
                 } else {
                     trackingWarning = try !BackupHistory.export(archive, to: destination, covering: watermark, in: vault.context)
                 }
-                completed = true
+                withAnimation(XkeysMotion.feedback) { completed = true }
             } catch {
                 self.error = error.localizedDescription
                 unreadable = QuarantineAction.applies(to: error)

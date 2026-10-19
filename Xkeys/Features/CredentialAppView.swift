@@ -23,6 +23,7 @@ struct CredentialAppView: View {
     @State private var onlineImporting = false
     @State private var error: String?
     @State private var status = ""
+    @State private var copiedSecret: String?
     @State private var revealedPassword: String?
     @State private var editingNote = false
     @State private var editingCustomSecrets = false
@@ -174,7 +175,7 @@ struct CredentialAppView: View {
                     customSecretsSection(app.product)
                     if app.noteBlobID != nil { noteSection(app) }
                 }
-                if access.busy { ProgressView("認証しています…").font(.caption) }
+                if access.busy { AuthenticatingLabel().font(.caption).foregroundStyle(XkeysStyle.secondary) }
                 if let error { Label(error, systemImage: "exclamationmark.triangle").foregroundStyle(XkeysStyle.dangerText).font(.caption).textSelection(.enabled) }
                 if !status.isEmpty { Text(status).font(.caption).foregroundStyle(XkeysStyle.secondary) }
             }.padding(.horizontal, 32).padding(.vertical, 22).frame(maxWidth: .infinity, alignment: .leading)
@@ -396,7 +397,7 @@ struct CredentialAppView: View {
                         HStack {
                             Text(name).font(.system(size: 12, design: .monospaced)).textSelection(.enabled)
                             Spacer()
-                            Button("コピー") { copyCustomSecret(name, app: app) }
+                            Button { copyCustomSecret(name, app: app) } label: { CopyLabel(copied: copiedSecret == name) }
                                 .buttonStyle(XkeysButtonStyle(primary: true, compact: true)).disabled(access.busy)
                                 .help("値をコピー")
                         }
@@ -414,6 +415,7 @@ struct CredentialAppView: View {
                     }
                 }
             }.padding(.top, 12)
+                .resettingCopied($copiedSecret)
         } label: {
             HStack {
                 Text("任意のSecret").font(.system(size: 14, weight: .semibold))
@@ -479,6 +481,7 @@ struct CredentialAppView: View {
                     try SecretClipboard.copy(secret.value)
                 }
                 status = String(localized: "「\(name)」の値をコピーしました")
+                copiedSecret = name
             } catch { self.error = error.localizedDescription }
         }
     }

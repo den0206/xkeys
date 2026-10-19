@@ -43,6 +43,7 @@ struct RestoreView: View {
             BackupTabs(creating: false, switchTab: onCreate)
             if let result {
                 Label("バックアップから戻しました", systemImage: "checkmark.circle.fill").font(.headline).foregroundStyle(XkeysStyle.successText)
+                    .transition(.symbolEffect(.drawOn))
                 HStack(spacing: 8) {
                     resultCount(result.added, String(localized: "restore.added", defaultValue: "追加"), XkeysStyle.successText)
                     resultCount(result.updated, String(localized: "更新"), XkeysStyle.accent)
@@ -311,7 +312,7 @@ struct RestoreView: View {
                 let merged = try await access.withKey(reason: String(localized: "バックアップの選択した内容を復元します"), allowCreation: canCreate, vault: restore.vault) { key in
                     try restore.merge(plan, choices: selected, authorization: authorization, key: key, safetyBackup: replaceAll ? safetyBackup : nil, replacingAll: replaceAll)
                 }
-                result = merged
+                withAnimation(XkeysMotion.feedback) { result = merged }
                 self.snapshot = nil; self.plan = nil; file = nil; choices = [:]
             } catch { fail(error, generation: generation) }
         }

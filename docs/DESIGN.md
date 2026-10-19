@@ -187,6 +187,8 @@ Developer Portalの `services-account/v1/certificates` と `profiles` を使用�
 
 リリースのDMG（`scripts/make-dmg.sh`）は、Xkeys.appと/Applicationsへのリンクを660×400ptのウインドウに並べ、ドラッグの向きを示す背景（`scripts/dmg/background.png`・`@2x`）を表示する。配置はFinderのAppleScriptで行い、実行できない環境では警告を出して標準の配置のまま作成する。
 
+動きは状態が変わったことを示すときだけ使う。コピーボタンはコピー後1.5秒チェックに変わり、CI用コピーの残り秒数は数字が切り替わる。認証待ちはTouch IDのアイコンを点滅させ、バックアップ・復元・取り込み・CI用ファイルの書き出しの完了はチェックを描いて示す。弾む動きは使わない。「視差効果を減らす」がオンなら動かさない。秘密値を表示する部分は、残り続けないようアニメーションせずに消す。
+
 明るい表示に固定し、ダークモードでも明るい色で表示する。システムフォント、ID等は等幅、アクセントは `#4338CA`。色は問題がある項目だけに付ける。状態は色と文言で示す。標準コントロールとアクセシビリティラベルを使うが、全操作のキーボード・VoiceOver確認は未完了。
 
 設計時は利用者指定の[tana](https://github.com/den0206/tana)と[ai-m-thinking](https://github.com/den0206/ai-m-thinking)を参考にした。コード・画像は複製していない。

@@ -36,7 +36,10 @@ struct DropImportPanel: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 8) {
                 if reading { ProgressView().controlSize(.small) }
-                else { Image(systemName: finished ? "checkmark.circle.fill" : "square.and.arrow.down").foregroundStyle(finished ? XkeysStyle.successText : XkeysStyle.accent) }
+                else {
+                    Image(systemName: finished ? "checkmark.circle.fill" : "square.and.arrow.down").foregroundStyle(finished ? XkeysStyle.successText : XkeysStyle.accent)
+                        .contentTransition(.symbolEffect(.replace))
+                }
                 Text(title).fontWeight(.bold)
                 Spacer(minLength: 0)
                 Button { finish() } label: { Image(systemName: "xmark") }.buttonStyle(.plain).foregroundStyle(XkeysStyle.secondary)
@@ -189,7 +192,7 @@ struct DropImportPanel: View {
                     }
                 }
                 ready = []
-                finished = true
+                withAnimation(XkeysMotion.feedback) { finished = true }
                 release()
             } catch { self.error = error.localizedDescription }
         }
