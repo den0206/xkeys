@@ -37,6 +37,6 @@ struct AppPreferences: Codable, Equatable, Sendable {
             try assign(value, in: context)
             BackupHistory.record(in: context)
             try context.save()
-        } catch { context.rollback(); throw error }
+        } catch { context.discardChanges(); throw error }
     }
 }

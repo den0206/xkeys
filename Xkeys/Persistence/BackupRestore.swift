@@ -301,7 +301,7 @@ struct BackupRestore {
             try beforeCommit()
             try context.save()
         } catch {
-            context.rollback()
+            context.discardChanges()
             for id in staged { try? FileManager.default.removeItem(at: vault.blobs.file(id)) }
             throw error
         }

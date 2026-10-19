@@ -113,7 +113,7 @@ struct AppCatalog {
             BackupHistory.record(in: context)
             try context.save()
             return team.id
-        } catch { context.rollback(); throw error }
+        } catch { context.discardChanges(); throw error }
     }
 
     func addApp(name: String, bundleID: String, platform: String, teamID: UUID, iconColor: String? = nil, iconImage: Data? = nil, parentAppID: UUID? = nil) throws -> UUID {
@@ -148,7 +148,7 @@ struct AppCatalog {
             BackupHistory.record(in: context)
             try context.save()
             return app.id
-        } catch { context.rollback(); throw error }
+        } catch { context.discardChanges(); throw error }
     }
 
     func setParent(_ parentAppID: UUID?, for app: ManagedApp, name: String, platform: String) throws {

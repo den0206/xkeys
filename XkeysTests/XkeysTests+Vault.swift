@@ -61,6 +61,40 @@ extension XkeysTests {
     }
 
     @MainActor
+    func testDiscardChangesRestoresLoadedModelsBeforeTheNextSave() throws {
+        let (vault, app, sibling, _) = try makeVault()
+        defer { try? FileManager.default.removeItem(at: vault.blobs.directory) }
+        let key = SymmetricKey(size: .bits256)
+        let file = CredentialFile(data: try fixture("mobileprovision"), name: "sample.mobileprovision")
+        _ = try vault.importFile(file, parsed: CredentialParser.parse(file.data, extension: "mobileprovision"), app: app, password: nil, confirmUnknownTeam: true, key: key)
+        let record = try XCTUnwrap(vault.records().first)
+        let blobID = record.blobID
+        app.customSecretNames = "SAVED"
+        try vault.context.save()
+
+        app.customSecretNames = "DISCARDED"
+        record.blobID = UUID()
+        record.app = sibling
+        vault.context.insert(BackupChange())
+        vault.context.discardChanges()
+        XCTAssertEqual(app.customSecretNames, "SAVED")
+        XCTAssertEqual(record.blobID, blobID)
+        XCTAssertEqual(record.app?.id, app.id)
+
+        // An unrelated save must not store the discarded values.
+        app.name = "Renamed"
+        try vault.context.save()
+        let fresh = ModelContext(vault.context.container)
+        let storedApp = try XCTUnwrap(fresh.fetch(FetchDescriptor<ManagedApp>()).first { $0.id == app.id })
+        let storedRecord = try XCTUnwrap(fresh.fetch(FetchDescriptor<StoredCredential>()).first { $0.id == record.id })
+        XCTAssertEqual(storedApp.name, "Renamed")
+        XCTAssertEqual(storedApp.customSecretNames, "SAVED")
+        XCTAssertEqual(storedRecord.blobID, blobID)
+        XCTAssertEqual(storedRecord.app?.id, app.id)
+        XCTAssertEqual(try vault.read(record, key: key).original, file.data)
+    }
+
+    @MainActor
     func testCustomSecretsEncryptValidateRollbackRecoverAndDeleteWithApp() throws {
         let (vault, app, sibling, _) = try makeVault()
         defer { try? FileManager.default.removeItem(at: vault.blobs.directory) }
@@ -90,11 +124,11 @@ extension XkeysTests {
         }
         app.customSecretNames = "OTHER"
         XCTAssertThrowsError(try manager.readCustomSecrets(app, key: key))
-        vault.context.rollback()
+        vault.context.discardChanges()
         sibling.customSecretsBlobID = originalID
         sibling.customSecretNames = app.customSecretNames
         XCTAssertThrowsError(try manager.readCustomSecrets(sibling, key: key))
-        vault.context.rollback()
+        vault.context.discardChanges()
         try manager.trash(app, key: key)
         try manager.restore(app)
         XCTAssertEqual(try manager.readCustomSecrets(app, key: key), secrets)
@@ -197,7 +231,7 @@ extension XkeysTests {
         XCTAssertEqual(try vault.records().count, 2)
         XCTAssertEqual(try vault.context.fetchCount(FetchDescriptor<BackupChange>()), history)
         XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: vault.blobs.directory.path).sorted(), files)
-        vault.context.rollback()
+        vault.context.discardChanges()
     }
 
     @MainActor
@@ -462,7 +496,7 @@ extension XkeysTests {
             guard case VaultError.undecryptable(record.originalName) = error else { return XCTFail("Unexpected error: \(error)") }
             XCTAssertTrue(error.localizedDescription.contains(record.originalName))
         }
-        vault.context.rollback()
+        vault.context.discardChanges()
     }
 
     @MainActor

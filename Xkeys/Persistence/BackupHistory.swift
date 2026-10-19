@@ -65,7 +65,7 @@ enum BackupHistory {
         do {
             try prepare(in: context)
             if context.hasChanges { try context.save() }
-        } catch { context.rollback(); throw error }
+        } catch { context.discardChanges(); throw error }
     }
 
     static func watermark(in context: ModelContext, capturedAt: Date) throws -> BackupWatermark {
@@ -100,7 +100,7 @@ enum BackupHistory {
             }
             try beforeCommit()
             try context.save()
-        } catch { context.rollback(); throw error }
+        } catch { context.discardChanges(); throw error }
     }
 }
 
@@ -113,5 +113,18 @@ struct SafetyBackup: Sendable {
         guard try decoded.revision() == snapshot.revision() else { throw BackupError.invalid }
         try CredentialFile(data: archive, name: url.lastPathComponent).export(to: url)
         return SafetyBackup(revision: try snapshot.revision())
+    }
+}
+
+extension ModelContext {
+    /// rollback() leaves models already loaded holding the discarded values, and the next save() would store them.
+    /// Fetching every model type reloads those values from the store.
+    func discardChanges() {
+        rollback()
+        _ = try? fetch(FetchDescriptor<DeveloperTeam>())
+        _ = try? fetch(FetchDescriptor<ManagedApp>())
+        _ = try? fetch(FetchDescriptor<StoredCredential>())
+        _ = try? fetch(FetchDescriptor<BackupChange>())
+        _ = try? fetch(FetchDescriptor<BackupCheckpoint>())
     }
 }

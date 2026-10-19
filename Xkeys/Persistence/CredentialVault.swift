@@ -306,7 +306,7 @@ struct CredentialVault {
             try context.save()
             return record.id
         } catch {
-            context.rollback()
+            context.discardChanges()
             if let writtenID { try? FileManager.default.removeItem(at: blobs.file(writtenID)) }
             throw error
         }

@@ -6,6 +6,10 @@ The format follows Keep a Changelog conventions and releases use semantic versio
 
 ## [Unreleased]
 
+### Fixed
+
+- A failed save, import, or restore no longer leaves its discarded changes in memory, where a later save could store them and point items at deleted files.
+
 ## [0.1.1] — 2026-10-18
 
 ### Added

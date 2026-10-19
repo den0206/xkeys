@@ -67,7 +67,7 @@ struct VaultManagement {
             try beforeCommit()
             try context.save()
         } catch {
-            context.rollback()
+            context.discardChanges()
             if let staged { try? FileManager.default.removeItem(at: vault.blobs.file(staged)) }
             throw error
         }
@@ -106,7 +106,7 @@ struct VaultManagement {
             try beforeCommit()
             try context.save()
         } catch {
-            context.rollback()
+            context.discardChanges()
             if staged { try? FileManager.default.removeItem(at: vault.blobs.file(id)) }
             throw error
         }
@@ -130,7 +130,7 @@ struct VaultManagement {
             try beforeCommit()
             try context.save()
         } catch {
-            context.rollback()
+            context.discardChanges()
             if staged { try? FileManager.default.removeItem(at: vault.blobs.file(id)) }
             throw error
         }
@@ -162,7 +162,7 @@ struct VaultManagement {
             try beforeCommit()
             try context.save()
         } catch {
-            context.rollback()
+            context.discardChanges()
             if staged { try? FileManager.default.removeItem(at: vault.blobs.file(id)) }
             throw error
         }
@@ -176,7 +176,7 @@ struct VaultManagement {
             try operation()
             BackupHistory.record(in: context)
             try context.save()
-        } catch { context.rollback(); throw error }
+        } catch { context.discardChanges(); throw error }
     }
 
     func trash(_ record: StoredCredential, key: SymmetricKey, at now: Date = .now) throws {
@@ -290,7 +290,7 @@ struct VaultManagement {
             } else if record.signingCertificateDigests == nil { record.signingCertificateDigests = value }
         }
         guard context.hasChanges else { return }
-        do { try context.save() } catch { context.rollback(); throw error }
+        do { try context.save() } catch { context.discardChanges(); throw error }
     }
 
     /// Moves encrypted blobs that cannot be opened aside and drops their references, so backup and restore can run again.

@@ -55,14 +55,14 @@ UI 文言は日本語で書き、`Xkeys/Resources/Localizable.xcstrings` に英�
 
 秘密情報を扱うため、保存領域とメモリは実装のたびに次の点を確認してください。迷ったら既存の `VaultManagement`・`EncryptedBlobStore`・`CredentialFile` に合わせます。
 
-- **書き込みの順序**：既存の blob を上書きしません。新しい UUID の blob に書き、読み戻して検証してから、同じ context で DB の参照を切り替えて保存します。失敗したら `rollback()` し、新しく書いた blob だけを削除します。
+- **書き込みの順序**：既存の blob を上書きしません。新しい UUID の blob に書き、読み戻して検証してから、同じ context で DB の参照を切り替えて保存します。失敗したら `discardChanges()` し、新しく書いた blob だけを削除します。
 - **削除と移動の順序**：`recover()` は DB が参照しない blob を消します。そのため、blob を消すときは DB を保存した後に消し、blob を移すとき（隔離など）は DB を保存する前に移します。blob を書いてから DB を保存するまでの間に `await` を挟まないでください。
 - **書き出し**：利用者のファイルは `CredentialFile.export`（`O_EXCL`・`O_NOFOLLOW`・権限0600・読み戻し検証）で新規に作り、既存のファイルを上書きしません。平文の一時ファイルは作らず、暗号化と検証はメモリ内で行います。
 - **サイズと件数の上限**：外部から読むデータ（ファイル・HTTP 応答・バックアップ・Keychain・JSON）は、読む前と読んだ後に上限を確認します。読むときは `read(upToCount: 上限 + 1)` のように上限＋1で打ち切ります。1件ごとの上限だけでなく、件数と合計にも上限を設けます。既存の定数（`CredentialParser.maximumBytes`、`BackupArchive.maximumPayloadBytes` など）を使い、新しい経路では上限とメモリのピーク（上限×同時に持つコピーの数）を見積もってから実装します。
 - **main actor を塞がない**：大きな `Data` の読み込み、解析（特に PKCS#12）、鍵導出、バックアップの暗号化は `Task.detached` で行います。`await` の後は、`generation`、`modelContext`、`context.hasChanges` を確認し直してから結果を反映します。
 - **秘密値の保持時間**：`String` の秘密値はゼロ化できないので、保持する時間を短くします。使い終わったら `@State` を空にし、表示は5分、クリップボードは60秒（ConcealedType）で消します。`[UInt8]` のバッファは `defer` で0埋めします。秘密値・API の本文・Cookie をログやエラー表示に出しません。
 - **長く残るリソース**：`URLSession` は無効化するまで解放されません。使わなくなった transport は、エラーの経路も含めて必ず `cancel()` します。NotificationCenter の observer、Timer、`Task` は所有者と同じ期間で止め、static な `Task` は置き換える前に cancel します。
-- **SwiftData**：`@Query` は全件を読み込みます。モデルに `Data` を追加するときは上限を決めます（`iconImage` は1MiB）。変更は `guard !context.hasChanges`、`autosaveEnabled = false`、`save()`／`rollback()` の既存の形に従います。
+- **SwiftData**：`@Query` は全件を読み込みます。モデルに `Data` を追加するときは上限を決めます（`iconImage` は1MiB）。変更は `guard !context.hasChanges`、`autosaveEnabled = false`、`save()`／`discardChanges()` の既存の形に従います。`rollback()` は読み込み済みのモデルの値を戻さず、次の `save()` で取り消したはずの値が保存されるので、直接呼ばないでください。
 - **増え続けるもの**：新しく保存するものを追加するときは、誰がいつ消すかを決めて `docs/DESIGN.md` に書きます。既存の例は、旧 blob の `recover()`、最近削除した項目の30日での完全削除、フルバックアップでの `BackupChange` の削除です。`XkeysVault/Quarantine` は利用者が判断して消すものなので、自動では削除しません。
 - **テスト**：一時ディレクトリはテストごとに作り、`defer` で削除します。製品のコンテナ、Keychain、既存のバックアップには触れません。
 

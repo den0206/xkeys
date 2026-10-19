@@ -631,7 +631,7 @@ extension XkeysTests {
         XCTAssertTrue(context.hasChanges)
         XCTAssertEqual(app.name, "Another operation still pending")
         XCTAssertTrue(try backupHistory(context).needsBackup)
-        context.rollback()
+        context.discardChanges()
         XCTAssertTrue(try BackupHistory.export(archive, to: directory.appendingPathComponent("retry.xkeysbackup"), covering: watermark, in: context))
         XCTAssertFalse(try backupHistory(context).needsBackup)
     }
