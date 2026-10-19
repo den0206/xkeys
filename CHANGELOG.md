@@ -6,6 +6,10 @@ The format follows Keep a Changelog conventions and releases use semantic versio
 
 ## [Unreleased]
 
+### Added
+
+- Teams can have an icon, chosen as a color or a PNG, JPEG, or SVG image of up to 1 MB in "Edit Team…". It appears in the team switcher and the team list, and backups include it.
+
 ### Changed
 
 - Copy buttons briefly turn into a checkmark, the Touch ID icon pulses while waiting for authentication, and finished backups, restores, imports, and CI file exports draw their checkmark. The CI copy countdown rolls its digits. Motion is off when Reduce Motion is on.

@@ -88,7 +88,7 @@ struct RestorePlan: Sendable {
         }
         let teams = try source.teams.map { value -> BackupSnapshot.Team in
             guard let id = teamIDs[value.id] else { throw BackupError.invalid }
-            return .init(id: id, name: value.name, teamID: value.teamID)
+            return .init(id: id, name: value.name, teamID: value.teamID, iconColor: value.iconColor, iconImage: value.iconImage)
         }
         let apps = try source.apps.map { value -> BackupSnapshot.App in
             guard let id = appIDs[value.id], let team = teamIDs[value.team] else { throw BackupError.invalid }
@@ -209,10 +209,15 @@ struct BackupRestore {
         do {
             try BackupHistory.prepare(in: context)
             for value in final.teams {
-                if let team = teams[value.id] { team.name = value.name }
-                else {
+                if let team = teams[value.id] {
+                    team.name = value.name
+                    team.iconColor = value.iconColor
+                    team.iconImage = value.iconImage
+                } else {
                     let team = DeveloperTeam(name: value.name, teamID: value.teamID)
                     team.id = value.id
+                    team.iconColor = value.iconColor
+                    team.iconImage = value.iconImage
                     context.insert(team)
                     teams[value.id] = team
                 }

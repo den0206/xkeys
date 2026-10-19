@@ -237,6 +237,44 @@ extension XkeysTests {
     }
 
     @MainActor
+    func testTeamIconSurvivesBackupAndRestoreAndRejectsInvalidValues() async throws {
+        let (vault, app, _, _) = try makeVault()
+        defer { try? FileManager.default.removeItem(at: vault.blobs.directory) }
+        let key = SymmetricKey(size: .bits256)
+        let team = try XCTUnwrap(app.team)
+        let catalog = AppCatalog(context: vault.context)
+        let image = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a6WQAAAAASUVORK5CYII=")!
+        try catalog.updateTeam(team, name: team.name, iconColor: "green", iconImage: image)
+        XCTAssertThrowsError(try catalog.updateTeam(team, name: team.name, iconColor: "invalid", iconImage: nil))
+        XCTAssertThrowsError(try catalog.updateTeam(team, name: team.name, iconColor: nil, iconImage: Data(repeating: 0, count: 1_048_577)))
+        XCTAssertEqual(team.iconImage, image)
+        let snapshot = try BackupSnapshot.capture(vault: vault, key: key)
+        let decoded = try BackupArchive.decode(try BackupArchive.encode(snapshot, password: "design-fixture-password"), password: "design-fixture-password")
+        XCTAssertEqual(decoded.teams.first { $0.id == team.id }?.iconImage, image)
+        try catalog.updateTeam(team, name: team.name, iconColor: nil, iconImage: nil)
+        let restore = BackupRestore(vault: vault)
+        let plan = try restore.prepare(decoded, key: key)
+        let authorization = try await restoreAuthorization(for: plan)
+        _ = try restore.merge(plan, choices: Dictionary(uniqueKeysWithValues: plan.conflicts.map { ($0.id, RestoreChoice.backup) }), authorization: authorization, key: key)
+        XCTAssertEqual(team.iconImage, image)
+        XCTAssertEqual(team.iconColor, "green")
+        // Backups written before team icons decode without them.
+        let legacy = try editing(snapshot) { json in
+            var teams = json["teams"] as! [[String: Any]]
+            teams[0]["iconColor"] = nil
+            teams[0]["iconImage"] = nil
+            json["teams"] = teams
+        }
+        XCTAssertNil(legacy.teams[0].iconImage)
+        let invalid = try editing(snapshot) { json in
+            var teams = json["teams"] as! [[String: Any]]
+            teams[0]["iconImage"] = Data(repeating: 0, count: 1_048_577).base64EncodedString()
+            json["teams"] = teams
+        }
+        XCTAssertThrowsError(try invalid.validate())
+    }
+
+    @MainActor
     func testEncryptedNotesSurviveBackupMergeAndOrphanRecovery() async throws {
         let (vault, app, _, _) = try makeVault()
         let key = SymmetricKey(size: .bits256)
