@@ -357,8 +357,11 @@ struct CatalogView: View {
             }
         } label: {
             HStack(spacing: 10) {
-                Text(currentTeam.map { String($0.name.prefix(1)) } ?? "＋").font(.system(size: 14, weight: .bold)).foregroundStyle(XkeysStyle.accent)
-                    .frame(width: 32, height: 32).background(XkeysStyle.selection, in: RoundedRectangle(cornerRadius: 8))
+                if let team = currentTeam { TeamIcon(team: team, size: 32) }
+                else {
+                    Text("＋").font(.system(size: 14, weight: .bold)).foregroundStyle(XkeysStyle.accent)
+                        .frame(width: 32, height: 32).background(XkeysStyle.selection, in: RoundedRectangle(cornerRadius: 8))
+                }
                 VStack(alignment: .leading, spacing: 2) {
                     Text(currentTeam?.name ?? String(localized: "チームを追加")).fontWeight(.bold).lineLimit(1)
                     if let team = currentTeam { Text("Team ID " + team.teamID).font(.system(size: 11, design: .monospaced)).foregroundStyle(XkeysStyle.secondary) }
@@ -996,6 +999,24 @@ struct AppIcon: View {
             if let data = app.iconImage, let image = NSImage(data: data) {
                 Image(nsImage: image).resizable().scaledToFill()
             } else { XkeysStyle.appColor(app) }
+        }.frame(width: size, height: size).clipShape(RoundedRectangle(cornerRadius: size / 4))
+            .accessibilityHidden(true)
+    }
+}
+
+/// Without a chosen icon, a team keeps its initial on the accent tint.
+struct TeamIcon: View {
+    let team: DeveloperTeam
+    let size: CGFloat
+    var body: some View {
+        ZStack {
+            if let data = team.iconImage, let image = NSImage(data: data) {
+                Image(nsImage: image).resizable().scaledToFill()
+            } else {
+                (team.iconColor.map(XkeysStyle.iconColor) ?? XkeysStyle.selection)
+                Text(String(team.name.prefix(1))).font(.system(size: size * 0.44, weight: .bold))
+                    .foregroundStyle(team.iconColor == nil ? XkeysStyle.accent : .white)
+            }
         }.frame(width: size, height: size).clipShape(RoundedRectangle(cornerRadius: size / 4))
             .accessibilityHidden(true)
     }

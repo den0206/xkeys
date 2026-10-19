@@ -8,6 +8,8 @@ struct BackupSnapshot: Codable, Sendable, Equatable {
         let id: UUID
         let name: String
         let teamID: String
+        var iconColor: String? = nil
+        var iconImage: Data? = nil
     }
     struct App: Codable, Sendable, Equatable {
         let id: UUID
@@ -59,7 +61,7 @@ struct BackupSnapshot: Codable, Sendable, Equatable {
     @MainActor
     static func capture(vault: CredentialVault, key: SymmetricKey) throws -> BackupSnapshot {
         let teams = try vault.context.fetch(FetchDescriptor<DeveloperTeam>()).map {
-            Team(id: $0.id, name: $0.name, teamID: $0.teamID)
+            Team(id: $0.id, name: $0.name, teamID: $0.teamID, iconColor: $0.iconColor, iconImage: $0.iconImage)
         }
         var customBytes = 0
         let apps = try vault.context.fetch(FetchDescriptor<ManagedApp>()).map { app in
@@ -123,12 +125,15 @@ struct BackupSnapshot: Codable, Sendable, Equatable {
         let teamValues = Dictionary(uniqueKeysWithValues: teams.map { ($0.id, $0) })
         let appValues = Dictionary(uniqueKeysWithValues: apps.map { ($0.id, $0) })
         let appTeams = Dictionary(uniqueKeysWithValues: apps.map { ($0.id, $0.team) })
+        var iconBytes = 0
         for team in teams {
+            let bytes = team.iconImage?.count ?? 0
+            iconBytes += bytes
+            guard bytes <= 1_048_576, iconBytes <= BackupArchive.maximumPayloadBytes / 4, team.iconColor.map(AppCatalog.iconColors.contains) ?? true else { throw BackupError.tooLarge }
             guard !team.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
                   team.teamID.range(of: "^[A-Z0-9]{10}$", options: .regularExpression) != nil else { throw BackupError.invalid }
         }
         var appKeys = Set<String>()
-        var iconBytes = 0
         var customBytes = 0
         for app in apps {
             try AppSecret.validate(app.customSecrets ?? [])

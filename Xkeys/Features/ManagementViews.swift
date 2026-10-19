@@ -264,10 +264,10 @@ struct CatalogEditor: View {
             Text("識別子と所属Teamは資格情報との関連を保つため固定です。別の識別子は新規登録してください。")
                 .font(.caption).foregroundStyle(.secondary)
             if app != nil { Picker("プラットフォーム", selection: $platform) { ForEach(AppCatalog.platforms, id: \.self) { Text($0).tag($0) } } }
+            LabeledContent("アイコン") {
+                AppIconPicker(name: name, iconColor: $iconColor, iconImage: $iconImage)
+            }
             if let app {
-                LabeledContent("アイコン") {
-                    AppIconPicker(name: name, iconColor: $iconColor, iconImage: $iconImage)
-                }
                 Picker("所属アプリ", selection: $parentAppID) {
                     Text("独立したアプリ（本体）").tag(nil as UUID?)
                     ForEach((app.team?.apps ?? []).filter { $0.id != app.id && $0.parentAppID == nil && $0.deletedAt == nil }.sorted { $0.name < $1.name }) { parent in
@@ -290,8 +290,8 @@ struct CatalogEditor: View {
                         if let app {
                             try AppCatalog(context: vault.context).updateApp(app, name: value, platform: platform, parentAppID: parentAppID,
                                                                            iconColor: iconColor, iconImage: iconImage)
-                        } else {
-                            try VaultManagement(vault: vault).change { team?.name = value }
+                        } else if let team {
+                            try AppCatalog(context: vault.context).updateTeam(team, name: value, iconColor: iconColor, iconImage: iconImage)
                         }
                         dismiss()
                     } catch { self.error = error.localizedDescription }
@@ -303,8 +303,8 @@ struct CatalogEditor: View {
                 name = app?.name ?? team?.name ?? ""
                 platform = app?.platform ?? "iOS"
                 parentAppID = app?.parentAppID
-                iconColor = app?.iconColor
-                iconImage = app?.iconImage
+                iconColor = app?.iconColor ?? team?.iconColor
+                iconImage = app?.iconImage ?? team?.iconImage
             }
             .sheet(isPresented: $deleting) {
                 if let app {
@@ -355,6 +355,7 @@ struct TeamManagementView: View {
                     ForEach(teams) { team in
                         let loggedIn = appleSession.connected && appleSession.teams.contains { $0.teamID == team.teamID }
                         HStack(spacing: 12) {
+                            TeamIcon(team: team, size: 32)
                             VStack(alignment: .leading, spacing: 4) {
                                 HStack(spacing: 8) {
                                     Text(team.name).fontWeight(.medium)

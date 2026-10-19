@@ -6,6 +6,8 @@ final class DeveloperTeam {
     @Attribute(.unique) var id: UUID
     @Attribute(.unique) var teamID: String
     var name: String
+    var iconColor: String?
+    var iconImage: Data?
     @Relationship(deleteRule: .deny, inverse: \ManagedApp.team) var apps: [ManagedApp] = []
 
     init(name: String, teamID: String) {
@@ -149,6 +151,18 @@ struct AppCatalog {
             try context.save()
             return app.id
         } catch { context.discardChanges(); throw error }
+    }
+
+    func updateTeam(_ team: DeveloperTeam, name: String, iconColor: String?, iconImage: Data?) throws {
+        let value = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !value.isEmpty else { throw RegistrationError.nameRequired }
+        guard (iconImage?.count ?? 0) <= 1_048_576, iconColor.map(Self.iconColors.contains) ?? true else { throw ValidationError.invalidFile }
+        guard team.modelContext === context else { throw RegistrationError.teamMissing }
+        try VaultManagement(vault: CredentialVault(context: context, blobs: EncryptedBlobStore(directory: CredentialVault.directory))).change {
+            team.name = value
+            team.iconColor = iconColor
+            team.iconImage = iconImage
+        }
     }
 
     func setParent(_ parentAppID: UUID?, for app: ManagedApp, name: String, platform: String) throws {
