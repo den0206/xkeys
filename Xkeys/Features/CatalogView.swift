@@ -798,6 +798,43 @@ struct XkeysButtonStyle: ButtonStyle {
     }
 }
 
+/// Motion only marks a change of state (copied, authenticating, finished). Reduce Motion turns it off.
+/// Views that show secret values are hidden without animation, so nothing stays on screen during a transition.
+@MainActor enum XkeysMotion {
+    static var enabled: Bool { !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion }
+    static var feedback: Animation? { enabled ? .smooth(duration: 0.3) : nil }
+}
+
+/// The copy icon becomes a checkmark for a moment once the value is on the clipboard.
+struct CopyLabel: View {
+    let copied: Bool
+
+    var body: some View {
+        Label("コピー", systemImage: copied ? "checkmark" : "doc.on.doc")
+            .contentTransition(.symbolEffect(.replace))
+            .animation(XkeysMotion.feedback, value: copied)
+    }
+}
+
+extension View {
+    /// Returns a `CopyLabel` to the copy icon shortly after its checkmark appears. The task ends with the view.
+    func resettingCopied<Value: Equatable & Sendable>(_ copied: Binding<Value?>) -> some View {
+        task(id: copied.wrappedValue) {
+            guard copied.wrappedValue != nil else { return }
+            try? await Task.sleep(for: .seconds(1.5))
+            if !Task.isCancelled { copied.wrappedValue = nil }
+        }
+    }
+}
+
+/// Shown while Touch ID or the Mac password is being asked for.
+struct AuthenticatingLabel: View {
+    var body: some View {
+        Label("認証しています…", systemImage: "touchid")
+            .symbolEffect(.pulse, isActive: XkeysMotion.enabled)
+    }
+}
+
 
 struct OnboardingView: View {
     static let completedKey = "Xkeys.onboardingCompleted"

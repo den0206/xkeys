@@ -40,6 +40,7 @@ struct CICopyView: View {
     }
 
     @State private var copied: CIValue?
+    @State private var pending: CIValue?
     @State private var copiedAt = Date.distantPast
     @State private var now = Date.now
 
@@ -63,11 +64,14 @@ struct CICopyView: View {
                             let remaining = 60 - Int(now.timeIntervalSince(copiedAt))
                             if copied == value && remaining > 0 {
                                 Label("コピーしました · 残り \(remaining)秒", systemImage: "checkmark").font(.system(size: 12, weight: .semibold))
+                                    .contentTransition(.numericText(countsDown: true)).animation(XkeysMotion.feedback, value: remaining)
                                     .foregroundStyle(XkeysStyle.successText).padding(.horizontal, 10).frame(height: 30)
                                     .background(XkeysStyle.successBackground, in: RoundedRectangle(cornerRadius: 7))
+                                    .transition(.symbolEffect(.drawOn))
                             } else {
-                                Button { copy(value) } label: { Label("コピー", systemImage: "touchid") }
-                                    .buttonStyle(XkeysButtonStyle(compact: true)).disabled(!available(value) || access.busy)
+                                Button { copy(value) } label: {
+                                    Label("コピー", systemImage: "touchid").symbolEffect(.pulse, isActive: pending == value && XkeysMotion.enabled)
+                                }.buttonStyle(XkeysButtonStyle(compact: true)).disabled(!available(value) || access.busy)
                             }
                         }.padding(.vertical, 12)
                             .overlay(alignment: .top) { Rectangle().fill(XkeysStyle.rowBorder).frame(height: 1) }
@@ -106,7 +110,9 @@ struct CICopyView: View {
         value != .password || record.hasSavedPassword
     }
     private func copy(_ value: CIValue) {
+        pending = value
         Task { @MainActor in
+            defer { pending = nil }
             do {
                 try await access.withKey(reason: String(localized: "CIへ登録する値をコピーします"), allowCreation: false, vault: vault) { key in
                     let payload = try vault.read(record, key: key)
@@ -120,9 +126,9 @@ struct CICopyView: View {
                     try SecretClipboard.copy(secret)
                 }
                 message = nil
-                copied = value
                 copiedAt = .now
                 now = .now
+                withAnimation(XkeysMotion.feedback) { copied = value }
             } catch { message = error.localizedDescription }
         }
     }

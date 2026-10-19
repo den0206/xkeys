@@ -6,6 +6,10 @@ The format follows Keep a Changelog conventions and releases use semantic versio
 
 ## [Unreleased]
 
+### Changed
+
+- Copy buttons briefly turn into a checkmark, the Touch ID icon pulses while waiting for authentication, and finished backups, restores, imports, and CI file exports draw their checkmark. The CI copy countdown rolls its digits. Motion is off when Reduce Motion is on.
+
 ### Fixed
 
 - Certificates now show the apps that use them right after a restore, instead of only after the next Touch ID prompt.

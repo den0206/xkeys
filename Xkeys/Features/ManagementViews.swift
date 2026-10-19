@@ -22,6 +22,7 @@ struct AppSecretEditor: View {
     @State private var addedID: UUID?
     @State private var error: String?
     @State private var activity = Date.now
+    @State private var copiedID: UUID?
 
     init(vault: CredentialVault, app: ManagedApp, startAdding: Bool = false, access: VaultAccess = VaultAccess()) {
         self.vault = vault
@@ -58,7 +59,7 @@ struct AppSecretEditor: View {
                                     HStack {
                                         Text("変数名").font(.system(size: 12, weight: .semibold))
                                         Spacer()
-                                        Button("コピー") { copy(secret) }.buttonStyle(XkeysButtonStyle(compact: true))
+                                        Button { copy(secret) } label: { CopyLabel(copied: copiedID == secret.id) }.buttonStyle(XkeysButtonStyle(compact: true))
                                             .help("値をコピー")
                                         Button("削除", role: .destructive) { secrets.removeAll { $0.id == secret.id } }
                                             .buttonStyle(XkeysButtonStyle(compact: true))
@@ -88,6 +89,7 @@ struct AppSecretEditor: View {
                     }.background(XkeysStyle.sidebar)
                         .onChange(of: addedID) { _, id in if let id { proxy.scrollTo(id, anchor: .bottom) } }
                         .onAppear { if let addedID { proxy.scrollTo(addedID, anchor: .bottom) } }
+                        .resettingCopied($copiedID)
                 }
             } else {
                 VStack(spacing: 12) {
@@ -180,6 +182,7 @@ struct AppSecretEditor: View {
                     try SecretClipboard.copy(value)
                 }
                 activity = .now
+                copiedID = secret.id
             } catch { self.error = error.localizedDescription }
         }
     }
@@ -459,7 +462,7 @@ struct TeamDeletionView: View {
             }
             if let error { Text(error).foregroundStyle(.red) }
             HStack {
-                if access.busy { ProgressView().controlSize(.small) }
+                if access.busy { AuthenticatingLabel().labelStyle(.iconOnly).foregroundStyle(XkeysStyle.secondary) }
                 Spacer()
                 Button(hasContents ? "閉じる" : "キャンセル") { dismiss() }.keyboardShortcut(.cancelAction)
                 Button("認証してチームを削除", role: .destructive, action: remove)
@@ -793,7 +796,7 @@ struct P8PurposeEditor: View {
                 .font(.caption).foregroundStyle(XkeysStyle.secondary).fixedSize(horizontal: false, vertical: true)
             if let error { Text(error).foregroundStyle(.red).textSelection(.enabled) }
             HStack {
-                if access.busy { ProgressView().controlSize(.small) }
+                if access.busy { AuthenticatingLabel().labelStyle(.iconOnly).foregroundStyle(XkeysStyle.secondary) }
                 Spacer()
                 Button("キャンセル") { dismiss() }.keyboardShortcut(.cancelAction)
                 Button("認証して保存", action: save).keyboardShortcut(.defaultAction).disabled(access.busy || purposes.isEmpty)
