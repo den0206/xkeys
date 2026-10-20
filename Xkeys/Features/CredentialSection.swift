@@ -215,7 +215,7 @@ struct CollapsibleSection<Content: View>: View {
     }
 }
 
-private struct AttentionBadgeStyle: LabelStyle {
+struct AttentionBadgeStyle: LabelStyle {
     func makeBody(configuration: Configuration) -> some View {
         HStack(spacing: 5) {
             configuration.icon.font(.system(size: 6))

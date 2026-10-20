@@ -37,7 +37,7 @@ struct CredentialAppView: View {
     @State private var editingApp = false
     @State private var editingTarget: ManagedApp?
     @State private var addingTarget = false
-    @State private var targetFilter: UUID?
+    @State private var collapsedTargets: Set<UUID> = []
     @State private var copyingCI = false
     @State private var creatingSecretFile = false
     @State private var deletingRecord: StoredCredential?
@@ -55,11 +55,18 @@ struct CredentialAppView: View {
         let records: [StoredCredential]
     }
 
-    /// Everything on this page, before the target filter. Attention counts use this, so they stay app-wide.
+    /// Everything on this page, before targets are collapsed. Attention counts use this, so they stay app-wide.
     private var scoped: [StoredCredential] {
         records.filter { CredentialSearch.includes($0, scope: scope, app: app, query: search, type: typeFilter, at: clock) }
     }
-    private var visible: [StoredCredential] { scoped.filter { targetFilter == nil || $0.app?.id == targetFilter } }
+    private var showsTargets: Bool { app != nil && !CredentialSearch.hasQuery(search) && typeFilter == .all }
+    private var visible: [StoredCredential] {
+        guard showsTargets, !collapsedTargets.isEmpty else { return scoped }
+        return scoped.filter { record in
+            guard let target = record.app else { return true }
+            return !collapsedTargets.contains(target.id) && !collapsedTargets.contains(target.parentAppID ?? target.id)
+        }
+    }
     private var checkedRecords: [StoredCredential] { visible.filter { checkedIDs.contains($0.id) } }
     private var selectedRecord: StoredCredential? { visible.first { $0.id == selected } }
     private var vault: CredentialVault {
@@ -119,10 +126,7 @@ struct CredentialAppView: View {
                 deleteBatch(deletion.records)
             }
         }
-        .onChange(of: app?.id) { _, _ in showingCustomSecrets = false; showingNote = false; revealedNote = nil }
-        .onChange(of: app?.targets.map(\.id)) { _, ids in
-            if let targetFilter, ids?.contains(targetFilter) != true { self.targetFilter = nil }
-        }
+        .onChange(of: app?.id) { _, _ in showingCustomSecrets = false; showingNote = false; revealedNote = nil; collapsedTargets = [] }
         .onChange(of: visible.map(\.id)) { _, ids in checkedIDs.formIntersection(Set(ids)) }
         .task {
             do {
@@ -151,13 +155,10 @@ struct CredentialAppView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 header
-                if let app, app.parentAppID == nil, app.targets.count > 1, !CredentialSearch.hasQuery(search) { targetFilterBar(app) }
                 attentionBanner
                 if selectingForDeletion { deletionBar }
-                if let app, !CredentialSearch.hasQuery(search), typeFilter == .all {
-                    ForEach((app.parentAppID == nil ? app.targets : [app]).filter { targetFilter == nil || $0.id == targetFilter }) { target in
-                        targetSection(target)
-                    }
+                if let app, showsTargets {
+                    targetTree(app, children: app.parentAppID == nil ? app.targets.filter { $0.id != app.id } : [])
                 } else if visible.isEmpty {
                     emptyState.frame(maxWidth: .infinity)
                 } else {
@@ -188,7 +189,7 @@ struct CredentialAppView: View {
             let index = visible.firstIndex { $0.id == selected } ?? (direction == .down ? -1 : visible.count)
             select(visible[min(max(index + (direction == .down ? 1 : -1), 0), visible.count - 1)].id)
         }
-        .onChange(of: targetFilter) { _, _ in lock(dismissImport: false) }
+        .onChange(of: collapsedTargets) { _, _ in lock(dismissImport: false) }
         .dropDestination(for: URL.self) { urls, _ in
             guard team != nil, app?.deletedAt == nil, !CredentialSearch.hasQuery(search),
                   !urls.isEmpty, !access.busy, !importing, panelSources.isEmpty else { return false }
@@ -276,31 +277,6 @@ struct CredentialAppView: View {
                 .frame(width: 30, height: 30).overlay(RoundedRectangle(cornerRadius: 8).stroke(XkeysStyle.border))
                 .help("表示と管理").accessibilityLabel("表示と管理")
         }
-    }
-
-    private func targetFilterBar(_ app: ManagedApp) -> some View {
-        HStack(spacing: 6) {
-            targetChip(String(localized: "すべて"), id: nil)
-            ForEach(app.targets) { target in
-                targetChip(target.id == app.id ? String(localized: "本体") : target.name, id: target.id)
-                    .contextMenu {
-                        if target.id != app.id {
-                            Button("ターゲットを編集…") { editingTarget = target }
-                        }
-                    }
-            }
-        }.accessibilityElement(children: .contain).accessibilityLabel("ターゲットで絞り込む")
-    }
-
-    private func targetChip(_ title: String, id: UUID?) -> some View {
-        let on = targetFilter == id
-        return Button(title) { targetFilter = id }
-            .buttonStyle(.plain).font(.system(size: 12, weight: on ? .semibold : .regular))
-            .padding(.horizontal, 12).frame(height: 28)
-            .foregroundStyle(on ? Color.white : XkeysStyle.text.opacity(0.8))
-            .background(on ? XkeysStyle.text : XkeysStyle.canvas, in: Capsule())
-            .overlay(Capsule().stroke(on ? XkeysStyle.text : XkeysStyle.border))
-            .accessibilityAddTraits(on ? .isSelected : [])
     }
 
     @ViewBuilder private var attentionBanner: some View {
@@ -503,15 +479,49 @@ struct CredentialAppView: View {
         }.buttonStyle(.plain)
     }
 
-    private func targetSection(_ target: ManagedApp) -> some View {
+    /// The main target with its children hung below on a tree line; closing the main target hides them too.
+    private func targetTree(_ root: ManagedApp, children: [ManagedApp]) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            targetSection(root, members: [root] + children)
+            if !children.isEmpty && !collapsedTargets.contains(root.id) {
+                VStack(alignment: .leading, spacing: 18) {
+                    ForEach(children) { child in
+                        targetSection(child, members: [child]).overlay(alignment: .topLeading) {
+                            Rectangle().fill(XkeysStyle.border).frame(width: 14, height: 2).offset(x: -22, y: 22)
+                        }
+                    }
+                }.padding(.leading, 22)
+                    .overlay(alignment: .leading) { Rectangle().fill(XkeysStyle.border).frame(width: 2) }
+                    .padding(.leading, 13)
+            }
+        }
+    }
+
+    /// `members` are the targets this header stands for, so a closed main target counts its children's problems.
+    private func targetSection(_ target: ManagedApp, members: [ManagedApp]) -> some View {
         let profiles = visible.filter { $0.app?.id == target.id }
+        let open = !collapsedTargets.contains(target.id)
+        let ids = Set(members.map(\.id))
+        let attention = open ? 0 : scoped.filter { $0.app.map { ids.contains($0.id) } == true && $0.needsAttention(in: records, at: clock) }.count
         return VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 10) {
-                AppIcon(app: target.product, size: 28)
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(target.name + (target.parentAppID == nil ? String(localized: "（本体）") : "")).fontWeight(.semibold)
-                    Text(target.bundleID).font(.caption.monospaced()).foregroundStyle(XkeysStyle.secondary)
-                }
+                Button {
+                    if open { collapsedTargets.insert(target.id) } else { collapsedTargets.remove(target.id) }
+                } label: {
+                    HStack(spacing: 10) {
+                        Image(systemName: "chevron.down").font(.system(size: 10, weight: .bold))
+                            .rotationEffect(.degrees(open ? 0 : -90)).foregroundStyle(XkeysStyle.secondary)
+                            .animation(XkeysMotion.feedback, value: open)
+                        AppIcon(app: target.product, size: 28)
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(target.name + (target.parentAppID == nil ? String(localized: "（本体）") : "")).fontWeight(.semibold)
+                            Text(target.bundleID).font(.caption.monospaced()).foregroundStyle(XkeysStyle.secondary)
+                        }
+                    }.contentShape(Rectangle())
+                }.buttonStyle(.plain)
+                    .accessibilityLabel(target.name + (attention > 0 ? String(localized: "、要対応\(attention)件") : ""))
+                    .accessibilityValue(open ? "開いています" : "閉じています")
+                if attention > 0 { Label("要対応 \(attention)", systemImage: "circle.fill").labelStyle(AttentionBadgeStyle()) }
                 Spacer()
                 GuideTermButton(term: .profile)
                 Text("プロファイル \(profiles.count)件").foregroundStyle(XkeysStyle.secondary)
@@ -524,9 +534,9 @@ struct CredentialAppView: View {
                     .menuStyle(.borderlessButton).menuIndicator(.hidden).frame(width: 28)
                     .accessibilityLabel(String(localized: "\(target.name)の操作")).disabled(access.busy)
             }.padding(.vertical, 8)
-            if profiles.isEmpty {
+            if open && profiles.isEmpty {
                 Text("プロファイルはまだありません").foregroundStyle(XkeysStyle.secondary).padding(.vertical, 8)
-            } else {
+            } else if open {
                 columnHeader(.profile)
                 ForEach(profiles) { row($0) }
             }
