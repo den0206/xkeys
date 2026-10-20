@@ -842,6 +842,37 @@ private struct XkeysButtonBody: View {
     }
 }
 
+/// Fades content in from a small offset when it appears, so a page or an opened section fills in from the top.
+struct Entrance: ViewModifier {
+    let delay: Double
+    let from: CGSize
+    @State private var shown: Bool
+
+    /// `active: false` shows the content at once, for rows a lazy list creates while scrolling.
+    init(delay: Double, from: CGSize, active: Bool = true) {
+        self.delay = delay
+        self.from = from
+        _shown = State(initialValue: !active || !XkeysMotion.enabled)
+    }
+
+    /// Rows after the tenth start together, so long lists do not keep the page waiting.
+    static func delay(_ order: Int) -> Double { 0.05 * Double(min(order, 10)) }
+
+    func body(content: Content) -> some View {
+        content.opacity(shown ? 1 : 0).offset(shown ? .zero : from)
+            .onAppear {
+                guard !shown else { return }
+                withAnimation(.smooth(duration: 0.5).delay(delay)) { shown = true }
+            }
+    }
+}
+
+extension View {
+    func entrance(delay: Double, from: CGSize = CGSize(width: 0, height: 8), active: Bool = true) -> some View {
+        modifier(Entrance(delay: delay, from: from, active: active))
+    }
+}
+
 /// The copy icon becomes a checkmark for a moment once the value is on the clipboard.
 struct CopyLabel: View {
     let copied: Bool

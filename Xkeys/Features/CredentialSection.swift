@@ -192,7 +192,7 @@ struct CollapsibleSection<Content: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 6) {
-                Button { expanded.toggle() } label: {
+                Button { withAnimation(XkeysMotion.feedback) { expanded.toggle() } } label: {
                     HStack(spacing: 6) {
                         Image(systemName: "chevron.down").font(.system(size: 10, weight: .bold))
                             .rotationEffect(.degrees(expanded ? 0 : -90)).foregroundStyle(XkeysStyle.secondary)

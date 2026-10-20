@@ -13,7 +13,8 @@ struct CredentialAppView: View {
     let search: String
     @Binding var typeFilter: CredentialTypeFilter
     var initialSources: [URL] = []
-    @Query(sort: \StoredCredential.name) private var records: [StoredCredential]
+    // Rows added or removed by imports and deletions slide in and out.
+    @Query(sort: \StoredCredential.name, animation: XkeysMotion.feedback ?? .linear(duration: 0)) private var records: [StoredCredential]
     @State private var access = VaultAccess()
     @State private var selected: UUID?
     @State private var droppedSources: [URL] = []
@@ -154,8 +155,8 @@ struct CredentialAppView: View {
     private var credentialList: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                header
-                attentionBanner
+                header.entrance(delay: 0, from: .zero)
+                attentionBanner.entrance(delay: 0.05)
                 if selectingForDeletion { deletionBar }
                 if let app, showsTargets {
                     targetTree(app, children: app.parentAppID == nil ? app.targets.filter { $0.id != app.id } : [])
@@ -168,7 +169,7 @@ struct CredentialAppView: View {
                                            attention: scoped.filter { CredentialGroup($0) == group && $0.needsAttention(in: records, at: clock) }.count,
                                            term: group.guideTerm) {
                             columnHeader(group)
-                            ForEach(items) { row($0) }
+                            ForEach(Array(items.enumerated()), id: \.element.id) { index, record in row(record).entrance(delay: Entrance.delay(index + 1)) }
                         }
                     }
                 }
@@ -485,10 +486,10 @@ struct CredentialAppView: View {
             targetSection(root, members: [root] + children)
             if !children.isEmpty && !collapsedTargets.contains(root.id) {
                 VStack(alignment: .leading, spacing: 18) {
-                    ForEach(children) { child in
+                    ForEach(Array(children.enumerated()), id: \.element.id) { index, child in
                         targetSection(child, members: [child]).overlay(alignment: .topLeading) {
                             Rectangle().fill(XkeysStyle.border).frame(width: 14, height: 2).offset(x: -22, y: 22)
-                        }
+                        }.entrance(delay: 0.1 * Double(index + 1), from: CGSize(width: -12, height: 0))
                     }
                 }.padding(.leading, 22)
                     .overlay(alignment: .leading) { Rectangle().fill(XkeysStyle.border).frame(width: 2) }
@@ -506,7 +507,9 @@ struct CredentialAppView: View {
         return VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 10) {
                 Button {
-                    if open { collapsedTargets.insert(target.id) } else { collapsedTargets.remove(target.id) }
+                    withAnimation(XkeysMotion.feedback) {
+                        if open { collapsedTargets.insert(target.id) } else { collapsedTargets.remove(target.id) }
+                    }
                 } label: {
                     HStack(spacing: 10) {
                         Image(systemName: "chevron.down").font(.system(size: 10, weight: .bold))
@@ -537,8 +540,11 @@ struct CredentialAppView: View {
             if open && profiles.isEmpty {
                 Text("プロファイルはまだありません").foregroundStyle(XkeysStyle.secondary).padding(.vertical, 8)
             } else if open {
-                columnHeader(.profile)
-                ForEach(profiles) { row($0) }
+                // One container, so closing shrinks the list instead of sliding each row out like a deletion.
+                VStack(alignment: .leading, spacing: 8) {
+                    columnHeader(.profile)
+                    ForEach(Array(profiles.enumerated()), id: \.element.id) { index, record in row(record).entrance(delay: Entrance.delay(index + 1)) }
+                }
             }
         }
     }
@@ -596,6 +602,7 @@ struct CredentialAppView: View {
             .stroke(isSelected ? XkeysStyle.selectionBorder : broken ? XkeysStyle.dangerBorder : hoveredRow == record.id ? XkeysStyle.selectionBorder : group.border,
                     lineWidth: isSelected ? 1.5 : 1))
         .onHover { hoveredRow = $0 ? record.id : hoveredRow == record.id ? nil : hoveredRow }
+        .transition(.asymmetric(insertion: .identity, removal: .offset(x: 28).combined(with: .opacity)))
         .accessibilityElement(children: .contain)
         .accessibilityAddTraits(isSelected ? [.isSelected, .isButton] : .isButton)
         .accessibilityAction { select(isSelected ? nil : record.id) }
@@ -798,6 +805,8 @@ struct CredentialAppView: View {
     }
 
     private func trash(_ record: StoredCredential) {
+        // The removed row slides out, so the password must not ride along with it.
+        revealedPassword = nil
         Task { @MainActor in
             do {
                 try await access.withKey(reason: String(localized: "資格情報を最近削除した項目へ移します"), allowCreation: false, vault: vault) { key in
@@ -810,6 +819,7 @@ struct CredentialAppView: View {
 
     private func deleteBatch(_ targets: [StoredCredential]) {
         error = nil
+        revealedPassword = nil
         Task { @MainActor in
             do {
                 try await access.withKey(reason: String(localized: "選択した\(targets.count)件の鍵・ファイルを最近削除した項目へ移します"), allowCreation: false, vault: vault) { key in

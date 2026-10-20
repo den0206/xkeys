@@ -18,6 +18,8 @@ The format follows Keep a Changelog conventions and releases use semantic versio
 
 - An app page shows its targets as a tree under the main app instead of filter buttons. Each target opens and closes from its header, closing the main app hides its targets too, and a closed header shows how many items need attention.
 
+- Pages fill in from the top when they open, sections and targets grow and shrink as they open and close, and deleted rows slide away while the rows below close the gap. Motion is off when Reduce Motion is on.
+
 ### Fixed
 
 - Certificates now show the apps that use them right after a restore, instead of only after the next Touch ID prompt.
