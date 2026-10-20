@@ -31,6 +31,16 @@
         }
       }
     },
+    "保存しました" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saved"
+          }
+        }
+      }
+    },
     "編集" : {
       "localizations" : {
         "en" : {

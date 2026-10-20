@@ -39,11 +39,14 @@ struct AppleDeveloperImportView: View {
                 Button("ログインを確認・変更…") { showingLogin = true }.disabled(loading)
                 Spacer()
                 Text("選択 \(selectedIDs.count)件 / \(items.count)件").foregroundStyle(.secondary)
+                    .contentTransition(.numericText()).animation(XkeysMotion.feedback, value: selectedIDs.count)
             }
             if loading { HStack { ProgressView().controlSize(.small); Text("Appleから取得しています…") } }
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 8) {
-                    ForEach(items) { item in
+                    // Placeholder rows keep the list's height while Apple answers.
+                    if loading && items.isEmpty { ForEach(0..<5, id: \.self) { _ in LoadingRow() } }
+                    ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
                         Toggle(isOn: Binding(get: { selectedIDs.contains(item.id) }, set: { selected in
                             if selected { selectedIDs.insert(item.id) } else { selectedIDs.remove(item.id) }
                             lastActivity = .now
@@ -57,6 +60,7 @@ struct AppleDeveloperImportView: View {
                             }.frame(maxWidth: .infinity, alignment: .leading)
                         }.toggleStyle(.checkbox).padding(10)
                             .background(XkeysStyle.sidebar, in: RoundedRectangle(cornerRadius: 8))
+                            .entrance(delay: Entrance.delay(index), active: index <= 10)
                     }
                     if loaded && items.isEmpty { Text("取得できる\(kind.title)はありません。").foregroundStyle(.secondary).padding() }
                 }
@@ -150,5 +154,20 @@ struct AppleDeveloperImportView: View {
                 }
             }
         }
+    }
+}
+
+/// A grey row that pulses while the list loads.
+private struct LoadingRow: View {
+    @State private var dimmed = false
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: 8).fill(XkeysStyle.sidebar).frame(height: 56)
+            .opacity(dimmed ? 0.45 : 1)
+            .onAppear {
+                guard XkeysMotion.enabled else { return }
+                withAnimation(.easeInOut(duration: 0.8).repeatForever()) { dimmed = true }
+            }
+            .accessibilityHidden(true)
     }
 }

@@ -125,14 +125,15 @@ struct CredentialImportView: View {
             VStack(alignment: .leading, spacing: 6) {
                 Text(headline).font(.system(size: 18, weight: .bold))
                 Text(subheadline).foregroundStyle(XkeysStyle.secondary).fixedSize(horizontal: false, vertical: true)
-            }
+            }.entrance(delay: 0).id(currentName)
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     if finished {
                         Label("処理済み \(completedItems.count)件", systemImage: "checkmark.circle")
                             .font(.headline).foregroundStyle(XkeysStyle.accent)
-                        ForEach(Array(completedItems.enumerated()), id: \.offset) { _, result in
+                        ForEach(Array(completedItems.enumerated()), id: \.offset) { index, result in
                             Text(result).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading)
+                                .entrance(delay: Entrance.delay(index + 1))
                         }
                     } else if file == nil && !readyToCommit && currentName.isEmpty {
                     Button(action: chooseFile) {
@@ -239,6 +240,8 @@ struct CredentialImportView: View {
                         Label(issue, systemImage: "exclamationmark.triangle").foregroundStyle(.red).textSelection(.enabled)
                     }
                 }.frame(maxWidth: .infinity, alignment: .leading)
+                    // Each file's details rise in after the headline.
+                    .entrance(delay: 0.05).id(currentName)
             }
             .dropDestination(for: URL.self) { urls, _ in
                 guard !finished, !reading, !access.busy else { return false }
@@ -478,30 +481,36 @@ struct CredentialImportView: View {
                 .font(.system(size: 12, weight: .semibold)).foregroundStyle(XkeysStyle.secondary).padding(.horizontal, 8).padding(.bottom, 8)
             ScrollView {
                 VStack(alignment: .leading, spacing: 2) {
-                    ForEach(Array(completedItems.enumerated()), id: \.offset) { _, item in
-                        let saved = item.hasPrefix(String(localized: "保存済み："))
-                        queueRow(item.split(maxSplits: 1, whereSeparator: { $0 == "：" || $0 == ":" }).last.map(String.init) ?? item,
-                                 symbol: saved ? "checkmark.circle" : item.hasPrefix(String(localized: "スキップ：")) ? "minus.circle" : "exclamationmark.circle",
-                                 tint: saved ? XkeysStyle.successText : item.hasPrefix(String(localized: "スキップ：")) ? XkeysStyle.tertiary : XkeysStyle.dangerText, current: false)
+                    // One list keyed by position: a file keeps its row as it moves from waiting to done, so its symbol changes in place.
+                    ForEach(Array(queueItems.enumerated()), id: \.offset) { _, item in
+                        queueRow(item.name, symbol: item.symbol, tint: item.tint, current: item.current)
                     }
-                    ForEach(Array(pending.enumerated()), id: \.offset) { _, item in
-                        queueRow(item.file.name, symbol: "checkmark.circle", tint: XkeysStyle.accent, current: false)
-                    }
-                    if !currentName.isEmpty { queueRow(currentName, symbol: "smallcircle.filled.circle", tint: XkeysStyle.accent, current: true) }
-                    ForEach(Array(memoryQueue.enumerated()), id: \.offset) { _, item in queueRow(item.name, symbol: "circle", tint: XkeysStyle.tertiary, current: false) }
-                    ForEach(queue, id: \.self) { url in queueRow(url.lastPathComponent, symbol: "circle", tint: XkeysStyle.tertiary, current: false) }
-                }
+                }.animation(XkeysMotion.feedback, value: currentName)
             }
         }.padding(.horizontal, 12).padding(.vertical, 20).frame(width: 250).frame(maxHeight: .infinity, alignment: .top)
             .background(XkeysStyle.sidebar)
             .overlay(alignment: .trailing) { Rectangle().fill(XkeysStyle.rowBorder).frame(width: 1) }
     }
 
+    private var queueItems: [(name: String, symbol: String, tint: Color, current: Bool)] {
+        completedItems.map { item in
+            let saved = item.hasPrefix(String(localized: "保存済み："))
+            let skipped = item.hasPrefix(String(localized: "スキップ："))
+            return (item.split(maxSplits: 1, whereSeparator: { $0 == "：" || $0 == ":" }).last.map(String.init) ?? item,
+                    saved ? "checkmark.circle" : skipped ? "minus.circle" : "exclamationmark.circle",
+                    saved ? XkeysStyle.successText : skipped ? XkeysStyle.tertiary : XkeysStyle.dangerText, false)
+        }
+        + pending.map { ($0.file.name, "checkmark.circle", XkeysStyle.accent, false) }
+        + (currentName.isEmpty ? [] : [(currentName, "smallcircle.filled.circle", XkeysStyle.accent, true)])
+        + memoryQueue.map { ($0.name, "circle", XkeysStyle.tertiary, false) }
+        + queue.map { ($0.lastPathComponent, "circle", XkeysStyle.tertiary, false) }
+    }
+
     private func queueRow(_ name: String, symbol: String, tint: Color, current: Bool) -> some View {
         let ext = (name as NSString).pathExtension.lowercased()
         let kind = ext == "p8" ? String(localized: "鍵（.p8）") : ["cer", "p12"].contains(ext) ? String(localized: "証明書") : String(localized: "プロファイル")
         return HStack(spacing: 10) {
-            Image(systemName: symbol).foregroundStyle(tint)
+            Image(systemName: symbol).foregroundStyle(tint).contentTransition(.symbolEffect(.replace))
             VStack(alignment: .leading, spacing: 1) {
                 Text(kind).fontWeight(current ? .semibold : .regular)
                 Text(name).font(.system(size: 11)).foregroundStyle(XkeysStyle.secondary).lineLimit(1).truncationMode(.middle)

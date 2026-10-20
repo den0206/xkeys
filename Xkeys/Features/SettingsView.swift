@@ -6,6 +6,7 @@ struct AppSettingsView: View {
     @State private var preferences = AppPreferences()
     @State private var error: String?
     @State private var loaded = false
+    @State private var saved = false
     @State private var apple = AppleDeveloperSession.shared
     @AppStorage(GuideMode.storageKey) private var guideMode = false
     @AppStorage(OnboardingView.completedKey) private var onboardingCompleted = false
@@ -23,11 +24,12 @@ struct AppSettingsView: View {
                     Text("設定").font(.system(size: 20, weight: .bold))
                     settingsGroup("Apple Developer") {
                         AppleDeveloperAccountView(session: apple).padding(14)
+                            .animation(XkeysMotion.feedback, value: apple.connected)
                         settingsNote(String(localized: "パスワードは保存しません。接続情報だけをこの Mac のキーチェーンに保存しています。"))
-                    }
+                    }.entrance(delay: 0.05)
                     settingsGroup(String(localized: "表示")) {
                         settingsToggle(String(localized: "Dock アイコンに件数を表示"), detail: String(localized: "30日以内に期限が来るものの数を出します"), isOn: $preferences.showDockBadge)
-                    }
+                    }.entrance(delay: 0.1)
                     // These act at once and stay on this Mac: they are not saved with the button below or included in backups.
                     settingsGroup(String(localized: "はじめての方へ")) {
                         settingsToggle(String(localized: "説明モード"), detail: String(localized: "画面の見方と言葉の意味をその場で表示します"), isOn: $guideMode)
@@ -40,12 +42,12 @@ struct AppSettingsView: View {
                             Button("もう一度見る") { onboardingCompleted = false }.buttonStyle(XkeysButtonStyle(compact: true))
                         }.padding(.horizontal, 14).padding(.vertical, 11)
                             .overlay(alignment: .top) { Rectangle().fill(XkeysStyle.rowBorder).frame(height: 1) }
-                    }
+                    }.entrance(delay: 0.15)
                     settingsGroup(String(localized: "安全のために")) {
                         safetyRow("touchid", String(localized: "コピー・書き出し・削除の前に、毎回 Touch ID で確認します"))
                         safetyRow("clock", String(localized: "5分操作しないと、表示中のパスワードやメモを閉じます"))
                         safetyRow("arrow.triangle.2.circlepath", String(localized: "iCloud 同期や自動起動はしません。元のファイルも変更しません"))
-                    }
+                    }.entrance(delay: 0.2)
                 }.padding(.horizontal, 28).padding(.vertical, 24).frame(maxWidth: .infinity, alignment: .leading)
             }
             Divider()
@@ -53,10 +55,25 @@ struct AppSettingsView: View {
                 if let error { Text(error).font(.caption).foregroundStyle(XkeysStyle.dangerText) }
                 else { Text("バージョン \(Self.version)").font(.system(size: 11)).foregroundStyle(XkeysStyle.tertiary).textSelection(.enabled) }
                 Spacer()
-                Button("設定を保存") {
-                    do { try PreferencesStore.save(preferences, in: container.mainContext); error = nil }
+                Button {
+                    do {
+                        try PreferencesStore.save(preferences, in: container.mainContext)
+                        error = nil
+                        saved = true
+                        XkeysMotion.confirm()
+                    }
                     catch { self.error = error.localizedDescription }
+                } label: {
+                    HStack(spacing: 6) {
+                        if saved { Image(systemName: "checkmark").transition(.scale.combined(with: .opacity)) }
+                        Text(saved ? "保存しました" : "設定を保存").contentTransition(.opacity)
+                    }.animation(XkeysMotion.feedback, value: saved)
                 }.buttonStyle(XkeysButtonStyle(primary: true)).disabled(!loaded)
+                    .task(id: saved) {
+                        guard saved else { return }
+                        try? await Task.sleep(for: .seconds(1.5))
+                        saved = false
+                    }
             }.padding(.horizontal, 28).padding(.vertical, 14)
         }
         .font(.system(size: 13)).foregroundStyle(XkeysStyle.text).background(XkeysStyle.sidebar)
