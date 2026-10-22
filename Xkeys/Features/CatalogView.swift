@@ -122,10 +122,6 @@ struct CatalogView: View {
         }
         .sheet(isPresented: $showingGlossary) { GuideGlossaryView() }
         .onReceive(Timer.publish(every: 60, on: .main, in: .common).autoconnect()) { _ in clock = .now }
-        .onChange(of: dockBadgeLabel, initial: true) { _, label in
-            guard ProcessInfo.processInfo.environment["XKEYS_TESTING"] != "1" else { return }
-            NSApp.dockTile.badgeLabel = label
-        }
         .onChange(of: selection) { _, scope in
             search = ""; typeFilter = .all
             switch scope {
@@ -261,10 +257,6 @@ struct CatalogView: View {
     private var trashCount: Int { credentials.filter { $0.deletedAt != nil }.count + apps.filter { $0.deletedAt != nil }.count }
     private var expiredCount: Int { active.filter { $0.displayState(at: clock) == .expired }.count }
     private var expiringCount: Int { active.filter { $0.displayState(at: clock).needsRenewal }.count }
-    private var dockBadgeLabel: String? {
-        let show = checkpoints.first?.preferencesData.flatMap { try? JSONDecoder().decode(AppPreferences.self, from: $0).showDockBadge } ?? true
-        return show && expiringCount > 0 ? String(expiringCount) : nil
-    }
 
     /// The team the sidebar shows. Selecting an app or a team page also switches to its team.
     private var currentTeam: DeveloperTeam? { teams.first { $0.id == currentTeamID } ?? teams.first }

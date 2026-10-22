@@ -1236,12 +1236,12 @@
         }
       }
     },
-    "30日以内に期限が来るものの数を出します" : {
+    "Touch ID で確認したあと5分間は、もう一度確認しません。スリープや画面のロックで解除します" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Shows the number of items expiring within 30 days"
+            "value" : "After you confirm with Touch ID, Xkeys won’t ask again for 5 minutes. Sleep or locking the screen ends it."
           }
         }
       }
@@ -1796,22 +1796,22 @@
         }
       }
     },
-    "Dock アイコンに件数を表示" : {
+    "承認を5分間引き継ぐ" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Show count on Dock icon"
+            "value" : "Keep approval for 5 minutes"
           }
         }
       }
     },
-    "Dockバッジ" : {
+    "承認の引き継ぎ" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Dock badge"
+            "value" : "Approval reuse"
           }
         }
       }
@@ -2943,12 +2943,12 @@
         }
       }
     },
-    "コピー・書き出し・削除の前に、毎回 Touch ID で確認します" : {
+    "コピー・書き出し・削除の前に Touch ID で確認します" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Touch ID is required every time before copying, exporting, or deleting"
+            "value" : "Xkeys asks for Touch ID before copying, exporting, or deleting"
           }
         }
       }

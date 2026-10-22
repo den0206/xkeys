@@ -355,8 +355,12 @@ final class VaultAccess {
             key = try await keyProvider(reason, allowCreation)
         } else {
             try EncryptionKeychain.requireSigning()
-            let context = try await authentication.authenticate(reason: reason)
-            key = try EncryptionKeychain.vault.key(context: context, allowCreation: allowCreation)
+            // Unreadable settings fall back to asking every time.
+            let reuse = vault.flatMap { try? PreferencesStore.read(in: $0.context).reuseAuthentication } ?? false
+            let context = try await authentication.authenticate(reason: reason, reuse: reuse)
+            // A rejected approval is not reused, so the next attempt asks again.
+            do { key = try EncryptionKeychain.vault.key(context: context, allowCreation: allowCreation) }
+            catch { OwnerAuthentication.forget(); throw error }
         }
         guard self.generation == generation, !Task.isCancelled else { throw VaultError.cancelled }
         if let vault {

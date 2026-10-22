@@ -14,7 +14,16 @@ enum CIValue: CaseIterable {
 }
 
 struct AppPreferences: Codable, Equatable, Sendable {
-    var showDockBadge = true
+    /// Skips Touch ID for `OwnerAuthentication.reuseDuration` after a successful authentication.
+    var reuseAuthentication = true
+
+    init() {}
+
+    // Settings and v1 backups written before this field hold only the removed Dock badge key.
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        reuseAuthentication = try container.decodeIfPresent(Bool.self, forKey: .reuseAuthentication) ?? true
+    }
 }
 
 @MainActor enum PreferencesStore {

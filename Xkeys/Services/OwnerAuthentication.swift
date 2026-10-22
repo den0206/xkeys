@@ -1,19 +1,50 @@
+import AppKit
 import CryptoKit
 import LocalAuthentication
 import Security
 
 @MainActor
 final class OwnerAuthentication {
+    static let reuseDuration: Duration = .seconds(300)
+    /// Shared by every instance so one approval covers other windows and sheets until it expires.
+    private static var trusted: (context: LAContext, until: ContinuousClock.Instant)?
+    private static var observers: [NSObjectProtocol] = []
     private var active: LAContext?
 
-    func authenticate(reason: String) async throws -> LAContext {
+    func authenticate(reason: String, reuse: Bool = false) async throws -> LAContext {
+        if reuse, let trusted = Self.trusted, ContinuousClock.now < trusted.until { return trusted.context }
+        Self.forget()
         cancel()
         let context = LAContext()
         context.touchIDAuthenticationAllowableReuseDuration = 0
         active = context
         guard try await context.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: reason),
               active === context else { throw LAError(.appCancel) }
+        if reuse {
+            // Not `active`: `cancel()` after each operation must not invalidate the shared approval.
+            active = nil
+            Self.trust(context)
+        }
         return context
+    }
+
+    static func forget() {
+        trusted?.context.invalidate()
+        trusted = nil
+    }
+
+    private static func trust(_ context: LAContext) {
+        trusted = (context, .now + reuseDuration)
+        guard observers.isEmpty else { return }
+        let workspace = NSWorkspace.shared.notificationCenter
+        for name in [NSWorkspace.willSleepNotification, NSWorkspace.screensDidSleepNotification, NSWorkspace.sessionDidResignActiveNotification] {
+            observers.append(workspace.addObserver(forName: name, object: nil, queue: .main) { _ in
+                MainActor.assumeIsolated { forget() }
+            })
+        }
+        observers.append(DistributedNotificationCenter.default().addObserver(forName: .init("com.apple.screenIsLocked"), object: nil, queue: .main) { _ in
+            MainActor.assumeIsolated { forget() }
+        })
     }
 
     func cancel() {

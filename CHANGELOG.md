@@ -12,6 +12,12 @@ The format follows Keep a Changelog conventions and releases use semantic versio
 
 - Teams can have an icon, chosen as a color or a PNG, JPEG, or SVG image of up to 1 MB in "Edit Team…". It appears in the team switcher and the team list, and backups include it.
 
+- After you confirm with Touch ID, Xkeys doesn't ask again for 5 minutes. Sleep, locking the screen, or switching users ends it. Turn off "Keep approval for 5 minutes" in Settings to be asked every time.
+
+### Removed
+
+- The Dock badge that counted items expiring within 30 days, and its setting.
+
 ### Changed
 
 - Copy buttons briefly turn into a checkmark, the Touch ID icon pulses while waiting for authentication, and finished backups, restores, imports, and CI file exports draw their checkmark. The CI copy countdown rolls its digits. Motion is off when Reduce Motion is on.

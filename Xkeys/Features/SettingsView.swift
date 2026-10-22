@@ -27,9 +27,6 @@ struct AppSettingsView: View {
                             .animation(XkeysMotion.feedback, value: apple.connected)
                         settingsNote(String(localized: "パスワードは保存しません。接続情報だけをこの Mac のキーチェーンに保存しています。"))
                     }.entrance(delay: 0.05)
-                    settingsGroup(String(localized: "表示")) {
-                        settingsToggle(String(localized: "Dock アイコンに件数を表示"), detail: String(localized: "30日以内に期限が来るものの数を出します"), isOn: $preferences.showDockBadge)
-                    }.entrance(delay: 0.1)
                     // These act at once and stay on this Mac: they are not saved with the button below or included in backups.
                     settingsGroup(String(localized: "はじめての方へ")) {
                         settingsToggle(String(localized: "説明モード"), detail: String(localized: "画面の見方と言葉の意味をその場で表示します"), isOn: $guideMode)
@@ -42,12 +39,13 @@ struct AppSettingsView: View {
                             Button("もう一度見る") { onboardingCompleted = false }.buttonStyle(XkeysButtonStyle(compact: true))
                         }.padding(.horizontal, 14).padding(.vertical, 11)
                             .overlay(alignment: .top) { Rectangle().fill(XkeysStyle.rowBorder).frame(height: 1) }
-                    }.entrance(delay: 0.15)
+                    }.entrance(delay: 0.1)
                     settingsGroup(String(localized: "安全のために")) {
-                        safetyRow("touchid", String(localized: "コピー・書き出し・削除の前に、毎回 Touch ID で確認します"))
+                        settingsToggle(String(localized: "承認を5分間引き継ぐ"), detail: String(localized: "Touch ID で確認したあと5分間は、もう一度確認しません。スリープや画面のロックで解除します"), isOn: $preferences.reuseAuthentication)
+                        safetyRow("touchid", String(localized: "コピー・書き出し・削除の前に Touch ID で確認します"))
                         safetyRow("clock", String(localized: "5分操作しないと、表示中のパスワードやメモを閉じます"))
                         safetyRow("arrow.triangle.2.circlepath", String(localized: "iCloud 同期や自動起動はしません。元のファイルも変更しません"))
-                    }.entrance(delay: 0.2)
+                    }.entrance(delay: 0.15)
                 }.padding(.horizontal, 28).padding(.vertical, 24).frame(maxWidth: .infinity, alignment: .leading)
             }
             Divider()

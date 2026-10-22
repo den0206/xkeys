@@ -246,8 +246,16 @@ extension XkeysTests {
     func testGuideModeIsKeptOutOfBackedUpPreferences() throws {
         let encoded = try JSONEncoder().encode(AppPreferences())
         let keys = try XCTUnwrap(JSONSerialization.jsonObject(with: encoded) as? [String: Any]).keys
-        XCTAssertEqual(Set(keys), ["showDockBadge"])
+        XCTAssertEqual(Set(keys), ["reuseAuthentication"])
         XCTAssertNotEqual(GuideMode.storageKey, OnboardingView.completedKey)
         XCTAssertNotEqual(GuideMode.storageKey, InstallLocation.skipKey)
+    }
+
+    func testPreferencesFromBeforeReuseSettingDecodeWithDefaults() throws {
+        let legacy = try JSONDecoder().decode(AppPreferences.self, from: Data(#"{"showDockBadge":false}"#.utf8))
+        XCTAssertEqual(legacy, AppPreferences())
+        XCTAssertTrue(legacy.reuseAuthentication)
+        let off = try JSONDecoder().decode(AppPreferences.self, from: Data(#"{"reuseAuthentication":false}"#.utf8))
+        XCTAssertFalse(off.reuseAuthentication)
     }
 }

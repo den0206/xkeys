@@ -382,7 +382,7 @@ extension XkeysTests {
         let (vault, _, _, _) = try makeVault()
         XCTAssertEqual(try PreferencesStore.read(in: vault.context), try PreferencesStore.read(in: vault.context))
         var prefs = AppPreferences()
-        prefs.showDockBadge = false
+        prefs.reuseAuthentication = false
         try PreferencesStore.save(prefs, in: vault.context)
         let key = SymmetricKey(size: .bits256)
         let snapshot = try BackupSnapshot.capture(vault: vault, key: key)
@@ -436,7 +436,7 @@ extension XkeysTests {
         let plan = try restore.prepare(snapshot, key: key)
         XCTAssertFalse(plan.requiresSafetyBackup)
         var prefs = AppPreferences()
-        prefs.showDockBadge = false
+        prefs.reuseAuthentication = false
         try PreferencesStore.save(prefs, in: target.context)
         let approvalPlan1 = try await restoreAuthorization(for: plan)
         XCTAssertThrowsError(try restore.merge(plan, choices: [:], authorization: approvalPlan1, key: key, replacingAll: true))
@@ -493,7 +493,7 @@ extension XkeysTests {
         XCTAssertFalse(try backupHistory(context).needsBackup)
         // Custom settings still need a backup even without catalog items.
         var prefs = AppPreferences()
-        prefs.showDockBadge = false
+        prefs.reuseAuthentication = false
         try PreferencesStore.save(prefs, in: context)
         XCTAssertTrue(try backupHistory(context).needsBackup)
         try PreferencesStore.save(AppPreferences(), in: context)

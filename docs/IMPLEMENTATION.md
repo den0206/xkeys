@@ -59,7 +59,7 @@ ReleaseはDeveloper ID Applicationと手動管理のプロファイル `Xkeys De
 
 ## 自動テスト
 
-schemeのTestActionは `XKEYS_TESTING=1` と言語 `ja`（地域 `JP`）を指定し、OSの言語設定にかかわらず日本語の文言で検証する。アプリのストアはメモリ内、ファイルは一時領域の `XkeysTests` に分離する。製品のDockバッジ更新・初回案内を実行しない。認証のテストは注入した鍵を使い、製品Keychain鍵を生成しない。クリップボードのテストは専用pasteboardを使用する。
+schemeのTestActionは `XKEYS_TESTING=1` と言語 `ja`（地域 `JP`）を指定し、OSの言語設定にかかわらず日本語の文言で検証する。アプリのストアはメモリ内、ファイルは一時領域の `XkeysTests` に分離する。初回案内を実行しない。認証のテストは注入した鍵を使い、製品Keychain鍵を生成しない。クリップボードのテストは専用pasteboardを使用する。
 
 ```sh
 xcodebuild -project Xkeys.xcodeproj -scheme Xkeys \

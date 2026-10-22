@@ -8,7 +8,7 @@
 
 **English** | [日本語](README_JP.md)
 
-A macOS app for managing Apple Developer keys, certificates, and provisioning profiles. Organize credentials by team, app, and target, keep the original files encrypted on your Mac, and track expiry dates in the app and Dock badge.
+A macOS app for managing Apple Developer keys, certificates, and provisioning profiles. Organize credentials by team, app, and target, keep the original files encrypted on your Mac, and track expiry dates in the app.
 
 **Xkeys is built security-first, because signing keys, certificates, and API keys are secrets you cannot afford to leak.** Secrets are always encrypted at rest, every access requires you to authenticate, and nothing is ever sent to a third-party server.
 
@@ -29,10 +29,10 @@ Xkeys layers several defenses so that no single failure exposes your secrets.
 - Each ciphertext is **cryptographically bound** to its metadata, such as kind, team, and key purpose, as AES-GCM additional authenticated data. Swapping or reassigning encrypted files makes decryption fail, so tampering is detected.
 - Metadata such as names, identifiers, and expiry dates is stored separately in SwiftData.
 
-### Authentication for every access
+### Authentication before access
 
 - The encryption key cannot be used without **Touch ID or your Mac password** (Keychain access control `userPresence`).
-- **Every operation that touches a secret requires authentication**: viewing, copying, exporting, editing, and deleting. A single authentication never leaves the vault unlocked.
+- **Every operation that touches a secret requires authentication**: viewing, copying, exporting, editing, and deleting. By default one approval is reused for 5 minutes and ends early on sleep, screen lock, or user switching; turn off "Keep approval for 5 minutes" in Settings to authenticate every time.
 
 ### No leak paths
 

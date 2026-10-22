@@ -138,7 +138,7 @@ struct RestorePlan: Sendable {
                               state: local == nil ? .added : local == record ? .duplicate : .conflict))
         }
         if let prefs = source.preferences {
-            items.append(Item(kind: .preferences, target: preferencesID, title: String(localized: "アプリ設定"), detail: String(localized: "Dockバッジ"), current: String(localized: "このMacの設定（秘密値なし）"), incoming: String(localized: "バックアップの設定（秘密値なし）"), state: prefs == (current.preferences ?? AppPreferences()) ? .duplicate : .conflict))
+            items.append(Item(kind: .preferences, target: preferencesID, title: String(localized: "アプリ設定"), detail: String(localized: "承認の引き継ぎ"), current: String(localized: "このMacの設定（秘密値なし）"), incoming: String(localized: "バックアップの設定（秘密値なし）"), state: prefs == (current.preferences ?? AppPreferences()) ? .duplicate : .conflict))
         }
         let requiresSafetyBackup = !current.teams.isEmpty || !current.apps.isEmpty || !current.credentials.isEmpty
             || (current.preferences ?? AppPreferences()) != AppPreferences()
