@@ -251,6 +251,21 @@ extension XkeysTests {
         XCTAssertNotEqual(GuideMode.storageKey, InstallLocation.skipKey)
     }
 
+    @MainActor
+    func testSidebarAppOrderMovesWithinTeamAndDropsMissingApps() {
+        let team = DeveloperTeam(name: "Team", teamID: "TEAM000001")
+        let apps = ["Alpha", "Beta", "Gamma"].map { ManagedApp(name: $0, bundleID: "com.example.\($0)", platform: "iOS", team: team) }
+        let (a, b, c) = (apps[0].id, apps[1].id, apps[2].id)
+        XCTAssertEqual(CatalogView.ordered(apps, order: "").map(\.name), ["Alpha", "Beta", "Gamma"])
+        let other = UUID(), removed = UUID()
+        let order = CatalogView.moving(c, to: 0, in: [a, b, c], order: [removed, other].map(\.uuidString).joined(separator: "\n"), existing: [a, b, c, other])
+        XCTAssertEqual(order, [other, c, a, b].map(\.uuidString).joined(separator: "\n"))
+        XCTAssertEqual(CatalogView.ordered(apps, order: order).map(\.name), ["Gamma", "Alpha", "Beta"])
+        // Dropping onto a lower row takes that row's place.
+        XCTAssertEqual(CatalogView.moving(a, to: 2, in: [a, b, c], order: "", existing: [a, b, c]), [b, c, a].map(\.uuidString).joined(separator: "\n"))
+        XCTAssertEqual(CatalogView.moving(UUID(), to: 0, in: [a, b, c], order: "x", existing: [a, b, c]), "x")
+    }
+
     func testPreferencesFromBeforeReuseSettingDecodeWithDefaults() throws {
         let legacy = try JSONDecoder().decode(AppPreferences.self, from: Data(#"{"showDockBadge":false}"#.utf8))
         XCTAssertEqual(legacy, AppPreferences())

@@ -12,6 +12,8 @@ The format follows Keep a Changelog conventions and releases use semantic versio
 
 - Teams can have an icon, chosen as a color or a PNG, JPEG, or SVG image of up to 1 MB in "Edit Team…". It appears in the team switcher and the team list, and backups include it.
 
+- Apps in the sidebar can be reordered by dragging or with "Move Up" and "Move Down" in the context menu. The order is kept on this Mac and is not included in backups.
+
 - After you confirm with Touch ID, Xkeys doesn't ask again for 5 minutes. Sleep, locking the screen, or switching users ends it. Turn off "Keep approval for 5 minutes" in Settings to be asked every time.
 
 ### Removed

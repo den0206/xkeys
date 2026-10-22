@@ -7993,6 +7993,26 @@
           }
         }
       }
+    },
+    "上へ移動" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move Up"
+          }
+        }
+      }
+    },
+    "下へ移動" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move Down"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

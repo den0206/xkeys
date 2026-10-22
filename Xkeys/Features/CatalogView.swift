@@ -58,6 +58,7 @@ struct CatalogView: View {
     @State private var onboardingSources: [URL] = []
     @AppStorage(OnboardingView.completedKey) private var onboardingCompleted = false
     @AppStorage(GuideMode.storageKey) private var guideMode = false
+    @AppStorage(Self.appOrderKey) private var appOrder = ""
     @State private var tourStep: Int?
     @State private var showingGlossary = false
     @State private var movingToApplications = false
@@ -260,7 +261,33 @@ struct CatalogView: View {
 
     /// The team the sidebar shows. Selecting an app or a team page also switches to its team.
     private var currentTeam: DeveloperTeam? { teams.first { $0.id == currentTeamID } ?? teams.first }
-    private var teamApps: [ManagedApp] { rootApps.filter { $0.team?.id == currentTeam?.id } }
+    private var teamApps: [ManagedApp] { Self.ordered(rootApps.filter { $0.team?.id == currentTeam?.id }, order: appOrder) }
+
+    /// The sidebar order stays on this Mac like the guide settings: not in SwiftData, so it is not backed up.
+    static let appOrderKey = "Xkeys.appOrder"
+
+    /// `order` is newline-separated app IDs; apps not in it keep their name order after the listed ones.
+    static func ordered(_ apps: [ManagedApp], order: String) -> [ManagedApp] {
+        let rank = Dictionary(order.split(separator: "\n").enumerated().map { (String($1), $0) }, uniquingKeysWith: { first, _ in first })
+        return apps.enumerated().sorted { (rank[$0.element.id.uuidString] ?? .max, $0.offset) < (rank[$1.element.id.uuidString] ?? .max, $1.offset) }.map(\.element)
+    }
+
+    /// Moves `id` to `index` within `team` and drops IDs of apps that no longer exist.
+    static func moving(_ id: UUID, to index: Int, in team: [UUID], order: String, existing: Set<UUID>) -> String {
+        var ids = team
+        guard let from = ids.firstIndex(of: id) else { return order }
+        ids.insert(ids.remove(at: from), at: min(max(index, 0), ids.count))
+        let others = order.split(separator: "\n").map(String.init).filter { value in
+            UUID(uuidString: value).map { existing.contains($0) && !team.contains($0) } ?? false
+        }
+        return (others + ids.map(\.uuidString)).joined(separator: "\n")
+    }
+
+    private func moveApp(_ id: UUID, to index: Int) {
+        withAnimation(XkeysMotion.feedback) {
+            appOrder = Self.moving(id, to: index, in: teamApps.map(\.id), order: appOrder, existing: Set(rootApps.map(\.id)))
+        }
+    }
     private var sidebarScopes: [CredentialScope] {
         (expiredCount + expiringCount > 0 ? [.attention] : []) + teamApps.map { .app($0.id) } + (currentTeam.map { [.team($0.id)] } ?? [])
     }
@@ -394,9 +421,20 @@ struct CatalogView: View {
             }.font(.system(size: 12))
         }
         .help(app.name + "\n" + app.bundleID)
+        .draggable(app.id.uuidString)
+        .dropDestination(for: String.self) { values, _ in
+            guard let id = values.first.flatMap(UUID.init(uuidString:)), id != app.id,
+                  let index = teamApps.firstIndex(where: { $0.id == app.id }) else { return false }
+            moveApp(id, to: index)
+            return true
+        }
         .contextMenu {
             Button("ターゲットを追加…") { addingTarget = app.product }
             Button("アプリを編集…") { editingApp = app }
+            let index = teamApps.firstIndex { $0.id == app.id } ?? 0
+            Divider()
+            Button("上へ移動") { moveApp(app.id, to: index - 1) }.disabled(index == 0)
+            Button("下へ移動") { moveApp(app.id, to: index + 1) }.disabled(index == teamApps.count - 1)
         }
     }
 
