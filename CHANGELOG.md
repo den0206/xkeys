@@ -6,6 +6,8 @@ The format follows Keep a Changelog conventions and releases use semantic versio
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-10-22
+
 ### Added
 
 - Teams can have an icon, chosen as a color or a PNG, JPEG, or SVG image of up to 1 MB in "Edit Team…". It appears in the team switcher and the team list, and backups include it.
