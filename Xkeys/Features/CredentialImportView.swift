@@ -80,7 +80,10 @@ struct CredentialImportView: View {
         return P8Metadata(purposes: Array(purposes), keyID: keyID, issuerID: issuerID)
     }
     private var importApp: ManagedApp? {
-        if let importTargetID, let target = team.apps.first(where: { $0.id == importTargetID && $0.deletedAt == nil }) { return target }
+        let bundle = parsed?.bundleID
+        // The registration form lets the Bundle ID be edited, so a new target may not fit this profile.
+        if let importTargetID, let target = team.apps.first(where: { $0.id == importTargetID && $0.deletedAt == nil }),
+           bundle.map({ CredentialVault.profileMatches($0, bundleID: target.bundleID) }) ?? true { return target }
         guard let app else {
             if let bundle = parsed?.bundleID {
                 let matches = team.apps.filter { $0.deletedAt == nil && CredentialVault.profileMatches(bundle, bundleID: $0.bundleID) }
@@ -88,19 +91,19 @@ struct CredentialImportView: View {
             }
             return nil
         }
-        if let bundle = parsed?.bundleID, let target = app.target(forProfileBundleID: bundle) { return target }
-        return app
+        guard let bundle else { return app }
+        return app.target(forProfileBundleID: bundle) ?? (CredentialVault.profileMatches(bundle, bundleID: app.bundleID) ? app : nil)
     }
     private var profileTargets: [ManagedApp] {
-        guard let product = app?.product else { return team.apps.filter { $0.deletedAt == nil }.sorted { $0.name < $1.name } }
+        guard let bundle = parsed?.bundleID else { return [] }
+        let targets = team.profileTargets(for: bundle, in: app?.product)
         // A target just registered under another app must stay selectable here.
-        return product.targets + (importApp.map { $0.product == product ? [] : [$0] } ?? [])
+        return targets + (importApp.map { targets.contains($0) ? [] : [$0] } ?? [])
     }
     private var unregisteredBundle: String? {
-        guard let bundle = parsed?.bundleID, !bundle.contains("*"),
-              parsed?.teamID == team.teamID,
-              !team.apps.contains(where: { $0.bundleID.lowercased() == bundle.lowercased() }) else { return nil }
-        return bundle
+        guard let bundle = parsed?.bundleID, parsed?.teamID == team.teamID else { return nil }
+        if bundle.contains("*") { return profileTargets.isEmpty ? bundle : nil }
+        return team.apps.contains(where: { $0.bundleID.lowercased() == bundle.lowercased() }) ? nil : bundle
     }
     private var matchingP12Names: [String] {
         guard let parsed, let fingerprints = parsed.p12CertificateFingerprints else { return [] }
@@ -111,6 +114,7 @@ struct CredentialImportView: View {
 
     private var validationIssue: String? {
         guard let file, let parsed else { return nil }
+        if let bundle = parsed.bundleID, team.hasDeletedApp(bundleID: bundle) { return RegistrationError.deletedDuplicateApp.localizedDescription }
         do {
             try vault.validate(file: file, parsed: parsed, app: importApp, team: team, confirmUnknownTeam: confirmUnknownTeam,
                                p8: p8)
@@ -176,18 +180,18 @@ struct CredentialImportView: View {
                         }
                     }
                     if let parsed {
-                        if parsed.bundleID != nil {
+                        if !profileTargets.isEmpty {
                             Picker("登録先ターゲット", selection: Binding(get: { importApp?.id }, set: { importTargetID = $0; lastActivity = .now })) {
                                 Text("対象アプリを選択してください").tag(nil as UUID?)
                                 ForEach(profileTargets) { target in
                                     Text("\(target.name) · \(target.bundleID)").tag(Optional(target.id))
                                 }
                             }
-                            if let bundle = unregisteredBundle {
-                                Text("Bundle ID「\(bundle)」のターゲットは未登録です。")
-                                    .font(.caption).foregroundStyle(XkeysStyle.secondary)
-                                Button(app == nil ? "このBundle IDのアプリを登録…" : "このアプリにターゲットを追加…") { addingTarget = true }
-                            }
+                        }
+                        if let bundle = unregisteredBundle {
+                            Text("Bundle ID「\(bundle)」のターゲットは未登録です。")
+                                .font(.caption).foregroundStyle(XkeysStyle.secondary)
+                            Button(app == nil ? "このBundle IDのアプリを登録…" : "このアプリにターゲットを追加…") { addingTarget = true }
                         }
                         if isP8 {
                             Text("用途（複数選べます）").font(.system(size: 12, weight: .semibold)).foregroundStyle(XkeysStyle.text.opacity(0.75))
@@ -283,7 +287,7 @@ struct CredentialImportView: View {
         .sheet(isPresented: $addingTarget) {
             if let bundle = unregisteredBundle {
                 let parent = app?.product
-                RegistrationForm(container: vault.context.container, teams: [team], initialTeam: team.id, isTeam: false, parentApp: parent, initialBundleID: bundle, initialName: parsed?.name ?? "") { id in
+                RegistrationForm(container: vault.context.container, teams: [team], initialTeam: team.id, isTeam: false, parentApp: parent, initialBundleID: bundle.hasSuffix("*") ? String(bundle.dropLast()) : bundle, initialName: parsed?.name ?? "") { id in
                     importTargetID = id
                     error = nil
                 }

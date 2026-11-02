@@ -189,6 +189,35 @@ extension XkeysTests {
     }
 
     @MainActor
+    func testImportRendersDeletedAndUnregisteredProfileStates() async throws {
+        let (vault, app, _, _) = try makeVault()
+        defer { try? FileManager.default.removeItem(at: vault.blobs.directory) }
+        let team = try XCTUnwrap(app.team)
+        let profile = CredentialFile(data: try fixture("mobileprovision"), name: "sample.mobileprovision")
+        let states: [(String, (ManagedApp) -> Void)] = [
+            ("import-deleted-app", { $0.deletedAt = .now }),
+            ("import-unregistered", { $0.bundleID = "com.example.renamed"; $0.deletedAt = nil })
+        ]
+        for (name, change) in states {
+            change(app)
+            let view = NSHostingView(rootView: CredentialImportView(app: nil, team: team, vault: vault, initialFiles: [profile], onSaved: { _ in })
+                .modelContainer(vault.context.container))
+            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 680, height: 640), styleMask: [.borderless], backing: .buffered, defer: false)
+            window.isReleasedWhenClosed = false
+            window.contentView = view
+            window.orderFront(nil)
+            try await Task.sleep(for: .seconds(1))
+            view.layoutSubtreeIfNeeded()
+            let bitmap = try XCTUnwrap(view.bitmapImageRepForCachingDisplay(in: view.bounds))
+            view.cacheDisplay(in: view.bounds, to: bitmap)
+            let png = try XCTUnwrap(bitmap.representation(using: .png, properties: [:]))
+            try png.write(to: FileManager.default.temporaryDirectory.appendingPathComponent("xkeys-" + name + ".png"))
+            XCTAssertGreaterThan(png.count, 1000, name)
+            window.close()
+        }
+    }
+
+    @MainActor
     func testSVGAppIconRendersAndPersistsInBackup() throws {
         let (vault, app, _, _) = try makeVault()
         defer { try? FileManager.default.removeItem(at: vault.blobs.directory) }

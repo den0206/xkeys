@@ -10,6 +10,24 @@ import XcodesLoginKit
 /// Backup format, history, restore plans and merges.
 extension XkeysTests {
     @MainActor
+    func testProfileTargetsOfferOnlyMatchingUndeletedApps() throws {
+        let (vault, first, sibling, _) = try makeVault()
+        defer { try? FileManager.default.removeItem(at: vault.blobs.directory) }
+        let team = try XCTUnwrap(first.team)
+        XCTAssertEqual(Set(team.profileTargets(for: "com.example.*").map(\.id)), [first.id, sibling.id])
+        XCTAssertEqual(team.profileTargets(for: "com.example.*", in: sibling).map(\.id), [sibling.id])
+        XCTAssertEqual(team.profileTargets(for: first.bundleID).map(\.id), [first.id])
+        XCTAssertTrue(team.profileTargets(for: "com.nomatch.*").isEmpty)
+        XCTAssertTrue(team.profileTargets(for: "com.example.other2").isEmpty)
+
+        XCTAssertFalse(team.hasDeletedApp(bundleID: sibling.bundleID))
+        sibling.deletedAt = .now
+        XCTAssertEqual(team.profileTargets(for: "com.example.*").map(\.id), [first.id])
+        XCTAssertTrue(team.hasDeletedApp(bundleID: sibling.bundleID.uppercased()))
+        XCTAssertFalse(team.hasDeletedApp(bundleID: "com.example.*"))
+    }
+
+    @MainActor
     func testRootAppsOfferOnlyUndeletedAppsWithoutParents() throws {
         let (vault, root, _, _) = try makeVault()
         defer { try? FileManager.default.removeItem(at: vault.blobs.directory) }
