@@ -10,6 +10,12 @@ The format follows Keep a Changelog conventions and releases use semantic versio
 
 - When you register an app, including while importing a profile from Apple Developer, "Parent app" lets you add it as a target of an existing app.
 
+### Fixed
+
+- Importing a wildcard profile with no matching target now offers to register one, and the target list shows only targets the profile fits.
+
+- Importing a profile whose app is in Recently Deleted now tells you to restore or permanently delete that app, instead of saying the Bundle ID doesn't match.
+
 ## [0.2.0] — 2026-10-22
 
 ### Added

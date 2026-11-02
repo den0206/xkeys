@@ -20,6 +20,16 @@ final class DeveloperTeam {
     var rootApps: [ManagedApp] {
         apps.filter { $0.parentAppID == nil && $0.deletedAt == nil }.sorted { $0.name < $1.name }
     }
+
+    /// Targets a profile can be saved to: within `product` when given, otherwise anywhere in the team.
+    func profileTargets(for profileBundleID: String, in product: ManagedApp? = nil) -> [ManagedApp] {
+        (product?.targets ?? apps.filter { $0.deletedAt == nil }.sorted { $0.name < $1.name })
+            .filter { CredentialVault.profileMatches(profileBundleID, bundleID: $0.bundleID) }
+    }
+
+    func hasDeletedApp(bundleID: String) -> Bool {
+        apps.contains { $0.deletedAt != nil && $0.bundleID.lowercased() == bundleID.lowercased() }
+    }
 }
 
 @Model
