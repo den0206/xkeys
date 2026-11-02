@@ -92,7 +92,9 @@ struct CredentialImportView: View {
         return app
     }
     private var profileTargets: [ManagedApp] {
-        app?.product.targets ?? team.apps.filter { $0.deletedAt == nil }.sorted { $0.name < $1.name }
+        guard let product = app?.product else { return team.apps.filter { $0.deletedAt == nil }.sorted { $0.name < $1.name } }
+        // A target just registered under another app must stay selectable here.
+        return product.targets + (importApp.map { $0.product == product ? [] : [$0] } ?? [])
     }
     private var unregisteredBundle: String? {
         guard let bundle = parsed?.bundleID, !bundle.contains("*"),

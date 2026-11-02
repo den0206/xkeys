@@ -270,7 +270,7 @@ struct CatalogEditor: View {
             if let app {
                 Picker("所属アプリ", selection: $parentAppID) {
                     Text("独立したアプリ（本体）").tag(nil as UUID?)
-                    ForEach((app.team?.apps ?? []).filter { $0.id != app.id && $0.parentAppID == nil && $0.deletedAt == nil }.sorted { $0.name < $1.name }) { parent in
+                    ForEach((app.team?.rootApps ?? []).filter { $0.id != app.id }) { parent in
                         Text(parent.name).tag(Optional(parent.id))
                     }
                 }

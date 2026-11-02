@@ -585,9 +585,13 @@ struct RegistrationForm: View {
     @State private var showingAddTeam = false
     @Query(sort: \DeveloperTeam.name) private var registeredTeams: [DeveloperTeam]
     @State private var teamID: UUID?
+    @State private var parentID: UUID?
     @State private var error: String?
     @State private var profile: (url: URL, bundleID: String)?
     @FocusState private var nameFocused: Bool
+
+    private var parentChoices: [ManagedApp] { registeredTeams.first { $0.id == teamID }?.rootApps ?? [] }
+    private var selectedParent: ManagedApp? { parentChoices.first { $0.id == parentID } }
 
     var body: some View {
         if isTeam {
@@ -603,8 +607,8 @@ struct RegistrationForm: View {
     private var registrationBody: some View {
         VStack(alignment: .leading, spacing: 16) {
             VStack(alignment: .leading, spacing: 4) {
-                Text(parentApp == nil ? "アプリを追加" : "ターゲットを追加").font(.system(size: 18, weight: .bold))
-                Text(parentApp.map { "\($0.name) の配下にBundle IDを登録します。" } ?? "最初のターゲット（本体）のBundle IDを登録します。")
+                Text(selectedParent == nil ? "アプリを追加" : "ターゲットを追加").font(.system(size: 18, weight: .bold))
+                Text(selectedParent.map { "\($0.name) の配下にBundle IDを登録します。" } ?? "最初のターゲット（本体）のBundle IDを登録します。")
                     .foregroundStyle(XkeysStyle.secondary)
             }
             Button(action: chooseProfile) {
@@ -642,11 +646,20 @@ struct RegistrationForm: View {
                     Picker("チーム", selection: $teamID) {
                         Text("選択してください").tag(nil as UUID?)
                         ForEach(registeredTeams) { team in Text("\(team.name)（\(team.teamID)）").tag(Optional(team.id)) }
-                    }.labelsHidden().disabled(parentApp != nil)
+                    }.labelsHidden().disabled(parentID != nil)
                 }
                 GridRow {
                     Color.clear.frame(width: 120, height: 1)
-                    Button("チームを追加…") { showingAddTeam = true }.buttonStyle(.borderless).foregroundStyle(XkeysStyle.accent).disabled(parentApp != nil)
+                    Button("チームを追加…") { showingAddTeam = true }.buttonStyle(.borderless).foregroundStyle(XkeysStyle.accent).disabled(parentID != nil)
+                }
+                if !parentChoices.isEmpty {
+                    GridRow {
+                        Text("所属アプリ")
+                        Picker("所属アプリ", selection: $parentID) {
+                            Text("独立したアプリ（本体）").tag(nil as UUID?)
+                            ForEach(parentChoices) { parent in Text(parent.name).tag(Optional(parent.id)) }
+                        }.labelsHidden()
+                    }
                 }
                 GridRow {
                     Text("アイコン")
@@ -674,11 +687,13 @@ struct RegistrationForm: View {
         }
         .onAppear {
             teamID = parentApp?.team?.id ?? initialTeam ?? (teams.count == 1 ? teams.first?.id : nil)
+            parentID = parentApp?.id
             identifier = initialBundleID
             name = initialName
             platform = parentApp?.platform ?? "iOS"
             nameFocused = true
         }
+        .onChange(of: parentID) { if let selectedParent { platform = selectedParent.platform } }
     }
 
 
@@ -698,11 +713,11 @@ struct RegistrationForm: View {
                     try CredentialParser.parse(CredentialFile(url: url).data, extension: ext)
                 }.value
                 guard let bundle = profile.bundleID, !bundle.contains("*") else { throw RegistrationError.invalidBundleID }
-                if let parentApp, let sourceTeam = profile.teamID, sourceTeam != parentApp.team?.teamID { throw VaultError.teamMismatch }
+                if let selectedParent, let sourceTeam = profile.teamID, sourceTeam != selectedParent.team?.teamID { throw VaultError.teamMismatch }
                 name = profile.name
                 identifier = bundle
                 self.profile = (url, bundle)
-                if parentApp == nil, let sourceTeam = profile.teamID { teamID = registeredTeams.first { $0.teamID == sourceTeam }?.id }
+                if selectedParent == nil, let sourceTeam = profile.teamID { teamID = registeredTeams.first { $0.teamID == sourceTeam }?.id }
                 error = nil
             } catch { self.error = error.localizedDescription }
         }
@@ -712,7 +727,7 @@ struct RegistrationForm: View {
         do {
             let catalog = AppCatalog(context: container.mainContext)
             guard let teamID else { throw RegistrationError.teamMissing }
-            let id = try catalog.addApp(name: name, bundleID: identifier, platform: platform, teamID: teamID, iconColor: iconColor, iconImage: iconImage, parentAppID: parentApp?.id)
+            let id = try catalog.addApp(name: name, bundleID: identifier, platform: platform, teamID: teamID, iconColor: iconColor, iconImage: iconImage, parentAppID: selectedParent?.id)
             // A profile whose Bundle ID was edited away no longer belongs to this app.
             if let profile, profile.bundleID == identifier { onProfile?(profile.url) }
             onSaved(id)
