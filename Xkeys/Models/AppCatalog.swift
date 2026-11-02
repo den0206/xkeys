@@ -15,6 +15,11 @@ final class DeveloperTeam {
         self.name = name
         self.teamID = teamID
     }
+
+    /// Apps that can own targets. Targets nest only one level deep.
+    var rootApps: [ManagedApp] {
+        apps.filter { $0.parentAppID == nil && $0.deletedAt == nil }.sorted { $0.name < $1.name }
+    }
 }
 
 @Model

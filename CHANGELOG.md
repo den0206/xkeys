@@ -6,6 +6,10 @@ The format follows Keep a Changelog conventions and releases use semantic versio
 
 ## [Unreleased]
 
+### Added
+
+- When you register an app, including while importing a profile from Apple Developer, "Parent app" lets you add it as a target of an existing app.
+
 ## [0.2.0] — 2026-10-22
 
 ### Added

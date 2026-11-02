@@ -10,6 +10,19 @@ import XcodesLoginKit
 /// Backup format, history, restore plans and merges.
 extension XkeysTests {
     @MainActor
+    func testRootAppsOfferOnlyUndeletedAppsWithoutParents() throws {
+        let (vault, root, _, _) = try makeVault()
+        defer { try? FileManager.default.removeItem(at: vault.blobs.directory) }
+        let catalog = AppCatalog(context: vault.context)
+        let team = try XCTUnwrap(root.team)
+        let targetID = try catalog.addApp(name: "Share", bundleID: "com.example.Xkeys.fixture.share", platform: "iOS", teamID: team.id, parentAppID: root.id)
+        let deletedID = try catalog.addApp(name: "Old", bundleID: "com.example.Xkeys.fixture.old", platform: "iOS", teamID: team.id)
+        try XCTUnwrap(team.apps.first { $0.id == deletedID }).deletedAt = .now
+        XCTAssertTrue(team.rootApps.contains { $0.id == root.id })
+        XCTAssertFalse(team.rootApps.contains { $0.id == targetID || $0.id == deletedID })
+    }
+
+    @MainActor
     func testTargetRegistrationAndBackupRelationshipsRoundTrip() async throws {
         let (vault, root, _, other) = try makeVault()
         defer { try? FileManager.default.removeItem(at: vault.blobs.directory) }
