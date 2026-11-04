@@ -309,6 +309,8 @@ struct CISecretFileView: View {
         panel.message = String(localized: "ファイル名を変更できます。保存先では Xkeys の暗号化保護の対象外になります。既存ファイルは上書きしません。")
         let response = panel.runModal()
         guard response == .OK, let url = panel.url, generation == access.generation else { return }
+        // The panel offers to replace, but export never overwrites. Say so before asking to authenticate.
+        guard !FileManager.default.fileExists(atPath: url.path) else { message = ValidationError.fileExists.localizedDescription; return }
         let entries = entries
         Task { @MainActor in
             do {
@@ -320,8 +322,6 @@ struct CISecretFileView: View {
                 withAnimation(XkeysMotion.feedback) { written = url }
                 XkeysMotion.confirm()
                 NSWorkspace.shared.activateFileViewerSelecting([url])
-            } catch let error as POSIXError where error.code == .EEXIST {
-                message = String(localized: "同じ名前のファイルがあります。別の名前を指定してください。")
             } catch { message = error.localizedDescription }
         }
     }

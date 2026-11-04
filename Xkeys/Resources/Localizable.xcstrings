@@ -8035,6 +8035,46 @@
           }
         }
       }
+    },
+    "同じファイルが「最近削除した項目」にあります。元に戻すか、完全に削除してから取り込んでください。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The same file is in Recently Deleted. Restore it, or delete it permanently before importing again."
+          }
+        }
+      }
+    },
+    "「%@」を完全に削除しますか？元に戻せません。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Permanently delete “%@”? This cannot be undone."
+          }
+        }
+      }
+    },
+    "このアプリのターゲットとプロファイルもすべて消えます。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All of this app’s targets and profiles are deleted too."
+          }
+        }
+      }
+    },
+    "完全に削除…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete Permanently…"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

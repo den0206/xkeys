@@ -609,12 +609,11 @@ struct CredentialAppView: View {
         .accessibilityAddTraits(isSelected ? [.isSelected, .isButton] : .isButton)
         .accessibilityAction { select(isSelected ? nil : record.id) }
         .contextMenu {
+            Button(record.app == nil ? "削除…" : "このプロファイルだけを削除…", role: .destructive) { deletingRecord = record }.disabled(access.busy)
             if let owner = record.app {
                 Button(owner.parentAppID == nil ? "アプリと全ターゲットを削除…" : "ターゲットとプロファイルを削除…", role: .destructive) {
                     deletingTarget = owner
                 }.disabled(access.busy)
-            } else {
-                Button("削除…", role: .destructive) { deletingRecord = record }.disabled(access.busy)
             }
         }
     }
@@ -792,6 +791,8 @@ struct CredentialAppView: View {
         panel.message = String(localized: "元の形式で書き出します。保存先ではXkeysの暗号化保護の対象外になります。新しい名前を指定してください。既存ファイルは上書きしません。")
         let response = panel.runModal()
         guard response == .OK, let url = panel.url, generation == access.generation else { return }
+        // The panel offers to replace, but export never overwrites. Say so before asking to authenticate.
+        guard !FileManager.default.fileExists(atPath: url.path) else { error = ValidationError.fileExists.localizedDescription; return }
         error = nil
         Task { @MainActor in
             do {

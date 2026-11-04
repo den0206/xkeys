@@ -303,6 +303,56 @@ extension XkeysTests {
     }
 
     @MainActor
+    func testImportingFileInRecentlyDeletedReportsItSeparately() throws {
+        let (vault, app, _, _) = try makeVault()
+        let key = SymmetricKey(size: .bits256)
+        let file = CredentialFile(data: try fixture("cer"), name: "sample.cer")
+        let parsed = try CredentialParser.parse(file.data, extension: "cer")
+        _ = try vault.importFile(file, parsed: parsed, app: app, password: nil, confirmUnknownTeam: true, key: key)
+        XCTAssertThrowsError(try vault.validate(file: file, parsed: parsed, app: app, confirmUnknownTeam: true)) {
+            guard case VaultError.duplicate = $0 else { return XCTFail("\($0)") }
+        }
+        try VaultManagement(vault: vault).trash(XCTUnwrap(vault.records().first), key: key)
+        XCTAssertThrowsError(try vault.validate(file: file, parsed: parsed, app: app, confirmUnknownTeam: true)) {
+            guard case VaultError.duplicateInTrash = $0 else { return XCTFail("\($0)") }
+        }
+    }
+
+    @MainActor
+    func testTrashRowsGroupItemsDeletedWithTheirParent() throws {
+        let (vault, root, child, _) = try makeVault()
+        try AppCatalog(context: vault.context).setParent(root.id, for: child, name: child.name, platform: child.platform)
+        let key = SymmetricKey(size: .bits256)
+        let file = CredentialFile(data: try fixture("cer"), name: "sample.cer")
+        _ = try vault.importFile(file, parsed: CredentialParser.parse(file.data, extension: "cer"), app: child, password: nil, confirmUnknownTeam: true, key: key)
+        let apps = [root, child]
+        let management = VaultManagement(vault: vault)
+        // Deleted together: only the parent has a row.
+        try management.trash(root, key: key, at: .now)
+        XCTAssertEqual(TrashView.rows(apps: apps).map(\.id), [root.id])
+        XCTAssertTrue(TrashView.rows(records: try vault.records()).isEmpty)
+        try management.restore(root)
+        XCTAssertTrue(TrashView.rows(apps: apps).isEmpty)
+        // Deleted at different times: each keeps its own row.
+        try management.trash(child, key: key, at: .now.addingTimeInterval(-60))
+        try management.trash(root, key: key, at: .now)
+        XCTAssertEqual(Set(TrashView.rows(apps: apps).map(\.id)), [root.id, child.id])
+    }
+
+    func testExportToExistingFileReportsFileExists() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let output = directory.appendingPathComponent("out.txt")
+        let original = Data("original".utf8)
+        try original.write(to: output)
+        XCTAssertThrowsError(try CredentialFile(data: Data("new".utf8), name: "out.txt").export(to: output)) {
+            guard case ValidationError.fileExists = $0 else { return XCTFail("\($0)") }
+        }
+        XCTAssertEqual(try Data(contentsOf: output), original)
+    }
+
+    @MainActor
     func testTrashPurgeRemovesOwnedBytesAfterCommitButKeepsTeamSharedBytes() throws {
         let (vault, app, _, _) = try makeVault()
         let key = SymmetricKey(size: .bits256)
