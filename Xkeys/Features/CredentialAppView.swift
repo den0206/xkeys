@@ -147,8 +147,10 @@ struct CredentialAppView: View {
         }
         .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.willSleepNotification)) { _ in lock() }
         .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.sessionDidResignActiveNotification)) { _ in lock() }
+        // Only revealed values go away. Selections and open rows hold no secrets and stay for the user's return.
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didResignActiveNotification)) { _ in
-            if !access.busy && !access.presentingPanel && !showingRenewalGuide && !editingNote && !editingCustomSecrets && !editingPurposes && !copyingCI && !creatingSecretFile && !editingApp && editingTarget == nil { lock(dismissImport: false) }
+            revealedPassword = nil
+            revealedNote = nil
         }
     }
 
@@ -785,12 +787,10 @@ struct CredentialAppView: View {
 
     private func export(_ record: StoredCredential, revealInFinder: Bool = false) {
         let generation = access.generation
-        access.presentingPanel = true
         let panel = NSSavePanel()
         panel.nameFieldStringValue = record.originalName
         panel.message = String(localized: "元の形式で書き出します。保存先ではXkeysの暗号化保護の対象外になります。新しい名前を指定してください。既存ファイルは上書きしません。")
         let response = panel.runModal()
-        access.presentingPanel = false
         guard response == .OK, let url = panel.url, generation == access.generation else { return }
         error = nil
         Task { @MainActor in

@@ -216,7 +216,6 @@ struct NoteEditor: View {
             .onChange(of: note) { _, _ in activity = .now }
             .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { _ in if Date.now.timeIntervalSince(activity) >= 300 { close() } }
             .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.willSleepNotification)) { _ in close() }
-            .onReceive(NotificationCenter.default.publisher(for: NSApplication.didResignActiveNotification)) { _ in if !access.busy { close() } }
             .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.sessionDidResignActiveNotification)) { _ in close() }
             .onDisappear { access.lock(); note = "" }
     }

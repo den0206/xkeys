@@ -334,7 +334,6 @@ struct CredentialVault {
 final class VaultAccess {
     private(set) var busy = false
     private(set) var generation = UUID()
-    var presentingPanel = false
     @ObservationIgnored private let authentication = OwnerAuthentication()
     @ObservationIgnored private let keyProvider: ((String, Bool) async throws -> SymmetricKey)?
 

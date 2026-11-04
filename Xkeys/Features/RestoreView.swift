@@ -175,9 +175,6 @@ struct RestoreView: View {
         }
         .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.willSleepNotification)) { _ in clear(); dismiss() }
         .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.sessionDidResignActiveNotification)) { _ in clear(); dismiss() }
-        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didResignActiveNotification)) { _ in
-            if !working && !access.busy && !access.presentingPanel && !makingSafetyBackup && !verifyingTeams && result == nil { clear() }
-        }
     }
 
 
@@ -217,13 +214,11 @@ struct RestoreView: View {
     }
 
     private func choose() {
-        access.presentingPanel = true
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [.data]
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = false
         let response = panel.runModal()
-        access.presentingPanel = false
         guard response == .OK, let url = panel.url else { return }
         clear()
         working = true

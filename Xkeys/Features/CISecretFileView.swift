@@ -273,9 +273,6 @@ struct CISecretFileView: View {
             }.padding(.horizontal, 28).padding(.vertical, 14)
         }.font(.system(size: 13)).frame(width: 640, height: 600)
             .background(XkeysStyle.canvas).foregroundStyle(XkeysStyle.text).tint(XkeysStyle.accent)
-            .onReceive(NotificationCenter.default.publisher(for: NSApplication.didResignActiveNotification)) { _ in
-                if !access.busy && !access.presentingPanel { access.lock(); dismiss() }
-            }
             .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.sessionDidResignActiveNotification)) { _ in access.lock(); dismiss() }
             .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.willSleepNotification)) { _ in access.lock(); dismiss() }
             .onDisappear { access.lock() }
@@ -307,12 +304,10 @@ struct CISecretFileView: View {
         // Check names before asking for a location; values are read only after authentication.
         do { try CISecretFile.validate(entries) } catch { message = error.localizedDescription; return }
         let generation = access.generation
-        access.presentingPanel = true
         let panel = NSSavePanel()
         panel.nameFieldStringValue = CISecretFile.defaultFileName(for: app)
         panel.message = String(localized: "ファイル名を変更できます。保存先では Xkeys の暗号化保護の対象外になります。既存ファイルは上書きしません。")
         let response = panel.runModal()
-        access.presentingPanel = false
         guard response == .OK, let url = panel.url, generation == access.generation else { return }
         let entries = entries
         Task { @MainActor in
