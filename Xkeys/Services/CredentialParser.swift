@@ -30,7 +30,7 @@ struct ContainedCertificate: Codable, Equatable, Sendable {
 }
 
 enum ValidationError: LocalizedError {
-    case invalidFile, tooLarge, unsupported, multipleCertificates, signingRequired, security(OSStatus), missingKey, keyNotFound
+    case invalidFile, tooLarge, unsupported, multipleCertificates, signingRequired, security(OSStatus), missingKey, keyNotFound, fileExists
 
     var errorDescription: String? {
         switch self {
@@ -44,6 +44,7 @@ enum ValidationError: LocalizedError {
             status == errSecMissingEntitlement
                 ? ValidationError.signingRequired.localizedDescription
                 : String(localized: "セキュリティ処理に失敗しました（\(status)）。パスワードとアクセス許可を確認してください。")
+        case .fileExists: String(localized: "同じ名前のファイルがあります。別の名前を指定してください。")
         case .missingKey: String(localized: "保存済みデータの暗号鍵を取得できません。新しい鍵で上書きしません。")
         case .keyNotFound: String(localized: "このMacのKeychainに保存データの暗号鍵がありません。別のMacから移行した場合などに起こります。「バックアップから戻す」で読めないデータを隔離してから復元してください。")
         }
@@ -242,7 +243,10 @@ struct CredentialFile: Sendable {
         let descriptor = url.withUnsafeFileSystemRepresentation { path in
             path.map { Darwin.open($0, O_RDWR | O_CREAT | O_EXCL | O_NOFOLLOW, 0o600) } ?? -1
         }
-        guard descriptor >= 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
+        guard descriptor >= 0 else {
+            if errno == EEXIST { throw ValidationError.fileExists }
+            throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+        }
         let handle = FileHandle(fileDescriptor: descriptor, closeOnDealloc: true)
         defer { try? handle.close() }
         do {

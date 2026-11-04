@@ -20,6 +20,14 @@ The format follows Keep a Changelog conventions and releases use semantic versio
 
 - Icon images are stored as PNGs of at most 512 px, so many large icons no longer block backup and restore.
 
+- Importing a file that is in Recently Deleted now says so, instead of reporting it as already registered.
+
+- Recently Deleted lists items deleted together on one row, and each row can be deleted permanently on its own.
+
+- The right-click menu of a profile can now delete only that profile.
+
+- Choosing an existing file in a save panel now asks for another name before you authenticate. A failed backup keeps the password you entered so you can try again.
+
 ## [0.2.1] — 2026-11-02
 
 ### Added

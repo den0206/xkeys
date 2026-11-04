@@ -202,9 +202,9 @@ struct BackupView: View {
         panel.message = String(localized: "新しいファイルとして保存します。既存のファイルは上書きしません。")
         let response = panel.runModal()
         guard response == .OK, let destination = panel.url else { return }
+        // The panel offers to replace, but export never overwrites. Say so before the backup is built.
+        guard !FileManager.default.fileExists(atPath: destination.path) else { error = ValidationError.fileExists.localizedDescription; return }
         let secret = protected ? password : nil
-        password = ""
-        confirmation = ""
         working = true
         error = nil
         unreadable = false
@@ -235,6 +235,9 @@ struct BackupView: View {
                 } else {
                     trackingWarning = try !BackupHistory.export(archive, to: destination, covering: watermark, in: vault.context)
                 }
+                // Kept until here so a failed save can be tried again without typing the password again.
+                password = ""
+                confirmation = ""
                 withAnimation(XkeysMotion.feedback) { completed = true }
                 XkeysMotion.confirm()
             } catch {

@@ -194,7 +194,7 @@ struct CredentialPayload: Codable {
 }
 
 enum VaultError: LocalizedError {
-    case invalidAssociation, teamMismatch, bundleMismatch, confirmTeam, duplicate, unsupported, cancelled
+    case invalidAssociation, teamMismatch, bundleMismatch, confirmTeam, duplicate, duplicateInTrash, unsupported, cancelled
     case invalidKeyID, invalidIssuerID, missingPurpose, undecryptable(String?)
 
     var errorDescription: String? {
@@ -204,6 +204,7 @@ enum VaultError: LocalizedError {
         case .bundleMismatch: String(localized: "プロファイルのBundle IDがこのAppに一致しません。")
         case .confirmTeam: String(localized: "Team IDを取得できませんでした。選択中のTeamに割り当てることを確認してください。")
         case .duplicate: String(localized: "同じファイルはすでに登録されています。既存の資格情報を確認してください。")
+        case .duplicateInTrash: String(localized: "同じファイルが「最近削除した項目」にあります。元に戻すか、完全に削除してから取り込んでください。")
         case .unsupported: String(localized: "現在は.cer・.p12・.p8・プロビジョニングプロファイルを取り込めます。")
         case .cancelled: String(localized: "ロックまたはキャンセルにより操作を中止しました。")
         case .invalidKeyID: String(localized: "Key IDは英大文字と数字の10文字で入力してください。")
@@ -280,7 +281,9 @@ struct CredentialVault {
             guard let app, let bundle = parsed.bundleID, Self.profileMatches(bundle, bundleID: app.bundleID) else { throw VaultError.bundleMismatch }
         }
         let candidate = StoredCredential(file: file, parsed: parsed, app: app, team: team, savePassword: false)
-        guard try !records().contains(where: { $0.registrationKey == candidate.registrationKey }) else { throw VaultError.duplicate }
+        if let existing = try records().first(where: { $0.registrationKey == candidate.registrationKey }) {
+            throw existing.deletedAt == nil ? VaultError.duplicate : VaultError.duplicateInTrash
+        }
     }
 
     @discardableResult

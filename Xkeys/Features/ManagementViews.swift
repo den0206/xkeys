@@ -507,8 +507,25 @@ struct TrashView: View {
     @State private var access = VaultAccess()
     @State private var error: String?
     @State private var purging = false
+    @State private var purgeTarget: PurgeTarget?
     private var deletedApps: [ManagedApp] { apps.filter { $0.deletedAt != nil } }
     private var deletedRecords: [StoredCredential] { records.filter { $0.deletedAt != nil } }
+
+    private struct PurgeTarget {
+        let name: String
+        var apps: [ManagedApp] = []
+        var records: [StoredCredential] = []
+    }
+
+    /// A child deleted together with its parent is restored and purged through the parent's row, so it has no row of its own.
+    static func rows(apps: [ManagedApp]) -> [ManagedApp] {
+        apps.filter { app in
+            app.deletedAt != nil && !apps.contains { $0.id == app.parentAppID && $0.deletedAt == app.deletedAt }
+        }
+    }
+    static func rows(records: [StoredCredential]) -> [StoredCredential] {
+        records.filter { $0.deletedAt != nil && $0.deletedAt != $0.app?.deletedAt }
+    }
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             HStack(spacing: 14) {
@@ -528,18 +545,19 @@ struct TrashView: View {
             } else {
                 ScrollView {
                     VStack(spacing: 0) {
-                        ForEach(deletedApps) { app in
+                        ForEach(Self.rows(apps: apps)) { app in
                             let includedApps = [app] + (app.parentAppID == nil ? deletedApps.filter { $0.parentAppID == app.id && $0.deletedAt == app.deletedAt } : [])
                             let profiles = records.filter { record in record.deletedAt == app.deletedAt && includedApps.contains { record.app?.id == $0.id } }.count
                             let targets = includedApps.count - 1
                             trashRow(app.name, detail: String(localized: "アプリ") + (targets > 0 || profiles > 0 ? String(localized: "（ターゲット \(targets)・プロファイル \(profiles) を含む）") : "") + " · " + (app.team?.name ?? ""),
-                                     deletedAt: app.deletedAt!) {
+                                     deletedAt: app.deletedAt!, disabled: deletedApps.contains { $0.id == app.parentAppID },
+                                     purge: PurgeTarget(name: app.name, apps: includedApps)) {
                                 perform { _ in try VaultManagement(vault: vault).restore(app) }
                             }
                         }
-                        ForEach(deletedRecords) { record in
+                        ForEach(Self.rows(records: records)) { record in
                             trashRow(record.name, detail: record.fileTypeTitle + " · " + (record.isTeamShared ? String(localized: "チーム共通") : record.app?.name ?? ""),
-                                     deletedAt: record.deletedAt!, disabled: record.app?.deletedAt != nil) {
+                                     deletedAt: record.deletedAt!, disabled: record.app?.deletedAt != nil, purge: PurgeTarget(name: record.name, records: [record])) {
                                 perform { _ in try VaultManagement(vault: vault).restore(record) }
                             }
                         }
@@ -555,9 +573,18 @@ struct TrashView: View {
             .confirmationDialog("すべて完全に削除しますか？元に戻せません。", isPresented: $purging, titleVisibility: .visible) {
                 Button("認証して完全削除", role: .destructive) { perform(alwaysAsk: true) { _ in try VaultManagement(vault: vault).purge(records: deletedRecords, apps: deletedApps) } }
             }
+            .confirmationDialog(Text("「\(purgeTarget?.name ?? "")」を完全に削除しますか？元に戻せません。"),
+                                isPresented: Binding(get: { purgeTarget != nil }, set: { if !$0 { purgeTarget = nil } }), titleVisibility: .visible,
+                                presenting: purgeTarget) { target in
+                Button("認証して完全削除", role: .destructive) {
+                    perform(alwaysAsk: true) { _ in try VaultManagement(vault: vault).purge(records: target.records, apps: target.apps) }
+                }
+            } message: { target in
+                if !target.apps.isEmpty { Text("このアプリのターゲットとプロファイルもすべて消えます。") }
+            }
             .onDisappear { access.lock() }
     }
-    private func trashRow(_ name: String, detail: String, deletedAt: Date, disabled: Bool = false, action: @escaping () -> Void) -> some View {
+    private func trashRow(_ name: String, detail: String, deletedAt: Date, disabled: Bool = false, purge: PurgeTarget, action: @escaping () -> Void) -> some View {
         let remaining = max(0, Int(ceil((deletedAt.addingTimeInterval(30 * 86400).timeIntervalSinceNow) / 86400)))
         return HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
@@ -568,6 +595,8 @@ struct TrashView: View {
                 .foregroundStyle(remaining <= 7 ? XkeysStyle.warningText : XkeysStyle.secondary).frame(width: 90, alignment: .leading)
             Button("元に戻す", action: action).buttonStyle(XkeysButtonStyle(compact: true)).disabled(disabled)
                 .help(disabled ? "先に、所属するアプリを元に戻してください" : "")
+            Button("完全に削除…", role: .destructive) { purgeTarget = purge }
+                .buttonStyle(XkeysButtonStyle(compact: true)).foregroundStyle(XkeysStyle.dangerText)
         }.padding(.vertical, 10).frame(minHeight: 52)
             .overlay(alignment: .top) { Rectangle().fill(XkeysStyle.rowBorder).frame(height: 1) }
     }
