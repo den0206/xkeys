@@ -8075,6 +8075,26 @@
           }
         }
       }
+    },
+    "読み取れませんでした" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn’t Read the File"
+          }
+        }
+      }
+    },
+    "保存するものはありません" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nothing to back up"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

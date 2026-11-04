@@ -59,7 +59,10 @@ struct CredentialImportView: View {
     private var headline: String {
         if finished { return String(localized: "ファイルの追加が終わりました") }
         if readyToCommit { return String(localized: "\(pending.count)件の確認が終わりました") }
-        if file == nil { return currentName.isEmpty ? String(localized: "ファイルを追加") : String(localized: "読み取っています…") }
+        if file == nil {
+            if currentName.isEmpty { return String(localized: "ファイルを追加") }
+            return error == nil ? String(localized: "読み取っています…") : String(localized: "読み取れませんでした")
+        }
         if needsPassword { return String(localized: ".p12 のパスワードを入力してください") }
         if isP8 { return String(localized: "この鍵の用途を選んでください") }
         if unregisteredBundle != nil { return String(localized: "どのアプリのプロファイルですか？") }
