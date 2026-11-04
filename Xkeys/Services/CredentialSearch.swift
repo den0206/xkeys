@@ -1,66 +1,17 @@
 import Foundation
 
-enum CredentialTypeFilter: String, CaseIterable, Identifiable {
-    case all, key, certificate, identity, profile
-    var id: String { rawValue }
-    var title: String {
-        switch self {
-        case .all: String(localized: "すべての種類")
-        case .key: String(localized: "秘密鍵（.p8）")
-        case .certificate: String(localized: "証明書（.cer）")
-        case .identity: String(localized: "証明書＋秘密鍵（.p12）")
-        case .profile: String(localized: "プロファイル")
-        }
-    }
-    func matches(_ record: StoredCredential) -> Bool {
-        switch self {
-        case .all: true
-        case .key: record.fileExtension == "p8"
-        case .certificate: record.fileExtension == "cer"
-        case .identity: record.fileExtension == "p12"
-        case .profile: ["mobileprovision", "provisionprofile"].contains(record.fileExtension)
-        }
-    }
-}
-
-enum CredentialPurposeFilter: Hashable, CaseIterable, Identifiable {
-    case all, signing, key(P8Purpose), intermediateCA, unspecified
-    static var allCases: [Self] { [.all, .signing] + P8Purpose.allCases.map(Self.key) + [.intermediateCA, .unspecified] }
-    var id: Self { self }
-    var title: String {
-        switch self {
-        case .all: String(localized: "すべての用途")
-        case .signing: String(localized: "署名")
-        case .key(let purpose): purpose.displayTitle
-        case .intermediateCA: String(localized: "中間CA")
-        case .unspecified: String(localized: "未設定")
-        }
-    }
-    func matches(_ record: StoredCredential) -> Bool {
-        if self == .all { return true }
-        if record.isIntermediateCA { return self == .intermediateCA }
-        if record.fileExtension != "p8" { return self == .signing }
-        guard let purposes = record.keyPurpose.flatMap(P8Purpose.purposes(stored:)) else { return self == .unspecified }
-        guard case .key(let purpose) = self else { return false }
-        return purposes.contains(purpose)
-    }
-}
-
 // Search metadata only. It never opens the vault or includes saved passwords or original bytes.
 enum CredentialSearch {
     static func hasQuery(_ query: String) -> Bool { !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
 
     static func includes(_ record: StoredCredential, scope: CredentialScope, app: ManagedApp?, query: String,
-                         type: CredentialTypeFilter, at now: Date, in records: [StoredCredential] = []) -> Bool {
+                         at now: Date, in records: [StoredCredential] = []) -> Bool {
         guard record.deletedAt == nil, record.app?.deletedAt == nil else { return false }
-        guard type.matches(record), matches(record, query: query) else { return false }
+        guard matches(record, query: query) else { return false }
         if hasQuery(query) { return true }
         switch scope {
         case .trash: return false
-        case .credential(let id): return record.id == id
         case .all: return true
-        case .expired: return record.displayState(at: now) == .expired
-        case .expiring: return record.displayState(at: now).needsRenewal
         case .attention: return record.needsAttention(in: records, at: now)
         case .app: return !record.isTeamShared && (app.map { app in
             app.parentAppID == nil ? app.targets.contains { record.isVisible(in: $0) } : record.isVisible(in: app)

@@ -92,7 +92,7 @@ The release workflow signs the app with Developer ID and notarizes the DMG. Xkey
 - Review duplicate .p12 candidates by their complete certificate set, even when filenames or passwords differ
 - Sign in to Apple Developer to register teams and download certificates and provisioning profiles
 - Group a main app, extensions, and widgets by their Bundle IDs
-- View expiry dates, search across teams, and filter by credential type
+- View expiry dates and search across teams
 - Keep encrypted notes and optionally save `.p12` passwords
 - Copy credential values or export original files after authentication
 - Create CI secret files in `.env` format

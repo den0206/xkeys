@@ -123,7 +123,6 @@ extension XkeysTests {
         let record = try XCTUnwrap(vault.records().first { $0.id == id })
         XCTAssertEqual(record.keyPurpose, "apns,maps")
         XCTAssertEqual(record.name, "APNs・Maps（DUMMYKEY01）")
-        XCTAssertEqual(CredentialPurposeFilter.allCases.filter { $0 != .all && $0.matches(record) }, [.key(.apns), .key(.maps)])
         XCTAssertTrue(CredentialSearch.matches(record, query: "maps"))
         XCTAssertEqual(try vault.read(record, key: key).original, file.data)
         _ = try BackupArchive.decode(BackupArchive.encode(BackupSnapshot.capture(vault: vault, key: key), password: nil), password: nil)

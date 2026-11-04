@@ -403,7 +403,7 @@ extension XkeysTests {
         _ = try vault.importFile(file, parsed: CredentialParser.parse(file.data, extension: "cer"), app: app, password: nil, confirmUnknownTeam: true, key: key)
         let record = try XCTUnwrap(vault.records().first)
         try VaultManagement(vault: vault).trash(record, key: key)
-        XCTAssertFalse(CredentialSearch.includes(record, scope: .all, app: nil, query: "sample", type: .all, at: .now))
+        XCTAssertFalse(CredentialSearch.includes(record, scope: .all, app: nil, query: "sample", at: .now))
         let snapshot = try BackupSnapshot.capture(vault: vault, key: key)
         XCTAssertNotNil(snapshot.credentials.first?.deletedAt)
     }

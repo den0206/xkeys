@@ -50,7 +50,7 @@ extension XkeysTests {
         XCTAssertEqual(child.target(forProfileBundleID: root.bundleID)?.id, root.id)
         XCTAssertNil(child.target(forProfileBundleID: "com.example.unregistered"))
         XCTAssertNil(child.target(forProfileBundleID: "*"))
-        XCTAssertTrue(CredentialSearch.includes(record, scope: .app(child.id), app: child, query: "", type: .all, at: .now))
+        XCTAssertTrue(CredentialSearch.includes(record, scope: .app(child.id), app: child, query: "", at: .now))
         XCTAssertFalse(record.isVisible(in: child))
         XCTAssertThrowsError(try AppCatalog(context: vault.context).setParent(root.id, for: child, name: child.name, platform: child.platform))
         XCTAssertThrowsError(try AppCatalog(context: vault.context).setParent(other.id, for: root, name: root.name, platform: root.platform))
@@ -393,21 +393,6 @@ extension XkeysTests {
     }
 
     @MainActor
-    func testTypeFilterDistinguishesCertificateIdentityKeyAndBothProfiles() throws {
-        let (_, app, _, _) = try makeVault()
-        let cases: [(String, CredentialTypeFilter)] = [("p8", .key), ("cer", .certificate), ("p12", .identity),
-                                                      ("mobileprovision", .profile), ("provisionprofile", .profile)]
-        for (ext, expected) in cases {
-            let record = StoredCredential(file: CredentialFile(data: Data([1]), name: "fixture." + ext.uppercased()),
-                                          parsed: ParsedCredential(name: "Fixture", kind: "Fixture", teamID: nil, bundleID: nil, expiresAt: nil),
-                                          app: app, team: try XCTUnwrap(app.team), savePassword: false)
-            for filter in CredentialTypeFilter.allCases {
-                XCTAssertEqual(filter.matches(record), filter == .all || filter == expected)
-            }
-        }
-    }
-
-    @MainActor
     func testTeamScopeIncludesAllSharedFormatsAndExcludesAppProfilesAndOtherTeams() throws {
         let (_, app, sibling, other) = try makeVault()
         let team = try XCTUnwrap(app.team)
@@ -416,33 +401,13 @@ extension XkeysTests {
                 parsed: ParsedCredential(name: ext, kind: "テスト", teamID: team.teamID, bundleID: nil, expiresAt: nil),
                 app: app, team: team, savePassword: false)
             func includes(_ scope: CredentialScope, app: ManagedApp? = nil) -> Bool {
-                CredentialSearch.includes(record, scope: scope, app: app, query: "", type: .all, at: .now)
+                CredentialSearch.includes(record, scope: scope, app: app, query: "", at: .now)
             }
             XCTAssertEqual(includes(.team(team.id)), ext != "mobileprovision")
             XCTAssertFalse(includes(.team(try XCTUnwrap(other.team?.id))))
             XCTAssertEqual(includes(.app(app.id), app: app), ext == "mobileprovision")
             XCTAssertFalse(includes(.app(sibling.id), app: sibling))
         }
-    }
-
-    @MainActor
-    func testPurposeFiltersSeparateSigningCAAndAllP8Purposes() throws {
-        let (_, app, _, _) = try makeVault()
-        let team = try XCTUnwrap(app.team)
-        for purpose in P8Purpose.allCases {
-            let record = StoredCredential(file: CredentialFile(data: Data([1]), name: "key.p8"),
-                parsed: ParsedCredential(name: "key", kind: "鍵", teamID: nil, bundleID: nil, expiresAt: nil),
-                app: nil, team: team, savePassword: false, p8: P8Metadata(purposes: [purpose], keyID: "DUMMYKEY01", issuerID: nil))
-            XCTAssertTrue(CredentialPurposeFilter.all.matches(record))
-            XCTAssertEqual(CredentialPurposeFilter.allCases.filter { $0 != .all && $0.matches(record) }, [.key(purpose)])
-            record.keyPurpose = nil
-            XCTAssertTrue(CredentialPurposeFilter.unspecified.matches(record))
-        }
-        let ca = StoredCredential(file: CredentialFile(data: Data([1]), name: "ca.cer"),
-            parsed: ParsedCredential(name: "CA", kind: ParsedCredential.intermediateCAKind, teamID: nil, bundleID: nil, expiresAt: nil),
-            app: nil, team: team, savePassword: false)
-        XCTAssertTrue(CredentialPurposeFilter.intermediateCA.matches(ca))
-        XCTAssertFalse(CredentialPurposeFilter.signing.matches(ca))
     }
 
     @MainActor
@@ -470,22 +435,19 @@ extension XkeysTests {
     }
 
     @MainActor
-    func testGlobalSearchOverridesAppScopeButPreservesTypeFilter() throws {
+    func testGlobalSearchOverridesAppScope() throws {
         let (_, first, _, other) = try makeVault()
         let now = Date(timeIntervalSince1970: 1_900_000_000)
         let record = StoredCredential(file: CredentialFile(data: Data([1]), name: "other.cer"),
                                       parsed: ParsedCredential(name: "Other Certificate", kind: "証明書", teamID: nil, bundleID: nil, expiresAt: now),
                                       app: other, team: try XCTUnwrap(other.team), savePassword: false)
-        func includes(_ query: String, type: CredentialTypeFilter = .all, scope: CredentialScope? = nil) -> Bool {
-            CredentialSearch.includes(record, scope: scope ?? .app(first.id), app: first, query: query, type: type, at: now)
+        func includes(_ query: String) -> Bool {
+            CredentialSearch.includes(record, scope: .app(first.id), app: first, query: query, at: now)
         }
         XCTAssertFalse(includes(""))
         XCTAssertFalse(includes("　 \n"))
         XCTAssertTrue(includes("testteam02"))
-        XCTAssertTrue(includes("other", type: .certificate))
-        XCTAssertFalse(includes("other", type: .identity))
-        XCTAssertTrue(includes("", scope: .expired))
-        XCTAssertFalse(includes("", scope: .expiring))
+        XCTAssertFalse(includes("no such name"))
     }
 
     @MainActor
@@ -1001,7 +963,7 @@ extension XkeysTests {
         _ = try vault.importFile(file, parsed: CredentialParser.parse(file.data, extension: "mobileprovision"), app: app, password: nil, confirmUnknownTeam: true, key: key)
         let record = try XCTUnwrap(vault.records().first)
         let now = Date.now
-        let includes = { CredentialSearch.includes(record, scope: .attention, app: nil, query: "", type: .all, at: now) }
+        let includes = { CredentialSearch.includes(record, scope: .attention, app: nil, query: "", at: now) }
         record.expiresAt = now.addingTimeInterval(86400 * 90)
         XCTAssertFalse(includes())
         record.expiresAt = now.addingTimeInterval(86400 * 10)
@@ -1024,8 +986,8 @@ extension XkeysTests {
             parsed: ParsedCredential(name: "app", kind: "プロファイル", teamID: nil, bundleID: app.bundleID, expiresAt: now.addingTimeInterval(86400 * 90), signingCertificateDigests: ["abc"]),
             app: app, team: team, savePassword: false)
         let records = [certificate, profile]
-        XCTAssertTrue(CredentialSearch.includes(profile, scope: .attention, app: nil, query: "", type: .all, at: now, in: records))
-        XCTAssertFalse(CredentialSearch.includes(profile, scope: .attention, app: nil, query: "", type: .all, at: now))
+        XCTAssertTrue(CredentialSearch.includes(profile, scope: .attention, app: nil, query: "", at: now, in: records))
+        XCTAssertFalse(CredentialSearch.includes(profile, scope: .attention, app: nil, query: "", at: now))
     }
 
     func testEncryptedBlobStoreRejectsWrongKeyAADAndTampering() throws {

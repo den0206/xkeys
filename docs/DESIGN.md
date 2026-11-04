@@ -6,7 +6,7 @@
 
 macOS 26.0以降のSwiftUI / SwiftDataアプリ。App Sandboxを有効にし、Apple Developer接続用のnetwork.client Entitlementを使い、iCloud同期・自動起動は使わない。解析はSecurity / CMSDecoder、暗号化はCryptoKit、鍵導出はCommonCrypto、認証はLocalAuthenticationを使用する。認証にはXcodesLoginKitを使用し、リビジョンと推移的な依存をPackage.resolvedで固定する。
 
-Team・App管理、資格情報の保管、暗号化メモ、一括取り込み、削除と復元、バックアップ、CIコピーに対応する。横断検索と種別フィルターも実装している。オンライン失効確認、App Store Connect API照合、CIへの直接送信は対象外。Mac App Store配布・審査は未確認。
+Team・App管理、資格情報の保管、暗号化メモ、一括取り込み、削除と復元、バックアップ、CIコピーに対応する。横断検索も実装している。オンライン失効確認、App Store Connect API照合、CIへの直接送信は対象外。Mac App Store配布・審査は未確認。
 
 表示言語は日本語と英語。OSの言語設定に従い、`Localizable.xcstrings` で切り替える。資格情報の種類（`kind`）や.p8用途の登録名など、保存データと暗号化のAADに入る文字列は言語にかかわらず固定し、表示時だけ翻訳する。CI用Secretファイルのコメントも表示言語で書き出す。
 
@@ -117,7 +117,7 @@ Developer Portalの `services-account/v1/certificates` と `profiles` を使用�
 
 削除済みは通常一覧の対象外。Dockバッジや通知は出さない。設定画面の下部バーの左に、`CFBundleShortVersionString` とビルド番号（`CFBundleVersion`）を「バージョン 0.1.0 (1)」の形で小さく表示する。エラーがあるときはエラーを優先する。
 
-横断検索は全Team・Appの名前、Bundle ID、Team ID、ファイル名、種類、Key ID、Issuer ID等のメタデータが対象。複数語はAND検索し、元ファイル・メモ・パスワードを開かない。種別フィルターは全種類・.p8・.cer・.p12・両プロファイル形式。検索中は追加先の誤認を防ぐためファイル追加を無効化し、サイドバー移動で検索を解除する。
+横断検索は全Team・Appの名前、Bundle ID、Team ID、ファイル名、種類、Key ID、Issuer ID等のメタデータが対象。複数語はAND検索し、元ファイル・メモ・パスワードを開かない。検索中は追加先の誤認を防ぐためファイル追加を無効化し、サイドバー移動で検索を解除する。
 
 ## バックアップと復元
 
