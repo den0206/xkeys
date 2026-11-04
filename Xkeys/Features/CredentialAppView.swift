@@ -58,7 +58,7 @@ struct CredentialAppView: View {
 
     /// Everything on this page, before targets are collapsed. Attention counts use this, so they stay app-wide.
     private var scoped: [StoredCredential] {
-        records.filter { CredentialSearch.includes($0, scope: scope, app: app, query: search, type: typeFilter, at: clock) }
+        records.filter { CredentialSearch.includes($0, scope: scope, app: app, query: search, type: typeFilter, at: clock, in: records) }
     }
     private var showsTargets: Bool { app != nil && !CredentialSearch.hasQuery(search) && typeFilter == .all }
     private var visible: [StoredCredential] {

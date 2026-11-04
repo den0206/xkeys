@@ -71,7 +71,8 @@ struct CatalogView: View {
         return apps.first { $0.id == id }
     }
     private var credentialTeam: DeveloperTeam? {
-        guard case .team(let id) = selection else { return selectedApp?.team }
+        // Pages without their own team, such as 対応が必要, add files to the team the sidebar shows.
+        guard case .team(let id) = selection else { return selectedApp?.team ?? currentTeam }
         return teams.first { $0.id == id }
     }
     private var rootApps: [ManagedApp] { apps.filter { $0.deletedAt == nil && $0.parentAppID == nil } }
@@ -100,7 +101,7 @@ struct CatalogView: View {
             loadHistory()
             do { try VaultManagement(vault: CredentialVault(context: container.mainContext, blobs: EncryptedBlobStore(directory: CredentialVault.directory))).pruneExpired() }
             catch { historyError = String(localized: "削除済みデータの整理を完了できませんでした。再起動して確認してください。") }
-            selection = navigation.scope == .all ? (rootApps.first { $0.team?.id == currentTeam?.id }.map { .app($0.id) } ?? currentTeam.map { .team($0.id) } ?? .all) : navigation.scope
+            selection = navigation.scope == .all ? homeScope : navigation.scope
             // Moving first keeps the onboarding for the copy that stays; the data is shared, so nothing is lost either way.
             if !testing && installLocation.suggestsMove && !UserDefaults.standard.bool(forKey: InstallLocation.skipKey) { movingToApplications = true }
             else { onboarding = !onboardingCompleted && !testing }
@@ -132,10 +133,14 @@ struct CatalogView: View {
             }
         }
         .onChange(of: trashCount) { _, count in
-            if count == 0 && selection == .trash { selection = .all }
+            if count == 0 && selection == .trash { selection = homeScope }
         }
         .onChange(of: selectedApp?.deletedAt) { _, deletedAt in
-            if deletedAt != nil { selection = .all }
+            if deletedAt != nil { selection = homeScope }
+        }
+        // A restore that replaces everything or a team deletion can remove the page on screen.
+        .onChange(of: apps.map(\.id) + teams.map(\.id)) { _, _ in
+            if selectionIsGone { selection = homeScope }
         }
         .sheet(isPresented: $onboarding, onDismiss: {
             guard !onboardingSources.isEmpty else { return }
@@ -151,14 +156,12 @@ struct CatalogView: View {
         .onChange(of: addingFile) { _, shown in if !shown { onboardingSources = [] } }
         .sheet(isPresented: $managingTeams) {
             TeamManagementView(vault: CredentialVault(context: container.mainContext, blobs: EncryptedBlobStore(directory: CredentialVault.directory)), appleSession: appleSession) { id in
-                if selection == .team(id) { selection = .all }
                 if selectedTeam == id { selectedTeam = nil }
             }.modelContainer(container)
         }
         .sheet(item: $deletingTeam) { team in
             let id = team.id
             TeamDeletionView(vault: CredentialVault(context: container.mainContext, blobs: EncryptedBlobStore(directory: CredentialVault.directory)), team: team) {
-                if selection == .team(id) { selection = .all }
                 if selectedTeam == id { selectedTeam = nil }
             }
         }
@@ -256,8 +259,18 @@ struct CatalogView: View {
     }
 
     private var trashCount: Int { credentials.filter { $0.deletedAt != nil }.count + apps.filter { $0.deletedAt != nil }.count }
-    private var expiredCount: Int { active.filter { $0.displayState(at: clock) == .expired }.count }
-    private var expiringCount: Int { active.filter { $0.displayState(at: clock).needsRenewal }.count }
+    private var attentionCount: Int { active.filter { $0.needsAttention(in: active, at: clock) }.count }
+    /// The first page of the team the sidebar shows.
+    private var homeScope: CredentialScope {
+        rootApps.first { $0.team?.id == currentTeam?.id }.map { .app($0.id) } ?? currentTeam.map { .team($0.id) } ?? .all
+    }
+    private var selectionIsGone: Bool {
+        switch selection {
+        case .app(let id): !apps.contains { $0.id == id }
+        case .team(let id): !teams.contains { $0.id == id }
+        default: false
+        }
+    }
 
     /// The team the sidebar shows. Selecting an app or a team page also switches to its team.
     private var currentTeam: DeveloperTeam? { teams.first { $0.id == currentTeamID } ?? teams.first }
@@ -289,17 +302,17 @@ struct CatalogView: View {
         }
     }
     private var sidebarScopes: [CredentialScope] {
-        (expiredCount + expiringCount > 0 ? [.attention] : []) + teamApps.map { .app($0.id) } + (currentTeam.map { [.team($0.id)] } ?? [])
+        (attentionCount > 0 ? [.attention] : []) + teamApps.map { .app($0.id) } + (currentTeam.map { [.team($0.id)] } ?? [])
     }
 
     private var sidebar: some View {
         VStack(alignment: .leading, spacing: 4) {
             teamSwitcher.guideSpot(1).padding(.bottom, 8)
-            if expiredCount + expiringCount > 0 {
+            if attentionCount > 0 {
                 sidebarRow(scope: .attention) {
                     Image(systemName: "exclamationmark.circle").font(.system(size: 15)).foregroundStyle(XkeysStyle.danger).frame(width: 40)
                 } title: { Text("対応が必要").fontWeight(.semibold) } status: {
-                    Text("すべてのチームで \(expiredCount + expiringCount)件").font(.system(size: 12)).foregroundStyle(XkeysStyle.dangerText)
+                    Text("すべてのチームで \(attentionCount)件").font(.system(size: 12)).foregroundStyle(XkeysStyle.dangerText)
                 }
             }
             HStack(spacing: 6) {
@@ -441,6 +454,7 @@ struct CatalogView: View {
     private func teamRow(_ team: DeveloperTeam) -> some View {
         let shared = active.filter { $0.isTeamShared && $0.team?.id == team.id }
         let expired = shared.filter { $0.displayState(at: clock) == .expired }.count
+        let expiring = shared.filter { $0.displayState(at: clock).needsRenewal }.count
         let certificates = shared.filter { CredentialGroup($0) == .certificate }.count
         let keys = shared.filter { CredentialGroup($0) == .key }.count
         return sidebarRow(scope: .team(team.id)) {
@@ -451,6 +465,7 @@ struct CatalogView: View {
         } status: {
             Group {
                 if expired > 0 { Text("証明書 \(expired)件が期限切れ").foregroundStyle(XkeysStyle.dangerText) }
+                else if expiring > 0 { Text("証明書 \(expiring)件の期限が近い").foregroundStyle(XkeysStyle.warningText) }
                 else if shared.isEmpty { Text("まだありません").foregroundStyle(XkeysStyle.tertiary) }
                 else { Text("証明書 \(certificates) · 鍵 \(keys)").foregroundStyle(XkeysStyle.secondary) }
             }.font(.system(size: 12))

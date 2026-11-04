@@ -51,7 +51,7 @@ enum CredentialSearch {
     static func hasQuery(_ query: String) -> Bool { !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
 
     static func includes(_ record: StoredCredential, scope: CredentialScope, app: ManagedApp?, query: String,
-                         type: CredentialTypeFilter, at now: Date) -> Bool {
+                         type: CredentialTypeFilter, at now: Date, in records: [StoredCredential] = []) -> Bool {
         guard record.deletedAt == nil, record.app?.deletedAt == nil else { return false }
         guard type.matches(record), matches(record, query: query) else { return false }
         if hasQuery(query) { return true }
@@ -61,7 +61,7 @@ enum CredentialSearch {
         case .all: return true
         case .expired: return record.displayState(at: now) == .expired
         case .expiring: return record.displayState(at: now).needsRenewal
-        case .attention: return record.displayState(at: now) == .expired || record.displayState(at: now).needsRenewal
+        case .attention: return record.needsAttention(in: records, at: now)
         case .app: return !record.isTeamShared && (app.map { app in
             app.parentAppID == nil ? app.targets.contains { record.isVisible(in: $0) } : record.isVisible(in: app)
         } ?? false)
