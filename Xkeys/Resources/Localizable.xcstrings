@@ -1226,16 +1226,6 @@
         }
       }
     },
-    "30日以内に期限" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Expiring within 30 days"
-          }
-        }
-      }
-    },
     "Touch ID で確認したあと5分間は、もう一度確認しません。スリープや画面のロックで解除します" : {
       "localizations" : {
         "en" : {
@@ -2519,26 +2509,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Save all data to a single file"
-          }
-        }
-      }
-    },
-    "すべての用途" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "All Purposes"
-          }
-        }
-      }
-    },
-    "すべての種類" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "All Types"
           }
         }
       }
@@ -4097,16 +4067,6 @@
         }
       }
     },
-    "中間CA" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Intermediate CA"
-          }
-        }
-      }
-    },
     "中間CA証明書" : {
       "localizations" : {
         "en" : {
@@ -5527,16 +5487,6 @@
         }
       }
     },
-    "検索語や種類を変えて確認してください。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Try a different search term or type."
-          }
-        }
-      }
-    },
     "横断検索へ移動" : {
       "localizations" : {
         "en" : {
@@ -5957,16 +5907,6 @@
         }
       }
     },
-    "秘密鍵（.p8）" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Private Key (.p8)"
-          }
-        }
-      }
-    },
     "種類" : {
       "localizations" : {
         "en" : {
@@ -5993,16 +5933,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Edit…"
-          }
-        }
-      }
-    },
-    "署名" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Signing"
           }
         }
       }
@@ -6343,16 +6273,6 @@
         }
       }
     },
-    "証明書（.cer）" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Certificate (.cer)"
-          }
-        }
-      }
-    },
     "証明書（.p12）" : {
       "localizations" : {
         "en" : {
@@ -6369,16 +6289,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Certificate + private key"
-          }
-        }
-      }
-    },
-    "証明書＋秘密鍵（.p12）" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Certificate + Private Key (.p12)"
           }
         }
       }
@@ -6551,16 +6461,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "The identifier and team are fixed to keep credentials linked. Register a new entry for a different identifier."
-          }
-        }
-      }
-    },
-    "資格情報" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Credentials"
           }
         }
       }
@@ -8092,6 +7992,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Nothing to back up"
+          }
+        }
+      }
+    },
+    "検索語を変えて確認してください。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Try a different search term."
           }
         }
       }

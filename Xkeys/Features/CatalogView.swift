@@ -4,15 +4,12 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 enum CredentialScope: Hashable {
-    case all, expired, expiring, attention, trash, credential(UUID), app(UUID), team(UUID)
+    case all, attention, trash, app(UUID), team(UUID)
 
     var title: String {
         switch self {
         case .trash: String(localized: "最近削除した項目")
-        case .credential: String(localized: "資格情報")
         case .all: String(localized: "すべての鍵とファイル")
-        case .expired: String(localized: "期限切れ")
-        case .expiring: String(localized: "30日以内に期限")
         case .attention: String(localized: "対応が必要")
         case .app: "App"
         case .team: String(localized: "チームの鍵・証明書")
@@ -63,7 +60,6 @@ struct CatalogView: View {
     @State private var showingGlossary = false
     @State private var movingToApplications = false
     private let installLocation = InstallLocation(bundleURL: Bundle.main.bundleURL)
-    @State private var typeFilter: CredentialTypeFilter = .all
     private var testing: Bool { ProcessInfo.processInfo.environment["XKEYS_TESTING"] == "1" }
 
     private var selectedApp: ManagedApp? {
@@ -125,7 +121,7 @@ struct CatalogView: View {
         .sheet(isPresented: $showingGlossary) { GuideGlossaryView() }
         .onReceive(Timer.publish(every: 60, on: .main, in: .common).autoconnect()) { _ in clock = .now }
         .onChange(of: selection) { _, scope in
-            search = ""; typeFilter = .all
+            search = ""
             switch scope {
             case .app(let id): if let team = apps.first(where: { $0.id == id })?.team { currentTeamID = team.id }
             case .team(let id): currentTeamID = id
@@ -540,7 +536,7 @@ struct CatalogView: View {
         } else if teams.isEmpty {
             welcome
         } else {
-            CredentialAppView(app: CredentialSearch.hasQuery(search) ? nil : selectedApp, team: CredentialSearch.hasQuery(search) ? nil : credentialTeam, openTeam: { id in selection = .team(id) }, scope: selection ?? .all, container: container, importing: $addingFile, search: search, typeFilter: $typeFilter, initialSources: onboardingSources)
+            CredentialAppView(app: CredentialSearch.hasQuery(search) ? nil : selectedApp, team: CredentialSearch.hasQuery(search) ? nil : credentialTeam, openTeam: { id in selection = .team(id) }, scope: selection ?? .all, container: container, importing: $addingFile, search: search, initialSources: onboardingSources)
                 .id(selection)
         }
     }
@@ -759,7 +755,6 @@ enum XkeysStyle {
     static let accent = hex(0x4338CA)
     static let canvas = hex(0xFFFFFF)
     static let sidebar = hex(0xFAFAFB)
-    static let inspector = hex(0xFAFAFB)
     static let search = hex(0xF4F4F6)
     static let text = hex(0x18181B)
     static let secondary = hex(0x71717A)

@@ -11,7 +11,6 @@ struct CredentialAppView: View {
     let container: ModelContainer
     @Binding var importing: Bool
     let search: String
-    @Binding var typeFilter: CredentialTypeFilter
     var initialSources: [URL] = []
     // Rows added or removed by imports and deletions slide in and out.
     @Query(sort: \StoredCredential.name, animation: XkeysMotion.feedback ?? .linear(duration: 0)) private var records: [StoredCredential]
@@ -58,9 +57,9 @@ struct CredentialAppView: View {
 
     /// Everything on this page, before targets are collapsed. Attention counts use this, so they stay app-wide.
     private var scoped: [StoredCredential] {
-        records.filter { CredentialSearch.includes($0, scope: scope, app: app, query: search, type: typeFilter, at: clock, in: records) }
+        records.filter { CredentialSearch.includes($0, scope: scope, app: app, query: search, at: clock, in: records) }
     }
-    private var showsTargets: Bool { app != nil && !CredentialSearch.hasQuery(search) && typeFilter == .all }
+    private var showsTargets: Bool { app != nil && !CredentialSearch.hasQuery(search) }
     private var visible: [StoredCredential] {
         guard showsTargets, !collapsedTargets.isEmpty else { return scoped }
         return scoped.filter { record in
@@ -139,7 +138,6 @@ struct CredentialAppView: View {
         .onDisappear { lock() }
         .onChange(of: selected) { _, _ in access.lock(); revealedPassword = nil }
         .onChange(of: search) { _, _ in lock(dismissImport: false) }
-        .onChange(of: typeFilter) { _, _ in lock(dismissImport: false) }
         .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { _ in
             if Date.now.timeIntervalSince(clock) >= 60 { clock = .now }
             if revealedPassword != nil && Date.now.timeIntervalSince(revealedAt) >= 300 { revealedPassword = nil }
@@ -176,7 +174,7 @@ struct CredentialAppView: View {
                     }
                 }
                 if let app, let owner = app.team, !CredentialSearch.hasQuery(search) { teamLink(owner) }
-                if let app, !CredentialSearch.hasQuery(search), typeFilter == .all, !selectingForDeletion {
+                if let app, !CredentialSearch.hasQuery(search), !selectingForDeletion {
                     customSecretsSection(app.product)
                     if app.noteBlobID != nil { noteSection(app) }
                 }
@@ -351,9 +349,9 @@ struct CredentialAppView: View {
     }
 
     @ViewBuilder private var emptyState: some View {
-        if CredentialSearch.hasQuery(search) || typeFilter != .all {
+        if CredentialSearch.hasQuery(search) {
             ContentUnavailableView("条件に一致する項目がありません", systemImage: "magnifyingglass",
-                                   description: Text("検索語や種類を変えて確認してください。"))
+                                   description: Text("検索語を変えて確認してください。"))
         } else if team != nil, app?.deletedAt == nil, app != nil || isTeamScope {
             VStack(spacing: 12) {
                 CredentialDropZone(title: app != nil ? String(localized: "このアプリのプロファイルをドロップ") : String(localized: "証明書や鍵をドロップ"),

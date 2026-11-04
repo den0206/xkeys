@@ -41,28 +41,3 @@ extension StoredCredential {
         return .valid
     }
 }
-
-struct CredentialStatusBadge: View {
-    let state: CredentialDisplayState
-    var foreground: Color {
-        switch state {
-        case .expired: XkeysStyle.dangerText
-        case .withinDay, .expiring: XkeysStyle.warningText
-        case .valid: XkeysStyle.successText
-        case .stored: XkeysStyle.secondary
-        }
-    }
-    var background: Color {
-        switch state {
-        case .expired: XkeysStyle.dangerBackground
-        case .withinDay, .expiring: XkeysStyle.warningBackground
-        case .valid: XkeysStyle.successBackground
-        case .stored: XkeysStyle.sidebar
-        }
-    }
-    var body: some View {
-        Text(state.title).font(.system(size: 12, weight: state == .stored ? .regular : .bold))
-            .foregroundStyle(foreground).padding(.horizontal, 8).padding(.vertical, 3)
-            .background(background, in: Capsule())
-    }
-}
