@@ -1,6 +1,6 @@
 cask "xkeys" do
-  version "0.2.1"
-  sha256 "f6f1f8f1860b4bba6a9148a6b423816c9ff70a8f5132dd430f3b9bf283871276"
+  version "0.2.2"
+  sha256 "8589acf9eb03253144b527b5aa4c3f25729a0934d1e644b824118429964f0c44"
 
   url "https://github.com/den0206/xkeys/releases/download/v#{version}/Xkeys-#{version}.dmg"
   name "Xkeys"

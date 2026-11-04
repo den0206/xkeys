@@ -6,6 +6,8 @@ The format follows Keep a Changelog conventions and releases use semantic versio
 
 ## [Unreleased]
 
+## [0.2.2] — 2026-11-04
+
 ### Fixed
 
 - "Add File" in the renewal guide on Needs Attention no longer opens an empty sheet. Pages without their own team now add files to the team shown in the sidebar.
