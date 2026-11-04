@@ -344,7 +344,7 @@ final class VaultAccess {
         authentication.cancel()
     }
 
-    func withKey<T>(reason: String, allowCreation: Bool, vault: CredentialVault? = nil, operation: (SymmetricKey) throws -> T) async throws -> T {
+    func withKey<T>(reason: String, allowCreation: Bool, vault: CredentialVault? = nil, alwaysAsk: Bool = false, operation: (SymmetricKey) throws -> T) async throws -> T {
         guard !busy else { throw VaultError.cancelled }
         busy = true
         let generation = self.generation
@@ -355,7 +355,7 @@ final class VaultAccess {
         } else {
             try EncryptionKeychain.requireSigning()
             // Unreadable settings fall back to asking every time.
-            let reuse = vault.flatMap { try? PreferencesStore.read(in: $0.context).reuseAuthentication } ?? false
+            let reuse = !alwaysAsk && (vault.flatMap { try? PreferencesStore.read(in: $0.context).reuseAuthentication } ?? false)
             let context = try await authentication.authenticate(reason: reason, reuse: reuse)
             // A rejected approval is not reused, so the next attempt asks again.
             do { key = try EncryptionKeychain.vault.key(context: context, allowCreation: allowCreation) }

@@ -189,7 +189,7 @@ enum BackupError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .invalid: String(localized: "バックアップの形式または整合性を確認できません。既存データは変更していません。")
-        case .tooLarge: String(localized: "このバックアップのサイズ上限を超えています。現在の上限は元ファイル合計32MiB・payload 64MiBです。")
+        case .tooLarge: String(localized: "このバックアップのサイズ上限を超えています。現在の上限は元ファイル合計32MiB・アイコン画像合計16MiB・payload 64MiBです。")
         case .password: String(localized: "パスワードが違うか、バックアップが破損しています。")
         case .passwordRequired: String(localized: "バックアップ用パスワードを6文字以上、UTF-8で1,024バイト以内で入力してください。")
         case .derivation: String(localized: "バックアップの暗号鍵を作成できませんでした。")

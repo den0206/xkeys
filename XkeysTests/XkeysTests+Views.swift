@@ -45,6 +45,21 @@ extension XkeysTests {
     }
 
     @MainActor
+    func testIconImagesAreStoredAsSmallSquarePNGs() throws {
+        let image = NSImage(size: NSSize(width: 1200, height: 800))
+        image.lockFocus()
+        NSColor.red.setFill()
+        NSRect(x: 0, y: 0, width: 1200, height: 800).fill()
+        image.unlockFocus()
+        let data = try XCTUnwrap(AppIconPicker.resized(try XCTUnwrap(image.tiffRepresentation)))
+        let bitmap = try XCTUnwrap(NSBitmapImageRep(data: data))
+        XCTAssertEqual(bitmap.pixelsWide, 512)
+        XCTAssertEqual(bitmap.pixelsHigh, 512)
+        XCTAssertEqual(data.prefix(4), Data([0x89, 0x50, 0x4E, 0x47]))
+        XCTAssertNil(AppIconPicker.resized(Data("not an image".utf8)))
+    }
+
+    @MainActor
     func testCatalogRendersAtMinimumAndDefaultWindowSizes() async throws {
         let (vault, app, child, _) = try makeVault()
         let key = SymmetricKey(size: .bits256)

@@ -40,7 +40,7 @@ xcodebuild -project Xkeys.xcodeproj -scheme Xkeys \
 - 起動は `Application/XkeysApp.swift`。`XKEYS_TESTING=1` ならメモリ内の `ModelContainer` を使います。SwiftData のモデルを追加したら、ここの型一覧にも追加してください。
 - メタデータ（`DeveloperTeam`・`ManagedApp`・`StoredCredential`）は SwiftData に保存します。元ファイル・メモ・.p12 パスワードは `CredentialPayload` として AES-GCM で暗号化し、`XkeysVault/blobs` に保存します。鍵は端末専用 Keychain（`EncryptionKeychain`）にあります。
 - 暗号化 blob の AAD は `StoredCredential.authenticatedData()`（`XkeysCredential-v1`）と `VaultManagement.noteAAD` で作ります。AAD に含まれる項目（kind、所属、`keyPurpose` など）は自動で書き換えないでください。変えるときは別 UUID の blob に暗号化し直し、読み戻して検証してから参照を切り替えます（`VaultManagement.updatePurposes` を参照）。
-- 取り込みは `CredentialVault`（`validate` → `importFile`）、編集・削除・復元・完全削除は `VaultManagement` が担当します。秘密情報の操作は `OwnerAuthentication` で毎回認証し、取得した `SymmetricKey` を渡します。
+- 取り込みは `CredentialVault`（`validate` → `importFile`）、編集・削除・復元・完全削除は `VaultManagement` が担当します。秘密情報の操作は `OwnerAuthentication` で認証し（設定により承認を5分間引き継ぐ。取り消せない操作は `alwaysAsk` で必ず認証する）、取得した `SymmetricKey` を渡します。
 - データを変更する処理は、変更の前に `BackupHistory.prepare` を、変更時に `BackupHistory.record` を同じ context で呼び、未バックアップの変更を識別する印を記録します。変更回数は集計せず、バックアップの要否だけを表示します。バックアップ形式は `BackupArchive`（`BackupSnapshot` version 1）、復元は `BackupRestore` / `RestorePlan` です。
 - Apple Developer 連携は `AppleDeveloperSession`（XcodesLoginKit、Cookie を Keychain に保存）と `AppleDeveloperClient`（非公開の Web API、応答サイズ・件数を検証）が担当します。HTTP と Keychain はテストで架空のものに差し替えます。
 - 仕様を変えたら `docs/DESIGN.md`、確認範囲を変えたら `docs/IMPLEMENTATION.md`、操作を変えたら `README.md` も更新します。

@@ -16,6 +16,10 @@ The format follows Keep a Changelog conventions and releases use semantic versio
 
 - Switching to another app no longer discards your work. Restore, backup, note editing, both CI sheets, and list selections stay as they were. Revealed passwords and note text are still hidden, and locking, sleep, or 5 minutes without input still clears entered values.
 
+- Permanent deletion and backups without a password now always ask you to authenticate, even during the 5-minute approval.
+
+- Icon images are stored as PNGs of at most 512 px, so many large icons no longer block backup and restore.
+
 ## [0.2.1] — 2026-11-02
 
 ### Added

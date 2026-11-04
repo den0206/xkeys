@@ -202,7 +202,7 @@ struct NoteEditor: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("暗号化メモ").font(.title2.bold())
-            Text("表示と保存のたびにMacで認証します。メモは暗号化して保存し、検索には含めません。")
+            Text("表示と保存の前にMacで認証します。メモは暗号化して保存し、検索には含めません。")
                 .font(.caption).foregroundStyle(.secondary)
             if loaded { TextEditor(text: $note).font(.system(size: 13)).privacySensitive().xkeysTextArea() }
             else { Button("認証してメモを開く") { perform(save: false) } }
@@ -553,7 +553,7 @@ struct TrashView: View {
         }.font(.system(size: 13)).padding(.horizontal, 32).padding(.vertical, 22)
             .background(XkeysStyle.canvas).foregroundStyle(XkeysStyle.text).disabled(access.busy)
             .confirmationDialog("すべて完全に削除しますか？元に戻せません。", isPresented: $purging, titleVisibility: .visible) {
-                Button("認証して完全削除", role: .destructive) { perform { _ in try VaultManagement(vault: vault).purge(records: deletedRecords, apps: deletedApps) } }
+                Button("認証して完全削除", role: .destructive) { perform(alwaysAsk: true) { _ in try VaultManagement(vault: vault).purge(records: deletedRecords, apps: deletedApps) } }
             }
             .onDisappear { access.lock() }
     }
@@ -572,11 +572,11 @@ struct TrashView: View {
             .overlay(alignment: .top) { Rectangle().fill(XkeysStyle.rowBorder).frame(height: 1) }
     }
 
-    private func perform(_ operation: @escaping (SymmetricKey) throws -> Void) {
+    private func perform(alwaysAsk: Bool = false, _ operation: @escaping (SymmetricKey) throws -> Void) {
         Task { @MainActor in
             do {
                 let create = try vault.canCreateKey()
-                try await access.withKey(reason: String(localized: "最近削除した項目を変更します"), allowCreation: create, vault: vault) { key in try operation(key) }
+                try await access.withKey(reason: String(localized: "最近削除した項目を変更します"), allowCreation: create, vault: vault, alwaysAsk: alwaysAsk) { key in try operation(key) }
                 error = nil
             } catch { self.error = error.localizedDescription }
         }
