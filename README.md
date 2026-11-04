@@ -32,7 +32,7 @@ Xkeys layers several defenses so that no single failure exposes your secrets.
 ### Authentication before access
 
 - The encryption key cannot be used without **Touch ID or your Mac password** (Keychain access control `userPresence`).
-- **Every operation that touches a secret requires authentication**: viewing, copying, exporting, editing, and deleting. By default one approval is reused for 5 minutes and ends early on sleep, screen lock, or user switching; turn off "Keep approval for 5 minutes" in Settings to authenticate every time.
+- **Every operation that touches a secret requires authentication**: viewing, copying, exporting, editing, and deleting. By default one approval is reused for 5 minutes and ends early on sleep, screen lock, or user switching; turn off "Keep approval for 5 minutes" in Settings to authenticate every time. Permanent deletion and backups without a password always ask, whatever the setting.
 
 ### No leak paths
 

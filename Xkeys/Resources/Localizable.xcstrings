@@ -2391,16 +2391,6 @@
         }
       }
     },
-    "このバックアップのサイズ上限を超えています。現在の上限は元ファイル合計32MiB・payload 64MiBです。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "This backup exceeds the size limit. The current limit is 32 MiB of original files and a 64 MiB payload."
-          }
-        }
-      }
-    },
     "このファイルには秘密鍵と保存済みのパスワードが含まれます。外付けドライブなど、安全な場所に保管してください。" : {
       "localizations" : {
         "en" : {
@@ -6089,16 +6079,6 @@
         }
       }
     },
-    "表示と保存のたびにMacで認証します。メモは暗号化して保存し、検索には含めません。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "You'll authenticate every time you view or save. Notes are encrypted and excluded from search."
-          }
-        }
-      }
-    },
     "表示と期限の基準にする証明書を選択" : {
       "localizations" : {
         "en" : {
@@ -8032,6 +8012,26 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "表示と保存の前にMacで認証します。メモは暗号化して保存し、検索には含めません。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your Mac asks you to authenticate before showing or saving. Notes are stored encrypted and are not searched."
+          }
+        }
+      }
+    },
+    "このバックアップのサイズ上限を超えています。現在の上限は元ファイル合計32MiB・アイコン画像合計16MiB・payload 64MiBです。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This backup exceeds the size limit. The current limits are 32 MiB of original files, 16 MiB of icon images, and a 64 MiB payload."
           }
         }
       }

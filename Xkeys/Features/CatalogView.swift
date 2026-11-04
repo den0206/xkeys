@@ -850,10 +850,26 @@ struct AppIconPicker: View {
         defer { if scoped { url.stopAccessingSecurityScopedResource() } }
         do {
             let file = try CredentialFile(url: url, maximumBytes: 1_048_576)
-            guard NSImage(data: file.data) != nil else { throw ValidationError.invalidFile }
-            iconImage = file.data
+            guard let resized = Self.resized(file.data) else { throw ValidationError.invalidFile }
+            iconImage = resized
             error = nil
         } catch { self.error = String(localized: "1MB以下のPNG・JPEG・SVG画像を選んでください。") }
+    }
+
+    /// Icons count toward the backup's 16MiB icon limit, so a large image is stored as a square PNG of at most 512px.
+    static func resized(_ data: Data, side: Int = 512) -> Data? {
+        guard let image = NSImage(data: data), image.size.width > 0, image.size.height > 0,
+              let bitmap = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: side, pixelsHigh: side, bitsPerSample: 8, samplesPerPixel: 4,
+                                            hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0),
+              let context = NSGraphicsContext(bitmapImageRep: bitmap) else { return nil }
+        // Fills the square, as AppIcon's scaledToFill shows it.
+        let scale = CGFloat(side) / min(image.size.width, image.size.height)
+        let size = NSSize(width: image.size.width * scale, height: image.size.height * scale)
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = context
+        image.draw(in: NSRect(x: (CGFloat(side) - size.width) / 2, y: (CGFloat(side) - size.height) / 2, width: size.width, height: size.height))
+        NSGraphicsContext.restoreGraphicsState()
+        return bitmap.representation(using: .png, properties: [:])
     }
 
 }

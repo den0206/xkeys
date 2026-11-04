@@ -213,7 +213,7 @@ struct BackupView: View {
             defer { working = false; work = nil }
             do {
                 let canCreate = try vault.canCreateKey()
-                let (snapshot, watermark) = try await access.withKey(reason: String(localized: "すべての資格情報をバックアップします"), allowCreation: canCreate, vault: vault) { key in
+                let (snapshot, watermark) = try await access.withKey(reason: String(localized: "すべての資格情報をバックアップします"), allowCreation: canCreate, vault: vault, alwaysAsk: secret == nil) { key in
                     try BackupHistory.bootstrap(in: vault.context)
                     let full = try BackupSnapshot.capture(vault: vault, key: key)
                     let snapshot = selectedOnly ? try full.selecting(appIDs: selectedApps) : full
