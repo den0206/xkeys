@@ -339,6 +339,12 @@ extension XkeysTests {
         XCTAssertEqual(Set(TrashView.rows(apps: apps).map(\.id)), [root.id, child.id])
     }
 
+    func testWrongP12PasswordSaysSoInsteadOfShowingErrorCode() throws {
+        XCTAssertThrowsError(try CredentialParser.parseAll(fixture("p12"), extension: "p12", password: "wrong password")) {
+            XCTAssertEqual($0.localizedDescription, String(localized: "パスワードが違います。大文字・小文字も区別されます。"))
+        }
+    }
+
     func testExportToExistingFileReportsFileExists() throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)

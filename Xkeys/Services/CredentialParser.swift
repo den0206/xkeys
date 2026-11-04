@@ -40,6 +40,8 @@ enum ValidationError: LocalizedError {
         case .unsupported: String(localized: "プロファイル・.cer・.p12・.p8に対応しています。")
         case .signingRequired:
             String(localized: "Keychainを使用するための開発用署名が必要です。XcodeでApple Development証明書とTeamを設定してから、F5で再ビルドしてください。")
+        case .security(errSecAuthFailed), .security(errSecPkcs12VerifyFailure):
+            String(localized: "パスワードが違います。大文字・小文字も区別されます。")
         case .security(let status):
             status == errSecMissingEntitlement
                 ? ValidationError.signingRequired.localizedDescription

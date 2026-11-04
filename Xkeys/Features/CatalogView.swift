@@ -490,10 +490,12 @@ struct CatalogView: View {
     private var backupStatusLine: some View {
         Button { creatingBackup = true } label: {
             HStack(spacing: 8) {
-                Circle().fill(needsBackup || historyError != nil ? Color(red: 0.96, green: 0.62, blue: 0.04) : XkeysStyle.successText)
+                Circle().fill(needsBackup || historyError != nil ? Color(red: 0.96, green: 0.62, blue: 0.04)
+                              : apps.isEmpty && credentials.isEmpty ? XkeysStyle.tertiary : XkeysStyle.successText)
                     .frame(width: 7, height: 7)
                 if historyError != nil { Text("バックアップの状態を確認できません") }
                 else if needsBackup { Text("バックアップが必要") }
+                else if apps.isEmpty && credentials.isEmpty { Text("保存するものはありません") }
                 else { Text("バックアップ済み") }
                 Spacer(minLength: 0)
                 if let date = checkpoints.first.flatMap({ BackupHistorySummary(changes: changes, checkpoint: $0, hasStoredItems: !apps.isEmpty || !credentials.isEmpty).lastCompletedAt }) {
@@ -761,7 +763,7 @@ enum XkeysStyle {
     static let search = hex(0xF4F4F6)
     static let text = hex(0x18181B)
     static let secondary = hex(0x71717A)
-    static let tertiary = hex(0xA1A1AA)
+    static let tertiary = hex(0x71717A)
     static let border = hex(0xE2E2E8)
     static let rowBorder = hex(0xF1F1F4)
     static let selection = hex(0xEEF0FF)
@@ -1102,10 +1104,13 @@ struct AppIcon: View {
     let app: ManagedApp
     let size: CGFloat
     var body: some View {
-        Group {
+        ZStack {
             if let data = app.iconImage, let image = NSImage(data: data) {
                 Image(nsImage: image).resizable().scaledToFill()
-            } else { XkeysStyle.appColor(app) }
+            } else {
+                XkeysStyle.appColor(app)
+                Text(String(app.name.prefix(1))).font(.system(size: size * 0.44, weight: .bold)).foregroundStyle(.white)
+            }
         }.frame(width: size, height: size).clipShape(RoundedRectangle(cornerRadius: size / 4))
             .accessibilityHidden(true)
     }

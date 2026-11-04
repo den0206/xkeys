@@ -28,6 +28,14 @@ The format follows Keep a Changelog conventions and releases use semantic versio
 
 - Choosing an existing file in a save panel now asks for another name before you authenticate. A failed backup keeps the password you entered so you can try again.
 
+- Apps without a chosen icon now show their initial, so apps of the same color can be told apart.
+
+- A file that can't be read no longer leaves the import sheet saying "Reading…", and a wrong .p12 password now says so instead of showing an error code.
+
+- With nothing stored, the sidebar now says there is nothing to back up instead of "Backed up".
+
+- Dates and captions in the lightest gray are darker and easier to read.
+
 ## [0.2.1] — 2026-11-02
 
 ### Added
