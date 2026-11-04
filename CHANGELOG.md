@@ -14,6 +14,8 @@ The format follows Keep a Changelog conventions and releases use semantic versio
 
 - Needs Attention now also counts and lists profiles whose signing certificates have expired, and the team row warns about certificates that expire within 30 days.
 
+- Switching to another app no longer discards your work. Restore, backup, note editing, both CI sheets, and list selections stay as they were. Revealed passwords and note text are still hidden, and locking, sleep, or 5 minutes without input still clears entered values.
+
 ## [0.2.1] — 2026-11-02
 
 ### Added

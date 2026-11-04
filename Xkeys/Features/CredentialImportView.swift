@@ -333,8 +333,6 @@ struct CredentialImportView: View {
     }
 
     private func chooseFile() {
-        access.presentingPanel = true
-        defer { access.presentingPanel = false }
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = true

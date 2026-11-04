@@ -25,6 +25,7 @@ struct BackupView: View {
     @State private var trackingWarning = false
     @State private var access = VaultAccess()
     @State private var work: Task<Void, Never>?
+    @State private var lastActivity = Date.now
 
     init(container: ModelContainer, onSafetyBackup: ((SafetyBackup) -> Void)? = nil, restoring: Bool = false) {
         self.container = container
@@ -175,8 +176,12 @@ struct BackupView: View {
         .onDisappear { cancel() }
         .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.willSleepNotification)) { _ in cancel(); dismiss() }
         .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.sessionDidResignActiveNotification)) { _ in cancel(); dismiss() }
-        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didResignActiveNotification)) { _ in
-            if !working && !access.presentingPanel { password = ""; confirmation = ""; showingPassword = false }
+        // The sheet tells the user to store this password in a manager, so switching apps keeps it and hides it.
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didResignActiveNotification)) { _ in showingPassword = false }
+        .onChange(of: password) { _, _ in lastActivity = .now }
+        .onChange(of: confirmation) { _, _ in lastActivity = .now }
+        .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { _ in
+            if !working && Date.now.timeIntervalSince(lastActivity) >= 300 { password = ""; confirmation = ""; showingPassword = false }
         }
     }
 
@@ -189,7 +194,6 @@ struct BackupView: View {
 
     private func save() {
         guard canSave else { return }
-        access.presentingPanel = true
         let panel = NSSavePanel()
         let date = DateFormatter()
         date.dateFormat = "yyyyMMdd_HHmmss"
@@ -197,7 +201,6 @@ struct BackupView: View {
         panel.nameFieldStringValue = "Xkeys_\(date.string(from: .now)).xkeysbackup"
         panel.message = String(localized: "新しいファイルとして保存します。既存のファイルは上書きしません。")
         let response = panel.runModal()
-        access.presentingPanel = false
         guard response == .OK, let destination = panel.url else { return }
         let secret = protected ? password : nil
         password = ""

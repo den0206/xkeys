@@ -91,7 +91,6 @@ struct CICopyView: View {
         }.font(.system(size: 13)).frame(width: 560, height: 520)
             .background(XkeysStyle.canvas).foregroundStyle(XkeysStyle.text).tint(XkeysStyle.accent)
             .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { now = $0 }
-            .onReceive(NotificationCenter.default.publisher(for: NSApplication.didResignActiveNotification)) { _ in if !access.busy { access.lock(); dismiss() } }
             .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.sessionDidResignActiveNotification)) { _ in access.lock(); dismiss() }
             .onDisappear { access.lock() }
             .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.willSleepNotification)) { _ in access.lock(); dismiss() }
