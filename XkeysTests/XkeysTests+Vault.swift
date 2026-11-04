@@ -956,6 +956,22 @@ extension XkeysTests {
         XCTAssertFalse(includes())
     }
 
+    @MainActor
+    func testAttentionScopeIncludesProfileWhoseCertificatesExpired() throws {
+        let (_, app, _, _) = try makeVault()
+        let team = try XCTUnwrap(app.team)
+        let now = Date.now
+        let certificate = StoredCredential(file: CredentialFile(data: Data([1]), name: "old.cer"),
+            parsed: ParsedCredential(fingerprint: "abc", name: "old", kind: "証明書", teamID: nil, bundleID: nil, expiresAt: now.addingTimeInterval(-60)),
+            app: nil, team: team, savePassword: false)
+        let profile = StoredCredential(file: CredentialFile(data: Data([2]), name: "app.mobileprovision"),
+            parsed: ParsedCredential(name: "app", kind: "プロファイル", teamID: nil, bundleID: app.bundleID, expiresAt: now.addingTimeInterval(86400 * 90), signingCertificateDigests: ["abc"]),
+            app: app, team: team, savePassword: false)
+        let records = [certificate, profile]
+        XCTAssertTrue(CredentialSearch.includes(profile, scope: .attention, app: nil, query: "", type: .all, at: now, in: records))
+        XCTAssertFalse(CredentialSearch.includes(profile, scope: .attention, app: nil, query: "", type: .all, at: now))
+    }
+
     func testEncryptedBlobStoreRejectsWrongKeyAADAndTampering() throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent("XkeysTests/" + UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: directory) }

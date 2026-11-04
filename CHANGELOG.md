@@ -6,6 +6,14 @@ The format follows Keep a Changelog conventions and releases use semantic versio
 
 ## [Unreleased]
 
+### Fixed
+
+- "Add File" in the renewal guide on Needs Attention no longer opens an empty sheet. Pages without their own team now add files to the team shown in the sidebar.
+
+- Deleting an app now opens the first page of the same team. A restore that removes the page on screen does the same.
+
+- Needs Attention now also counts and lists profiles whose signing certificates have expired, and the team row warns about certificates that expire within 30 days.
+
 ## [0.2.1] — 2026-11-02
 
 ### Added

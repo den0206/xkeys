@@ -8013,6 +8013,28 @@
           }
         }
       }
+    },
+    "証明書 %lld件の期限が近い" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld certificate expiring soon"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld certificates expiring soon"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "version" : "1.0"
