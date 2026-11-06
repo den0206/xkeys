@@ -12,6 +12,7 @@ struct BackupView: View {
     @Query private var checkpoints: [BackupCheckpoint]
     @Environment(\.dismiss) private var dismiss
     @State private var restoring = false
+    @State private var opened: OpenedBackup?
     @State private var selectedOnly = false
     @State private var selectedApps: Set<UUID> = []
     @State private var protected = true
@@ -62,8 +63,17 @@ struct BackupView: View {
 
     var body: some View {
         if restoring {
-            RestoreView(container: container, onCreate: { restoring = false })
-        } else { creation }
+            RestoreView(container: container, opened: opened, onCreate: { restoring = false; opened = nil })
+                .onOpenURL(perform: open)
+        } else { creation.onOpenURL(perform: open) }
+    }
+
+    private func open(_ url: URL) {
+        // The safety backup sheet inside a restore must not turn into another restore.
+        // A backup being written keeps going; switching tabs would cancel it without showing why.
+        guard onSafetyBackup == nil, !working else { return }
+        restoring = true
+        opened = OpenedBackup(url: url)
     }
 
     private var creation: some View {

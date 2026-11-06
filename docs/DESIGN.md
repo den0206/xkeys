@@ -130,7 +130,7 @@ Developer Portalの `services-account/v1/certificates` と `profiles` を使用�
 | 項目 | 値 |
 | --- | --- |
 | 拡張子・初期ファイル名 | `.xkeysbackup` / `Xkeys_yyyyMMdd_HHmmss.xkeysbackup` |
-| 内容種別 | `public.data`。独自UTType登録・ファイルを開く操作からの復元は未対応 |
+| 内容種別 | `com.yuuki.xkeys.backup`（`public.data` に準拠）をアプリが宣言し、所有者として開く |
 | 先頭 | ASCII `XKEYS` とNUL3つの8バイト、続いてbig-endian UInt32のJSONヘッダ長 |
 | ヘッダ | 最大4,096バイト。version 1、protection、payloadLength、保護方式ごとの情報 |
 | 保護あり | PBKDF2-HMAC-SHA256、600,000回、ランダムsalt 16バイト、導出鍵32バイト |
@@ -144,6 +144,8 @@ Developer Portalの `services-account/v1/certificates` と `profiles` を使用�
 ヘッダ・内容とも配布前に確定したversion 1だけを読み込む。形式を変える場合はversionを上げ、version 1の読み込みを残す。未知の方式・バージョン・過剰なKDF処理量・不正な所属・参照・ハッシュ、`Date.distantPast`〜`Date.distantFuture` の範囲外の日付は拒否する。復号失敗を保護なしとして読み直さない。
 
 ### 復元と変更記録
+
+Finderで `.xkeysbackup` を開くと、メイン画面とは別の「バックアップから戻す」ウインドウでそのファイルを読み込む。メイン画面で開いているシートには影響しない。読み込み後の手順と検証はファイル選択からの復元と同じ。復元の処理中、安全のためのバックアップやApple Developerへのログインの画面を開いている間、バックアップの作成中に別のファイルを開いても、処理中の操作は置き換えない。
 
 差分を新規・重複・競合に分け、競合ごとに現在／バックアップを選択する。Team ID・Team内Bundle ID・共有範囲とハッシュが一致する項目は既存UUIDへ関連を写し替える。同じUUIDが異なる実体を指す場合は全体を拒否する。差分確認後に現在の内容が変われば、再確認を求める。
 

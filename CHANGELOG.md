@@ -6,6 +6,10 @@ The format follows Keep a Changelog conventions and releases use semantic versio
 
 ## [Unreleased]
 
+### Added
+
+- Double-clicking a `.xkeysbackup` file in Finder opens it in a Restore from Backup window.
+
 ## [0.2.2] — 2026-11-04
 
 ### Fixed

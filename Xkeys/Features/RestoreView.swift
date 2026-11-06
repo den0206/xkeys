@@ -3,8 +3,15 @@ import SwiftData
 import SwiftUI
 import UniformTypeIdentifiers
 
+/// A file opened from Finder; the id makes opening the same file again a new request.
+struct OpenedBackup: Equatable {
+    let id = UUID()
+    let url: URL
+}
+
 struct RestoreView: View {
     let container: ModelContainer
+    var opened: OpenedBackup? = nil
     let onCreate: () -> Void
     @Environment(\.dismiss) private var dismiss
     @State private var file: CredentialFile?
@@ -166,6 +173,12 @@ struct RestoreView: View {
         }
         .sheet(isPresented: $makingSafetyBackup) { BackupView(container: container, onSafetyBackup: { safetyBackup = $0 }) }
         .onDisappear { clear() }
+        .onChange(of: opened, initial: true) { _, opened in
+            // A restore in progress or an open sheet keeps going; the opened file is not swapped in under it.
+            guard let opened, !working, !makingSafetyBackup, !verifyingTeams else { return }
+            result = nil
+            load(opened.url)
+        }
         .onChange(of: password) { _, _ in lastActivity = .now }
         .onChange(of: choices) { _, _ in lastActivity = .now }
         .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { _ in
@@ -220,6 +233,10 @@ struct RestoreView: View {
         panel.canChooseDirectories = false
         let response = panel.runModal()
         guard response == .OK, let url = panel.url else { return }
+        load(url)
+    }
+
+    private func load(_ url: URL) {
         clear()
         working = true
         let generation = access.generation

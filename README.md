@@ -98,6 +98,7 @@ The release workflow signs the app with Developer ID and notarizes the DMG. Xkey
 - Create CI secret files in `.env` format
 - Restore deleted items for 30 days
 - Create password-protected backups and restore with conflict review
+- Open a backup file from Finder to start a restore
 - Japanese and English UI, following the system language
 
 To get started, sign in to Apple Developer, choose a team, add your apps, and import files. Keys and certificates are shared within a team; provisioning profiles belong to individual app targets.
