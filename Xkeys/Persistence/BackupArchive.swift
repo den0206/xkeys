@@ -121,6 +121,10 @@ struct BackupSnapshot: Codable, Sendable, Equatable {
               Set(teams.map(\.id)).count == teams.count, Set(teams.map(\.teamID)).count == teams.count,
               Set(apps.map(\.id)).count == apps.count, Set(credentials.map(\.id)).count == credentials.count,
               Set(credentials.map(\.registrationKey)).count == credentials.count else { throw BackupError.invalid }
+        // JSON dates decode from any Double; out-of-range values later trap in Int conversions.
+        let dates = [createdAt] + apps.flatMap { [$0.createdAt, $0.deletedAt] }.compactMap { $0 }
+            + credentials.flatMap { [$0.createdAt, $0.deletedAt, $0.expiresAt] }.compactMap { $0 }
+        guard dates.allSatisfy((Date.distantPast...Date.distantFuture).contains) else { throw BackupError.invalid }
         let teamIDs = Set(teams.map(\.id))
         let teamValues = Dictionary(uniqueKeysWithValues: teams.map { ($0.id, $0) })
         let appValues = Dictionary(uniqueKeysWithValues: apps.map { ($0.id, $0) })

@@ -585,7 +585,7 @@ struct TrashView: View {
             .onDisappear { access.lock() }
     }
     private func trashRow(_ name: String, detail: String, deletedAt: Date, disabled: Bool = false, purge: PurgeTarget, action: @escaping () -> Void) -> some View {
-        let remaining = max(0, Int(ceil((deletedAt.addingTimeInterval(30 * 86400).timeIntervalSinceNow) / 86400)))
+        let remaining = Int(min(30, max(0, ceil((deletedAt.addingTimeInterval(30 * 86400).timeIntervalSinceNow) / 86400))))
         return HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(name).fontWeight(.semibold).lineLimit(1)

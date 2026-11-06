@@ -975,6 +975,22 @@ extension XkeysTests {
         XCTAssertThrowsError(try badKey.validate())
     }
 
+    @MainActor
+    func testBackupRejectsOutOfRangeDates() throws {
+        let (vault, _, _, _) = try makeVault()
+        defer { try? FileManager.default.removeItem(at: vault.blobs.directory) }
+        let snapshot = try BackupSnapshot.capture(vault: vault, key: SymmetricKey(size: .bits256))
+        XCTAssertNoThrow(try snapshot.validate())
+        for value in [1e30, -1e30] {
+            let farDeleted = try editing(snapshot) { json in
+                var apps = json["apps"] as! [[String: Any]]
+                apps[0]["deletedAt"] = value
+                json["apps"] = apps
+            }
+            XCTAssertThrowsError(try farDeleted.validate())
+        }
+    }
+
     func testBackupFileReaderUsesBoundedSizeWithoutWeakeningCredentialLimit() throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent("XkeysTests/" + UUID().uuidString)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)

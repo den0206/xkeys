@@ -10,6 +10,8 @@ The format follows Keep a Changelog conventions and releases use semantic versio
 
 ### Fixed
 
+- Restore now rejects backups with out-of-range dates. Before, such a backup could make the app crash every time Recently Deleted opened.
+
 - "Add File" in the renewal guide on Needs Attention no longer opens an empty sheet. Pages without their own team now add files to the team shown in the sidebar.
 
 - Deleting an app now opens the first page of the same team. A restore that removes the page on screen does the same.

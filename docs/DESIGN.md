@@ -141,7 +141,7 @@ Developer Portalの `services-account/v1/certificates` と `profiles` を使用�
 | 上限 | 元ファイル各16MiB・合計32MiB、payload 64MiB、ファイル全体64MiB+8,192バイト |
 | 件数 | Team 1,000件、App・資格情報は各10,000件 |
 
-ヘッダ・内容とも配布前に確定したversion 1だけを読み込む。形式を変える場合はversionを上げ、version 1の読み込みを残す。未知の方式・バージョン・過剰なKDF処理量・不正な所属・参照・ハッシュは拒否する。復号失敗を保護なしとして読み直さない。
+ヘッダ・内容とも配布前に確定したversion 1だけを読み込む。形式を変える場合はversionを上げ、version 1の読み込みを残す。未知の方式・バージョン・過剰なKDF処理量・不正な所属・参照・ハッシュ、`Date.distantPast`〜`Date.distantFuture` の範囲外の日付は拒否する。復号失敗を保護なしとして読み直さない。
 
 ### 復元と変更記録
 
