@@ -29,6 +29,16 @@ struct XkeysApp: App {
         }
         .windowStyle(.hiddenTitleBar)
         .defaultSize(width: 1232, height: 752)
+        // Opened .xkeysbackup files go to the restore window, never to a second main window.
+        .handlesExternalEvents(matching: [])
+
+        Window("バックアップから戻す", id: "restore") {
+            if case .success(let container) = container {
+                BackupView(container: container, restoring: true).modelContainer(container).preferredColorScheme(.light)
+            }
+        }
+        .windowResizability(.contentSize)
+        .handlesExternalEvents(matching: ["xkeysbackup"])
 
         Settings {
             if case .success(let container) = container { AppSettingsView(container: container).modelContainer(container).preferredColorScheme(.light) }
