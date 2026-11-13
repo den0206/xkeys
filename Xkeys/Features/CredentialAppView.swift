@@ -155,8 +155,8 @@ struct CredentialAppView: View {
     private var credentialList: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                header.entrance(delay: 0, from: .zero)
-                attentionBanner.entrance(delay: 0.05)
+                header
+                attentionBanner
                 if selectingForDeletion { deletionBar }
                 if let app, showsTargets {
                     targetTree(app, children: app.parentAppID == nil ? app.targets.filter { $0.id != app.id } : [])
@@ -169,7 +169,7 @@ struct CredentialAppView: View {
                                            attention: scoped.filter { CredentialGroup($0) == group && $0.needsAttention(in: records, at: clock) }.count,
                                            term: group.guideTerm) {
                             columnHeader(group)
-                            ForEach(Array(items.enumerated()), id: \.element.id) { index, record in row(record).entrance(delay: Entrance.delay(index + 1)) }
+                            ForEach(items) { record in row(record) }
                         }
                     }
                 }
@@ -486,10 +486,10 @@ struct CredentialAppView: View {
             targetSection(root, members: [root] + children)
             if !children.isEmpty && !collapsedTargets.contains(root.id) {
                 VStack(alignment: .leading, spacing: 18) {
-                    ForEach(Array(children.enumerated()), id: \.element.id) { index, child in
+                    ForEach(children) { child in
                         targetSection(child, members: [child]).overlay(alignment: .topLeading) {
                             Rectangle().fill(XkeysStyle.border).frame(width: 14, height: 2).offset(x: -22, y: 22)
-                        }.entrance(delay: 0.1 * Double(index + 1), from: CGSize(width: -12, height: 0))
+                        }
                     }
                 }.padding(.leading, 22)
                     .overlay(alignment: .leading) { Rectangle().fill(XkeysStyle.border).frame(width: 2) }
@@ -543,7 +543,7 @@ struct CredentialAppView: View {
                 // One container, so closing shrinks the list instead of sliding each row out like a deletion.
                 VStack(alignment: .leading, spacing: 8) {
                     columnHeader(.profile)
-                    ForEach(Array(profiles.enumerated()), id: \.element.id) { index, record in row(record).entrance(delay: Entrance.delay(index + 1)) }
+                    ForEach(profiles) { record in row(record) }
                 }
             }
         }

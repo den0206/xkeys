@@ -10,6 +10,10 @@ The format follows Keep a Changelog conventions and releases use semantic versio
 
 - Double-clicking a `.xkeysbackup` file in Finder opens it in a Restore from Backup window.
 
+### Changed
+
+- App and team pages show their lists at once instead of fading rows in one by one.
+
 ## [0.2.2] — 2026-11-04
 
 ### Fixed
