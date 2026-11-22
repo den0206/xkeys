@@ -455,8 +455,7 @@ extension XkeysTests {
                                   password: nil, confirmUnknownTeam: true, key: key,
                                   p8: P8Metadata(purposes: [.apns], keyID: "DUMMYKEY01", issuerID: nil))
         let snapshot = try BackupSnapshot.capture(vault: source, key: key)
-        let container = try ModelContainer(for: DeveloperTeam.self, ManagedApp.self, StoredCredential.self, BackupChange.self, BackupCheckpoint.self,
-                                           configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let container = try XkeysSchema.container(inMemory: true)
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent("XkeysTests/" + UUID().uuidString)
         defer {
             try? FileManager.default.removeItem(at: source.blobs.directory)
@@ -499,8 +498,10 @@ extension XkeysTests {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("XkeysTests/" + UUID().uuidString + ".xkeysbackup")
         defer { try? FileManager.default.removeItem(at: url) }
         let archive = try BackupArchive.encode(current, password: nil)
-        XCTAssertThrowsError(try SafetyBackup.export(Data([0]), password: nil, snapshot: current, to: url))
-        let proof = try SafetyBackup.export(archive, password: nil, snapshot: current, to: url)
+        XCTAssertThrowsError(try SafetyBackup.verify(Data([0]), password: nil, snapshot: current))
+        // An archive of other data cannot vouch for the current snapshot.
+        XCTAssertThrowsError(try SafetyBackup.verify(BackupArchive.encode(empty, password: nil), password: nil, snapshot: current))
+        let proof = try SafetyBackup.export(SafetyBackup.verify(archive, password: nil, snapshot: current), to: url)
         XCTAssertTrue(FileManager.default.fileExists(atPath: url.path))
         let approvalPlan2 = try await restoreAuthorization(for: plan)
         XCTAssertThrowsError(try restore.merge(plan, choices: [:], authorization: approvalPlan2, key: key, beforeCommit: { throw ValidationError.invalidFile }, safetyBackup: proof))
@@ -515,8 +516,7 @@ extension XkeysTests {
 
     @MainActor
     func testEmptyCatalogDoesNotShowHistoricalChangesAsPendingBackup() throws {
-        let container = try ModelContainer(for: DeveloperTeam.self, ManagedApp.self, StoredCredential.self, BackupChange.self, BackupCheckpoint.self,
-                                           configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let container = try XkeysSchema.container(inMemory: true)
         let context = ModelContext(container)
         try BackupHistory.bootstrap(in: context)
         context.insert(BackupChange())
@@ -565,8 +565,7 @@ extension XkeysTests {
             context.insert(checkpoint)
             try context.save()
         }
-        let container = try ModelContainer(for: DeveloperTeam.self, ManagedApp.self, StoredCredential.self,
-                                           BackupChange.self, BackupCheckpoint.self, configurations: configuration)
+        let container = try ModelContainer(for: Schema(XkeysSchema.models), configurations: configuration)
         let context = ModelContext(container)
         XCTAssertEqual(try context.fetch(FetchDescriptor<ManagedApp>()).first?.name, "Current app")
         XCTAssertEqual(try context.fetch(FetchDescriptor<BackupChange>()).map(\.id), [markerID])
@@ -578,8 +577,7 @@ extension XkeysTests {
 
     @MainActor
     func testHistoryTracksOnlyCommittedProductChangesAndNotIndividualExports() async throws {
-        let container = try ModelContainer(for: DeveloperTeam.self, ManagedApp.self, StoredCredential.self, BackupChange.self, BackupCheckpoint.self,
-                                           configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let container = try XkeysSchema.container(inMemory: true)
         let context = ModelContext(container)
         try BackupHistory.bootstrap(in: context)
         XCTAssertFalse(try backupHistory(context).needsBackup)
@@ -719,7 +717,7 @@ extension XkeysTests {
             try context.save()
         }
         try autoreleasepool {
-            let upgraded = try ModelContainer(for: DeveloperTeam.self, ManagedApp.self, StoredCredential.self, BackupChange.self, BackupCheckpoint.self, configurations: configuration)
+            let upgraded = try ModelContainer(for: Schema(XkeysSchema.models), configurations: configuration)
             let context = ModelContext(upgraded)
             let team = try XCTUnwrap(context.fetch(FetchDescriptor<DeveloperTeam>()).first)
             _ = try AppCatalog(context: context).addApp(name: "First tracked change", bundleID: "com.example.added", platform: "iOS", teamID: team.id)
@@ -730,7 +728,7 @@ extension XkeysTests {
             try BackupHistory.complete(watermark, in: context, at: savedAt)
             _ = try AppCatalog(context: context).addTeam(name: "After backup", teamID: "TESTTEAM02")
         }
-        let reopened = try ModelContainer(for: DeveloperTeam.self, ManagedApp.self, StoredCredential.self, BackupChange.self, BackupCheckpoint.self, configurations: configuration)
+        let reopened = try ModelContainer(for: Schema(XkeysSchema.models), configurations: configuration)
         let context = ModelContext(reopened)
         try BackupHistory.bootstrap(in: context)
         XCTAssertTrue(try backupHistory(context).needsBackup)
@@ -766,7 +764,7 @@ extension XkeysTests {
         let membershipSession = AppleDeveloperSession(store: MemoryAppleSessionStore(), makeTransport: { membershipTransport }, observeLock: false)
         try await membershipSession.login(account: "fixture@example.invalid", password: "fixture-only")
         try autoreleasepool {
-            let container = try ModelContainer(for: DeveloperTeam.self, ManagedApp.self, StoredCredential.self, BackupChange.self, BackupCheckpoint.self, configurations: configuration)
+            let container = try ModelContainer(for: Schema(XkeysSchema.models), configurations: configuration)
             let vault = CredentialVault(context: ModelContext(container), blobs: blobs)
             let restore = BackupRestore(vault: vault)
             let plan = try restore.prepare(backup, key: localKey)
@@ -783,7 +781,7 @@ extension XkeysTests {
             XCTAssertEqual(repeatPlan.duplicateCount, 10)
             XCTAssertEqual(try restore.merge(repeatPlan, choices: [:], key: localKey).added, 0)
         }
-        let container = try ModelContainer(for: DeveloperTeam.self, ManagedApp.self, StoredCredential.self, BackupChange.self, BackupCheckpoint.self, configurations: configuration)
+        let container = try ModelContainer(for: Schema(XkeysSchema.models), configurations: configuration)
         let vault = CredentialVault(context: ModelContext(container), blobs: blobs)
         let apps = try vault.context.fetch(FetchDescriptor<ManagedApp>())
         let firstApp = try XCTUnwrap(apps.first { $0.id == app.id })
@@ -820,8 +818,7 @@ extension XkeysTests {
         _ = try source.importFile(file, parsed: CredentialParser.parse(file.data, extension: "p8"), app: app,
                                   password: nil, confirmUnknownTeam: true, key: sourceKey,
                                   p8: P8Metadata(purposes: [.apns], keyID: "DUMMYKEY01", issuerID: nil))
-        let container = try ModelContainer(for: DeveloperTeam.self, ManagedApp.self, StoredCredential.self, BackupChange.self, BackupCheckpoint.self,
-                                           configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let container = try XkeysSchema.container(inMemory: true)
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent("XkeysTests/" + UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: directory) }
         let vault = CredentialVault(context: ModelContext(container), blobs: EncryptedBlobStore(directory: directory))

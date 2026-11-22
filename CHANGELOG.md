@@ -13,6 +13,8 @@ The format follows Keep a Changelog conventions and releases use semantic versio
 ### Changed
 
 - App and team pages show their lists at once instead of fading rows in one by one.
+- Deleted items older than 30 days are purged at launch only, no longer during an authentication.
+- Saving a password-protected safety backup no longer derives the backup key a second time on the main thread.
 
 ## [0.2.2] — 2026-11-04
 

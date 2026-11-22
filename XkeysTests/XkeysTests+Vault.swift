@@ -285,6 +285,63 @@ extension XkeysTests {
     }
 
     @MainActor
+    func testGettingTheVaultKeyNeverPurgesExpiredTrash() async throws {
+        let (vault, app, _, _) = try makeVault()
+        let key = SymmetricKey(size: .bits256)
+        let file = CredentialFile(data: try fixture("cer"), name: "sample.cer")
+        let parsed = ParsedCredential(name: "Old trash", kind: "Certificate", teamID: nil, bundleID: nil, expiresAt: nil)
+        _ = try vault.importFile(file, parsed: parsed, app: app, password: nil, confirmUnknownTeam: true, key: key)
+        let record = try XCTUnwrap(vault.records().first)
+        try VaultManagement(vault: vault).trash(record, key: key, at: .now.addingTimeInterval(-31 * 86400))
+        // A read-only operation with the key must leave the expired trash for the launch purge.
+        try await VaultAccess(keyProvider: { _, _ in key }).withKey(reason: "Fixture", allowCreation: false, vault: vault) { key in
+            _ = try vault.read(record, key: key)
+        }
+        XCTAssertEqual(try vault.records().count, 1)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: vault.blobs.file(record.blobID).path))
+    }
+
+    @MainActor
+    func testEveryBlobWriteTurnsAutosaveOffAndRemovesOnlyItsOwnBlobOnFailure() throws {
+        let (vault, app, _, _) = try makeVault()
+        let key = SymmetricKey(size: .bits256)
+        let file = CredentialFile(data: try fixture("cer"), name: "sample.cer")
+        let parsed = ParsedCredential(name: "Note target", kind: "Certificate", teamID: nil, bundleID: nil, expiresAt: nil)
+        _ = try vault.importFile(file, parsed: parsed, app: app, password: nil, confirmUnknownTeam: true, key: key)
+        let record = try XCTUnwrap(vault.records().first)
+        let manager = VaultManagement(vault: vault)
+        let blobsBefore = try FileManager.default.contentsOfDirectory(atPath: vault.blobs.directory.path)
+        vault.context.autosaveEnabled = true
+        XCTAssertThrowsError(try manager.saveNote("discarded", record: record, key: key, beforeCommit: { throw ValidationError.invalidFile }))
+        XCTAssertFalse(vault.context.autosaveEnabled)
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: vault.blobs.directory.path).sorted(), blobsBefore.sorted())
+        XCTAssertNil(try vault.read(record, key: key).note)
+        vault.context.autosaveEnabled = true
+        try manager.saveNote("kept", record: record, key: key)
+        XCTAssertFalse(vault.context.autosaveEnabled)
+        XCTAssertEqual(try vault.read(record, key: key).note, "kept")
+    }
+
+    @MainActor
+    func testDiscardChangesReloadsEveryModelTypeInTheSchema() throws {
+        let container = try XkeysSchema.container(inMemory: true)
+        XCTAssertEqual(Set(container.schema.entities.map(\.name)),
+                       ["DeveloperTeam", "ManagedApp", "StoredCredential", "BackupChange", "BackupCheckpoint"])
+        let context = ModelContext(container)
+        context.autosaveEnabled = false
+        let team = DeveloperTeam(name: "Saved", teamID: "TESTTEAM01")
+        let checkpoint = BackupCheckpoint()
+        context.insert(team); context.insert(checkpoint)
+        try context.save()
+        team.name = "Discarded"
+        checkpoint.lastCompletedAt = .now
+        context.discardChanges()
+        XCTAssertEqual(team.name, "Saved")
+        XCTAssertNil(checkpoint.lastCompletedAt)
+        XCTAssertFalse(context.hasChanges)
+    }
+
+    @MainActor
     func testAutomaticPruneRetainsDeletedParentWithRecentOrUndeletedChild() throws {
         let (vault, app, _, _) = try makeVault()
         let key = SymmetricKey(size: .bits256)
@@ -695,8 +752,7 @@ extension XkeysTests {
 
     @MainActor
     func testTeamRegistrationRejectsInvalidAndDuplicateIDs() throws {
-        let container = try ModelContainer(for: DeveloperTeam.self, ManagedApp.self, StoredCredential.self, BackupChange.self, BackupCheckpoint.self,
-                                           configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let container = try XkeysSchema.container(inMemory: true)
         let catalog = AppCatalog(context: ModelContext(container))
         XCTAssertThrowsError(try catalog.addTeam(name: " ", teamID: "TESTTEAM01"))
         for identifier in ["", "SHORT", "testteam01", "TEST_TEAM1", "TESTTEAM010"] {
@@ -712,8 +768,7 @@ extension XkeysTests {
 
     @MainActor
     func testAppUniquenessIsScopedToTeamAndCaseInsensitive() throws {
-        let container = try ModelContainer(for: DeveloperTeam.self, ManagedApp.self, StoredCredential.self, BackupChange.self, BackupCheckpoint.self,
-                                           configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let container = try XkeysSchema.container(inMemory: true)
         let catalog = AppCatalog(context: ModelContext(container))
         let first = try catalog.addTeam(name: "Same name", teamID: "TESTTEAM01")
         let second = try catalog.addTeam(name: "Same name", teamID: "TESTTEAM02")
@@ -739,11 +794,11 @@ extension XkeysTests {
         // SwiftData can retain SQLite handles; remove this test directory after the test host exits.
         try autoreleasepool {
             let configuration = ModelConfiguration(url: directory.appendingPathComponent("catalog.store"))
-            let container = try ModelContainer(for: DeveloperTeam.self, ManagedApp.self, StoredCredential.self, BackupChange.self, BackupCheckpoint.self, configurations: configuration)
+            let container = try ModelContainer(for: Schema(XkeysSchema.models), configurations: configuration)
             let catalog = AppCatalog(context: ModelContext(container))
             let teamID = try catalog.addTeam(name: "Fixture Team", teamID: "TESTTEAM01")
             let appID = try catalog.addApp(name: "Fixture App", bundleID: "com.example.fixture", platform: "macOS", teamID: teamID)
-            let reopened = try ModelContainer(for: DeveloperTeam.self, ManagedApp.self, StoredCredential.self, BackupChange.self, BackupCheckpoint.self, configurations: configuration)
+            let reopened = try ModelContainer(for: Schema(XkeysSchema.models), configurations: configuration)
             let context = ModelContext(reopened)
             let app = try XCTUnwrap(context.fetch(FetchDescriptor<ManagedApp>()).first)
             let team = try XCTUnwrap(context.fetch(FetchDescriptor<DeveloperTeam>()).first)

@@ -31,20 +31,6 @@ struct CISecretEntry: Identifiable {
     var parent: String?
 }
 
-enum CISecretError: LocalizedError {
-    case empty, invalidName(String), reservedName(String), duplicateName(String), unsupportedPassword, unsupportedCustomValue(String)
-    var errorDescription: String? {
-        switch self {
-        case .empty: String(localized: "書き出す項目を1つ以上選んでください。")
-        case .invalidName(let name): String(localized: "変数名「\(name)」は使えません。英字・数字・_ で、先頭は英字か _ にしてください。")
-        case .reservedName(let name): String(localized: "変数名「\(name)」は GITHUB_ で始まるため使えません。")
-        case .duplicateName(let name): String(localized: "変数名「\(name)」が重複しています。")
-        case .unsupportedCustomValue(let name): String(localized: "「\(name)」の値の末尾に \\ または二重引用符があるため、この形式では出力できません。値をコピーしてCIに直接設定してください。")
-        case .unsupportedPassword: String(localized: ".p12 のパスワードに ' または改行が含まれるため、ファイルに書けません。CI に直接設定してください。")
-        }
-    }
-}
-
 @MainActor enum CISecretFile {
     static func entries(for app: ManagedApp, records: [StoredCredential], at now: Date) -> [CISecretEntry] {
         let product = app.product
@@ -113,11 +99,6 @@ enum CISecretError: LocalizedError {
         }
     }
 
-    nonisolated static func validateName(_ name: String) throws {
-        guard name.range(of: "^[A-Za-z_][A-Za-z0-9_]{0,127}$", options: .regularExpression) == name.startIndex..<name.endIndex else { throw CISecretError.invalidName(name) }
-        guard !name.uppercased().hasPrefix("GITHUB_") else { throw CISecretError.reservedName(name) }
-    }
-
     nonisolated static func customValue(_ value: String) -> String {
         let escaped = value.replacingOccurrences(of: "\\", with: "\\\\")
             .replacingOccurrences(of: "\"", with: "\\\"")
@@ -134,7 +115,7 @@ enum CISecretError: LocalizedError {
         var names = Set<String>()
         for entry in included {
             let name = entry.name.trimmingCharacters(in: .whitespaces)
-            try validateName(name)
+            try AppSecret.validateName(name)
             guard names.insert(name.uppercased()).inserted else { throw CISecretError.duplicateName(name) }
         }
     }

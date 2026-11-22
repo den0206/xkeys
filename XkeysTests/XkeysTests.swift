@@ -53,8 +53,7 @@ final class XkeysTests: XCTestCase {
 
     @MainActor
     func makeVault() throws -> (CredentialVault, ManagedApp, ManagedApp, ManagedApp) {
-        let container = try ModelContainer(for: DeveloperTeam.self, ManagedApp.self, StoredCredential.self, BackupChange.self, BackupCheckpoint.self,
-                                           configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let container = try XkeysSchema.container(inMemory: true)
         let context = ModelContext(container)
         context.autosaveEnabled = false
         let team = DeveloperTeam(name: "Fixture Team", teamID: "TESTTEAM01")

@@ -1,6 +1,5 @@
 import CryptoKit
 import Foundation
-import Observation
 import SwiftData
 
 // Raw values are stored in metadata and authenticated data; never rename them.
@@ -293,24 +292,40 @@ struct CredentialVault {
         try validate(file: file, parsed: parsed, app: app, team: explicitTeam, confirmUnknownTeam: confirmUnknownTeam, p8: p8)
         guard let team = explicitTeam ?? app?.team else { throw VaultError.invalidAssociation }
         guard (password?.utf8.count ?? 0) <= 4096 else { throw ValidationError.tooLarge }
-        context.autosaveEnabled = false
         let metadata = try p8?.validated()
-        var writtenID: UUID?
-        do {
-            try BackupHistory.prepare(in: context)
+        var id: UUID?
+        try commitStaged(key: key, beforeCommit: beforeCommit) { stage in
             let record = StoredCredential(file: file, parsed: parsed, app: app, team: team, savePassword: password != nil, p8: metadata)
             let payload = CredentialPayload(original: file.data, password: record.hasSavedPassword ? password : nil)
-            let bytes = try JSONEncoder().encode(payload)
-            try blobs.write(bytes, id: record.blobID, key: key, authenticating: record.authenticatedData())
-            writtenID = record.blobID
+            try stage(record.blobID, JSONEncoder().encode(payload), record.authenticatedData())
             context.insert(record)
-            BackupHistory.record(in: context)
+            id = record.id
+        }
+        guard let id else { throw VaultError.invalidAssociation }
+        return id
+    }
+
+    /// The one write path for encrypted blobs. `body` changes models and calls `stage` for each new blob, under a UUID
+    /// that no blob uses yet; the existing blobs are never overwritten. The database commits once after every blob was
+    /// written and read back. On failure the context is discarded and only the blobs staged here are removed.
+    /// `body` is synchronous on purpose: no suspension can let `recover()` remove a staged blob before the commit.
+    func commitStaged(key: SymmetricKey, recordsChange: Bool = true, beforeCommit: () throws -> Void = {},
+                      _ body: (_ stage: (_ id: UUID, _ bytes: Data, _ aad: Data) throws -> Void) throws -> Void) throws {
+        guard !context.hasChanges else { throw RestoreError.pendingChanges }
+        context.autosaveEnabled = false
+        var staged: [UUID] = []
+        do {
+            try BackupHistory.prepare(in: context)
+            try body { id, bytes, aad in
+                try blobs.write(bytes, id: id, key: key, authenticating: aad)
+                staged.append(id)
+            }
+            if recordsChange { BackupHistory.record(in: context) }
             try beforeCommit()
             try context.save()
-            return record.id
         } catch {
             context.discardChanges()
-            if let writtenID { try? FileManager.default.removeItem(at: blobs.file(writtenID)) }
+            for id in staged { try? FileManager.default.removeItem(at: blobs.file(id)) }
             throw error
         }
     }
@@ -330,72 +345,5 @@ struct CredentialVault {
     func export(_ record: StoredCredential, to url: URL, key: SymmetricKey) throws {
         let payload = try read(record, key: key)
         try CredentialFile(data: payload.original, name: record.originalName).export(to: url)
-    }
-}
-
-@MainActor @Observable
-final class VaultAccess {
-    private(set) var busy = false
-    private(set) var generation = UUID()
-    @ObservationIgnored private let authentication = OwnerAuthentication()
-    @ObservationIgnored private let keyProvider: ((String, Bool) async throws -> SymmetricKey)?
-
-    init(keyProvider: ((String, Bool) async throws -> SymmetricKey)? = nil) { self.keyProvider = keyProvider }
-
-    func lock() {
-        generation = UUID()
-        authentication.cancel()
-    }
-
-    func withKey<T>(reason: String, allowCreation: Bool, vault: CredentialVault? = nil, alwaysAsk: Bool = false, operation: (SymmetricKey) throws -> T) async throws -> T {
-        guard !busy else { throw VaultError.cancelled }
-        busy = true
-        let generation = self.generation
-        defer { busy = false; authentication.cancel() }
-        let key: SymmetricKey
-        if let keyProvider {
-            key = try await keyProvider(reason, allowCreation)
-        } else {
-            try EncryptionKeychain.requireSigning()
-            // Unreadable settings fall back to asking every time.
-            let reuse = !alwaysAsk && (vault.flatMap { try? PreferencesStore.read(in: $0.context).reuseAuthentication } ?? false)
-            let context = try await authentication.authenticate(reason: reason, reuse: reuse)
-            // A rejected approval is not reused, so the next attempt asks again.
-            do { key = try EncryptionKeychain.vault.key(context: context, allowCreation: allowCreation) }
-            catch { OwnerAuthentication.forget(); throw error }
-        }
-        guard self.generation == generation, !Task.isCancelled else { throw VaultError.cancelled }
-        if let vault {
-            let management = VaultManagement(vault: vault)
-            // Housekeeping: a failure here must not block the requested operation; launch and the next authentication retry it.
-            try? management.pruneExpired()
-            // Display-only metadata: a failure here must not block the requested operation.
-            try? await management.backfillSigningCertificates(key: key)
-            guard self.generation == generation, !Task.isCancelled else { throw VaultError.cancelled }
-        }
-        let result = try operation(key)
-        // Records a restore just added are read now, not on the next authentication.
-        if let vault, self.generation == generation { try? await VaultManagement(vault: vault).backfillSigningCertificates(key: key) }
-        return result
-    }
-
-    /// Authenticates and quarantines unreadable data. Every blob moves only when the Keychain confirms the vault key is absent.
-    func quarantineUnreadable(reason: String, vault: CredentialVault) async throws -> Int {
-        guard !busy else { throw VaultError.cancelled }
-        busy = true
-        let generation = self.generation
-        defer { busy = false; authentication.cancel() }
-        var key: SymmetricKey?
-        do {
-            if let keyProvider {
-                key = try await keyProvider(reason, false)
-            } else {
-                try EncryptionKeychain.requireSigning()
-                let context = try await authentication.authenticate(reason: reason)
-                key = try EncryptionKeychain.vault.key(context: context, allowCreation: false)
-            }
-        } catch ValidationError.keyNotFound { key = nil }
-        guard self.generation == generation, !Task.isCancelled else { throw VaultError.cancelled }
-        return try VaultManagement(vault: vault).quarantineUnreadable(key: key)
     }
 }

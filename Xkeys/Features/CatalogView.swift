@@ -3,20 +3,6 @@ import SwiftData
 import SwiftUI
 import UniformTypeIdentifiers
 
-enum CredentialScope: Hashable {
-    case all, attention, trash, app(UUID), team(UUID)
-
-    var title: String {
-        switch self {
-        case .trash: String(localized: "最近削除した項目")
-        case .all: String(localized: "すべての鍵とファイル")
-        case .attention: String(localized: "対応が必要")
-        case .app: "App"
-        case .team: String(localized: "チームの鍵・証明書")
-        }
-    }
-}
-
 @MainActor @Observable
 final class AppNavigation {
     var scope: CredentialScope = .all

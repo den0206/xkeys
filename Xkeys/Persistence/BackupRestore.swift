@@ -204,10 +204,9 @@ struct BackupRestore {
         var apps = Dictionary(uniqueKeysWithValues: try context.fetch(FetchDescriptor<ManagedApp>()).map { ($0.id, $0) })
         var records = Dictionary(uniqueKeysWithValues: try vault.records().map { ($0.id, $0) })
         let oldCredentials = Dictionary(uniqueKeysWithValues: current.credentials.map { ($0.id, $0) })
-        var staged: [UUID] = []
-        context.autosaveEnabled = false
-        do {
-            try BackupHistory.prepare(in: context)
+        // Only a change the user chose is recorded for the backup history.
+        let recordsChange = replacing || plan.addedCount > 0 || plan.conflicts.contains(where: { choices[$0.id] == .backup })
+        try vault.commitStaged(key: key, recordsChange: recordsChange, beforeCommit: beforeCommit) { stage in
             for value in final.teams {
                 if let team = teams[value.id] {
                     team.name = value.name
@@ -250,8 +249,7 @@ struct BackupRestore {
                 guard let app = apps[value.id] else { throw BackupError.invalid }
                 if let note = value.note, !note.isEmpty {
                     let id = UUID()
-                    try vault.blobs.write(Data(note.utf8), id: id, key: key, authenticating: VaultManagement.noteAAD(app))
-                    staged.append(id)
+                    try stage(id, Data(note.utf8), VaultManagement.noteAAD(app))
                     app.noteBlobID = id
                 } else { app.noteBlobID = nil }
             }
@@ -259,8 +257,7 @@ struct BackupRestore {
                 guard let app = apps[value.id] else { throw BackupError.invalid }
                 if let secrets = value.customSecrets, !secrets.isEmpty {
                     let id = UUID()
-                    try vault.blobs.write(JSONEncoder().encode(secrets), id: id, key: key, authenticating: VaultManagement.customSecretsAAD(app))
-                    staged.append(id)
+                    try stage(id, JSONEncoder().encode(secrets), VaultManagement.customSecretsAAD(app))
                     app.customSecretsBlobID = id
                     app.customSecretNames = secrets.map(\.name).joined(separator: "\n")
                     guard try VaultManagement(vault: vault).readCustomSecrets(app, key: key) == secrets else { throw BackupError.invalid }
@@ -287,8 +284,7 @@ struct BackupRestore {
                 let blobID = UUID()
                 record.blobID = blobID
                 let payload = CredentialPayload(original: value.original, password: value.password, note: value.note)
-                try vault.blobs.write(JSONEncoder().encode(payload), id: blobID, key: key, authenticating: record.authenticatedData())
-                staged.append(blobID)
+                try stage(blobID, JSONEncoder().encode(payload), record.authenticatedData())
                 _ = try vault.read(record, key: key)
             }
             if replacing {
@@ -299,16 +295,7 @@ struct BackupRestore {
                 for app in apps.values where !keepApps.contains(app.id) { app.team = nil; context.delete(app) }
                 for team in teams.values where !keepTeams.contains(team.id) { context.delete(team) }
             }
-            if replacing || plan.addedCount > 0 || plan.conflicts.contains(where: { choices[$0.id] == .backup }) {
-                BackupHistory.record(in: context)
-            }
             if !missingTeamIDs.isEmpty { try authorization?.validate(plan) }
-            try beforeCommit()
-            try context.save()
-        } catch {
-            context.discardChanges()
-            for id in staged { try? FileManager.default.removeItem(at: vault.blobs.file(id)) }
-            throw error
         }
         // Old blob versions are retained until commit; ordinary launch recovery collects them.
         let updated = plan.conflicts.filter { choices[$0.id] == .backup }.count

@@ -108,23 +108,34 @@ struct SafetyBackup: Sendable {
     let revision: String
     private init(revision: String) { self.revision = revision }
 
-    static func export(_ archive: Data, password: String?, snapshot: BackupSnapshot, to url: URL) throws -> SafetyBackup {
+    /// An archive that decoded back to the snapshot. Only `verify` makes one, so `export` cannot skip the check.
+    struct Verified: Sendable {
+        let archive: Data
+        let revision: String
+        fileprivate init(archive: Data, revision: String) { self.archive = archive; self.revision = revision }
+    }
+
+    /// Decoding a protected archive derives its key, so callers run this off the main actor.
+    static func verify(_ archive: Data, password: String?, snapshot: BackupSnapshot) throws -> Verified {
         let decoded = try BackupArchive.decode(archive, password: password)
-        guard try decoded.revision() == snapshot.revision() else { throw BackupError.invalid }
-        try CredentialFile(data: archive, name: url.lastPathComponent).export(to: url)
-        return SafetyBackup(revision: try snapshot.revision())
+        let revision = try snapshot.revision()
+        guard try decoded.revision() == revision else { throw BackupError.invalid }
+        return Verified(archive: archive, revision: revision)
+    }
+
+    static func export(_ verified: Verified, to url: URL) throws -> SafetyBackup {
+        try CredentialFile(data: verified.archive, name: url.lastPathComponent).export(to: url)
+        return SafetyBackup(revision: verified.revision)
     }
 }
 
 extension ModelContext {
     /// rollback() leaves models already loaded holding the discarded values, and the next save() would store them.
-    /// Fetching every model type reloads those values from the store.
+    /// Fetching every model type in `XkeysSchema.models` reloads those values from the store.
     func discardChanges() {
         rollback()
-        _ = try? fetch(FetchDescriptor<DeveloperTeam>())
-        _ = try? fetch(FetchDescriptor<ManagedApp>())
-        _ = try? fetch(FetchDescriptor<StoredCredential>())
-        _ = try? fetch(FetchDescriptor<BackupChange>())
-        _ = try? fetch(FetchDescriptor<BackupCheckpoint>())
+        for type in XkeysSchema.models { reload(type) }
     }
+
+    private func reload<T: PersistentModel>(_: T.Type) { _ = try? fetch(FetchDescriptor<T>()) }
 }
