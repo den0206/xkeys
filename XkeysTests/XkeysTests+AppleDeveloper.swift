@@ -166,8 +166,7 @@ extension XkeysTests {
     func testUnregisteredRestoreRequiresMembershipAndReceiptExpiresOrInvalidates() async throws {
         let (source, _, _, _) = try makeVault()
         defer { try? FileManager.default.removeItem(at: source.blobs.directory) }
-        let container = try ModelContainer(for: DeveloperTeam.self, ManagedApp.self, StoredCredential.self, BackupChange.self, BackupCheckpoint.self,
-                                           configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let container = try XkeysSchema.container(inMemory: true)
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent("XkeysTests/" + UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: directory) }
         let target = CredentialVault(context: ModelContext(container), blobs: EncryptedBlobStore(directory: directory))
@@ -249,8 +248,7 @@ extension XkeysTests {
         defer { try? FileManager.default.removeItem(at: source.blobs.directory) }
         let key = SymmetricKey(size: .bits256)
         let incoming = try BackupSnapshot.capture(vault: source, key: key)
-        let container = try ModelContainer(for: DeveloperTeam.self, ManagedApp.self, StoredCredential.self, BackupChange.self, BackupCheckpoint.self,
-                                           configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let container = try XkeysSchema.container(inMemory: true)
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent("XkeysTests/" + UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: directory) }
         let target = CredentialVault(context: ModelContext(container), blobs: EncryptedBlobStore(directory: directory))
@@ -531,8 +529,7 @@ extension XkeysTests {
 
     @MainActor
     func testSidebarOffersTeamSelectionForSavedLoginWithoutTeams() async throws {
-        let container = try ModelContainer(for: DeveloperTeam.self, ManagedApp.self, StoredCredential.self, BackupChange.self, BackupCheckpoint.self,
-                                           configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let container = try XkeysSchema.container(inMemory: true)
         try BackupHistory.bootstrap(in: ModelContext(container))
         let store = MemoryAppleSessionStore()
         let transport = FakeAppleDeveloperTransport()

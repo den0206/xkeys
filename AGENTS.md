@@ -37,7 +37,7 @@ xcodebuild -project Xkeys.xcodeproj -scheme Xkeys \
 
 ## アーキテクチャの要点
 
-- 起動は `Application/XkeysApp.swift`。`XKEYS_TESTING=1` ならメモリ内の `ModelContainer` を使います。SwiftData のモデルを追加したら、ここの型一覧にも追加してください。
+- 起動は `Application/XkeysApp.swift`。`XKEYS_TESTING=1` ならメモリ内の `ModelContainer` を使います。SwiftData のモデルを追加したら、`Models/XkeysSchema.swift` の型一覧に追加してください。コンテナと `discardChanges()` はこの一覧を使います。
 - メタデータ（`DeveloperTeam`・`ManagedApp`・`StoredCredential`）は SwiftData に保存します。元ファイル・メモ・.p12 パスワードは `CredentialPayload` として AES-GCM で暗号化し、`XkeysVault/blobs` に保存します。鍵は端末専用 Keychain（`EncryptionKeychain`）にあります。
 - 暗号化 blob の AAD は `StoredCredential.authenticatedData()`（`XkeysCredential-v1`）と `VaultManagement.noteAAD` で作ります。AAD に含まれる項目（kind、所属、`keyPurpose` など）は自動で書き換えないでください。変えるときは別 UUID の blob に暗号化し直し、読み戻して検証してから参照を切り替えます（`VaultManagement.updatePurposes` を参照）。
 - 取り込みは `CredentialVault`（`validate` → `importFile`）、編集・削除・復元・完全削除は `VaultManagement` が担当します。秘密情報の操作は `OwnerAuthentication` で認証し（設定により承認を5分間引き継ぐ。取り消せない操作は `alwaysAsk` で必ず認証する）、取得した `SymmetricKey` を渡します。
@@ -55,7 +55,7 @@ UI 文言は日本語で書き、`Xkeys/Resources/Localizable.xcstrings` に英�
 
 秘密情報を扱うため、保存領域とメモリは実装のたびに次の点を確認してください。迷ったら既存の `VaultManagement`・`EncryptedBlobStore`・`CredentialFile` に合わせます。
 
-- **書き込みの順序**：既存の blob を上書きしません。新しい UUID の blob に書き、読み戻して検証してから、同じ context で DB の参照を切り替えて保存します。失敗したら `discardChanges()` し、新しく書いた blob だけを削除します。
+- **書き込みの順序**：既存の blob を上書きしません。新しい UUID の blob に書き、読み戻して検証してから、同じ context で DB の参照を切り替えて保存します。失敗したら `discardChanges()` し、新しく書いた blob だけを削除します。この手順は `CredentialVault.commitStaged` にまとめてあるので、blob を書く処理はこれを使います。
 - **削除と移動の順序**：`recover()` は DB が参照しない blob を消します。そのため、blob を消すときは DB を保存した後に消し、blob を移すとき（隔離など）は DB を保存する前に移します。blob を書いてから DB を保存するまでの間に `await` を挟まないでください。
 - **書き出し**：利用者のファイルは `CredentialFile.export`（`O_EXCL`・`O_NOFOLLOW`・権限0600・読み戻し検証）で新規に作り、既存のファイルを上書きしません。平文の一時ファイルは作らず、暗号化と検証はメモリ内で行います。
 - **サイズと件数の上限**：外部から読むデータ（ファイル・HTTP 応答・バックアップ・Keychain・JSON）は、読む前と読んだ後に上限を確認します。読むときは `read(upToCount: 上限 + 1)` のように上限＋1で打ち切ります。1件ごとの上限だけでなく、件数と合計にも上限を設けます。既存の定数（`CredentialParser.maximumBytes`、`BackupArchive.maximumPayloadBytes` など）を使い、新しい経路では上限とメモリのピーク（上限×同時に持つコピーの数）を見積もってから実装します。

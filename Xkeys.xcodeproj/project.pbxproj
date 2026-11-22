@@ -10,6 +10,9 @@
 		0222C866A7070CA9D77B371B /* Services/OwnerAuthentication.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D32500D0DC4CC98B7AC172B /* Services/OwnerAuthentication.swift */; };
 		0B9177794691F3018677DFFA /* Application/XkeysApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100C041E14DE33E0152765FE /* Application/XkeysApp.swift */; };
 		205FC0C6AD696D68E9D5AE01 /* Models/AppCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 735DACB0CD1890235097A8AF /* Models/AppCatalog.swift */; };
+		BD0000000000000000000001 /* Models/XkeysSchema.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD0000000000000000000002 /* Models/XkeysSchema.swift */; };
+		BD0000000000000000000003 /* Models/CredentialRules.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD0000000000000000000004 /* Models/CredentialRules.swift */; };
+		BD0000000000000000000005 /* Services/VaultAccess.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD0000000000000000000006 /* Services/VaultAccess.swift */; };
 		DE1000000000000000000001 /* Features/CredentialSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE2000000000000000000001 /* Features/CredentialSection.swift */; };
 		DE1000000000000000000002 /* Features/DropImportPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE2000000000000000000002 /* Features/DropImportPanel.swift */; };
 		3490D0655DC60B16ADB47404 /* Features/CatalogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22CAFBB626C0E80C30E7D31D /* Features/CatalogView.swift */; };
@@ -70,6 +73,9 @@
 		5B4818F81C7256E686BA2E05 /* Fixtures */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Fixtures; sourceTree = "<group>"; };
 		5D32500D0DC4CC98B7AC172B /* Services/OwnerAuthentication.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/OwnerAuthentication.swift; sourceTree = "<group>"; };
 		735DACB0CD1890235097A8AF /* Models/AppCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models/AppCatalog.swift; sourceTree = "<group>"; };
+		BD0000000000000000000002 /* Models/XkeysSchema.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models/XkeysSchema.swift; sourceTree = "<group>"; };
+		BD0000000000000000000004 /* Models/CredentialRules.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models/CredentialRules.swift; sourceTree = "<group>"; };
+		BD0000000000000000000006 /* Services/VaultAccess.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/VaultAccess.swift; sourceTree = "<group>"; };
 		7E1814744B33849C5EC9325F /* Services/CredentialParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/CredentialParser.swift; sourceTree = "<group>"; };
 		AA1000000000000000000002 /* Resources/DesignAssets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Resources/DesignAssets.xcassets; sourceTree = "<group>"; };
 		AA1000000000000000000004 /* Resources/Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Resources/Localizable.xcstrings; sourceTree = "<group>"; };
@@ -189,6 +195,9 @@
 				DE2000000000000000000002 /* Features/DropImportPanel.swift */,
 				DE2000000000000000000001 /* Features/CredentialSection.swift */,
 				735DACB0CD1890235097A8AF /* Models/AppCatalog.swift */,
+				BD0000000000000000000002 /* Models/XkeysSchema.swift */,
+				BD0000000000000000000004 /* Models/CredentialRules.swift */,
+				BD0000000000000000000006 /* Services/VaultAccess.swift */,
 				100C041E14DE33E0152765FE /* Application/XkeysApp.swift */,
 				7E1814744B33849C5EC9325F /* Services/CredentialParser.swift */,
 				5D32500D0DC4CC98B7AC172B /* Services/OwnerAuthentication.swift */,
@@ -335,6 +344,9 @@
 				DE1000000000000000000002 /* Features/DropImportPanel.swift in Sources */,
 				DE1000000000000000000001 /* Features/CredentialSection.swift in Sources */,
 				205FC0C6AD696D68E9D5AE01 /* Models/AppCatalog.swift in Sources */,
+				BD0000000000000000000001 /* Models/XkeysSchema.swift in Sources */,
+				BD0000000000000000000003 /* Models/CredentialRules.swift in Sources */,
+				BD0000000000000000000005 /* Services/VaultAccess.swift in Sources */,
 				0B9177794691F3018677DFFA /* Application/XkeysApp.swift in Sources */,
 				8AAD9CB9833BC16230BD9766 /* Services/CredentialParser.swift in Sources */,
 				0222C866A7070CA9D77B371B /* Services/OwnerAuthentication.swift in Sources */,

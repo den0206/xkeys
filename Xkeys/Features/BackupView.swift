@@ -230,14 +230,14 @@ struct BackupView: View {
                     return (snapshot, try BackupHistory.watermark(in: vault.context, capturedAt: snapshot.createdAt))
                 }
                 // No plaintext temporary file: derivation and verification use memory only.
-                let archive = try await Task.detached(priority: .userInitiated) {
-                    let bytes = try BackupArchive.encode(snapshot, password: secret)
-                    _ = try BackupArchive.decode(bytes, password: secret)
-                    return bytes
+                // The one decode also proves the archive matches the snapshot, so the main actor never derives a key.
+                let verified = try await Task.detached(priority: .userInitiated) {
+                    try SafetyBackup.verify(BackupArchive.encode(snapshot, password: secret), password: secret, snapshot: snapshot)
                 }.value
+                let archive = verified.archive
                 guard !Task.isCancelled, access.generation == generation else { throw VaultError.cancelled }
                 if let onSafetyBackup {
-                    let proof = try SafetyBackup.export(archive, password: secret, snapshot: snapshot, to: destination)
+                    let proof = try SafetyBackup.export(verified, to: destination)
                     onSafetyBackup(proof)
                     dismiss()
                 } else if selectedOnly {

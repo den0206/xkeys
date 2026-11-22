@@ -11,11 +11,31 @@ struct AppSecret: Codable, Sendable, Equatable {
         var names = Set<String>()
         var bytes = 0
         for secret in secrets {
-            try CISecretFile.validateName(secret.name)
+            try validateName(secret.name)
             guard names.insert(secret.name.uppercased()).inserted else { throw CISecretError.duplicateName(secret.name) }
             bytes += secret.name.utf8.count + secret.value.utf8.count
             guard secret.value.utf8.count <= 65536, bytes <= 262144 else { throw ValidationError.tooLarge }
             guard !secret.value.contains("\0") else { throw ValidationError.invalidFile }
+        }
+    }
+
+    /// GitHub treats secret names case-insensitively and reserves the GITHUB_ prefix. The CI file uses the same rule.
+    static func validateName(_ name: String) throws {
+        guard name.range(of: "^[A-Za-z_][A-Za-z0-9_]{0,127}$", options: .regularExpression) == name.startIndex..<name.endIndex else { throw CISecretError.invalidName(name) }
+        guard !name.uppercased().hasPrefix("GITHUB_") else { throw CISecretError.reservedName(name) }
+    }
+}
+
+enum CISecretError: LocalizedError {
+    case empty, invalidName(String), reservedName(String), duplicateName(String), unsupportedPassword, unsupportedCustomValue(String)
+    var errorDescription: String? {
+        switch self {
+        case .empty: String(localized: "書き出す項目を1つ以上選んでください。")
+        case .invalidName(let name): String(localized: "変数名「\(name)」は使えません。英字・数字・_ で、先頭は英字か _ にしてください。")
+        case .reservedName(let name): String(localized: "変数名「\(name)」は GITHUB_ で始まるため使えません。")
+        case .duplicateName(let name): String(localized: "変数名「\(name)」が重複しています。")
+        case .unsupportedCustomValue(let name): String(localized: "「\(name)」の値の末尾に \\ または二重引用符があるため、この形式では出力できません。値をコピーしてCIに直接設定してください。")
+        case .unsupportedPassword: String(localized: ".p12 のパスワードに ' または改行が含まれるため、ファイルに書けません。CI に直接設定してください。")
         }
     }
 }
@@ -48,28 +68,17 @@ struct VaultManagement {
         guard !context.hasChanges else { throw RestoreError.pendingChanges }
         let secrets = secrets.map { AppSecret(name: $0.name.trimmingCharacters(in: .whitespaces), value: $0.value) }
         try AppSecret.validate(secrets)
-        context.autosaveEnabled = false
-        var staged: UUID?
-        do {
-            try BackupHistory.prepare(in: context)
-            if secrets.isEmpty {
+        try vault.commitStaged(key: key, beforeCommit: beforeCommit) { stage in
+            guard !secrets.isEmpty else {
                 app.customSecretsBlobID = nil
                 app.customSecretNames = nil
-            } else {
-                let id = UUID()
-                try vault.blobs.write(JSONEncoder().encode(secrets), id: id, key: key, authenticating: Self.customSecretsAAD(app))
-                staged = id
-                app.customSecretsBlobID = id
-                app.customSecretNames = secrets.map(\.name).joined(separator: "\n")
-                guard try readCustomSecrets(app, key: key) == secrets else { throw ValidationError.invalidFile }
+                return
             }
-            BackupHistory.record(in: context)
-            try beforeCommit()
-            try context.save()
-        } catch {
-            context.discardChanges()
-            if let staged { try? FileManager.default.removeItem(at: vault.blobs.file(staged)) }
-            throw error
+            let id = UUID()
+            try stage(id, JSONEncoder().encode(secrets), Self.customSecretsAAD(app))
+            app.customSecretsBlobID = id
+            app.customSecretNames = secrets.map(\.name).joined(separator: "\n")
+            guard try readCustomSecrets(app, key: key) == secrets else { throw ValidationError.invalidFile }
         }
     }
 
@@ -88,27 +97,12 @@ struct VaultManagement {
     func saveNote(_ note: String, app: ManagedApp, key: SymmetricKey, beforeCommit: () throws -> Void = {}) throws {
         guard app.modelContext === context, app.deletedAt == nil else { throw VaultError.invalidAssociation }
         guard note.utf8.count <= 65536 else { throw ValidationError.tooLarge }
-        guard !context.hasChanges else { throw RestoreError.pendingChanges }
-        context.autosaveEnabled = false
-        let id = UUID()
-        var staged = false
-        do {
-            try BackupHistory.prepare(in: context)
+        try vault.commitStaged(key: key, beforeCommit: beforeCommit) { stage in
             // An empty note drops the reference, as restore does; the old blob is collected by recover().
-            if note.isEmpty {
-                app.noteBlobID = nil
-            } else {
-                try vault.blobs.write(Data(note.utf8), id: id, key: key, authenticating: Self.noteAAD(app))
-                staged = true
-                app.noteBlobID = id
-            }
-            BackupHistory.record(in: context)
-            try beforeCommit()
-            try context.save()
-        } catch {
-            context.discardChanges()
-            if staged { try? FileManager.default.removeItem(at: vault.blobs.file(id)) }
-            throw error
+            guard !note.isEmpty else { app.noteBlobID = nil; return }
+            let id = UUID()
+            try stage(id, Data(note.utf8), Self.noteAAD(app))
+            app.noteBlobID = id
         }
     }
 
@@ -118,21 +112,11 @@ struct VaultManagement {
         guard !context.hasChanges else { throw RestoreError.pendingChanges }
         var payload = try vault.read(record, key: key)
         payload.note = note
-        let id = UUID()
-        var staged = false
-        do {
-            try BackupHistory.prepare(in: context)
+        try vault.commitStaged(key: key, beforeCommit: beforeCommit) { stage in
+            let id = UUID()
             record.blobID = id
-            try vault.blobs.write(JSONEncoder().encode(payload), id: id, key: key, authenticating: record.authenticatedData())
-            staged = true
+            try stage(id, JSONEncoder().encode(payload), record.authenticatedData())
             _ = try vault.read(record, key: key)
-            BackupHistory.record(in: context)
-            try beforeCommit()
-            try context.save()
-        } catch {
-            context.discardChanges()
-            if staged { try? FileManager.default.removeItem(at: vault.blobs.file(id)) }
-            throw error
         }
     }
 
@@ -145,26 +129,15 @@ struct VaultManagement {
         guard !context.hasChanges else { throw RestoreError.pendingChanges }
         let payload = try vault.read(record, key: key)
         guard value.storedPurpose != record.keyPurpose || value.issuerID != record.issuerID else { return }
-        context.autosaveEnabled = false
-        let id = UUID()
-        var staged = false
-        do {
-            try BackupHistory.prepare(in: context)
+        try vault.commitStaged(key: key, beforeCommit: beforeCommit) { stage in
+            let id = UUID()
             record.keyPurpose = value.storedPurpose
             record.issuerID = value.issuerID
             record.name = "\(value.title)（\(keyID)）"
             record.kind = value.title
             record.blobID = id
-            try vault.blobs.write(JSONEncoder().encode(payload), id: id, key: key, authenticating: record.authenticatedData())
-            staged = true
+            try stage(id, JSONEncoder().encode(payload), record.authenticatedData())
             _ = try vault.read(record, key: key)
-            BackupHistory.record(in: context)
-            try beforeCommit()
-            try context.save()
-        } catch {
-            context.discardChanges()
-            if staged { try? FileManager.default.removeItem(at: vault.blobs.file(id)) }
-            throw error
         }
     }
 
